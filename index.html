@@ -6,8 +6,7 @@
 <title>ScoreDesk – QA Platform</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js" 
-        onerror="alert('Supabase SDK failed to load. Please check your internet connection or use a different CDN.')"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap');
 :root{
@@ -398,6 +397,7 @@ tr:hover td{background:rgba(79,140,255,.03);}
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;">
         <div class="notes-lbl" style="margin-bottom:10px;">New Account</div>
         <input id="newEmail"    class="acct-input" placeholder="Email address" type="email">
+        <input id="newAgentName" class="acct-input" placeholder="Agent Name (as appears in Excel)" type="text">
         <input id="newPassword" class="acct-input" placeholder="Password (min 6 chars)" type="password">
         <button class="save-btn" style="margin-top:0;width:100%;" id="createAcctBtnEl">Create Account</button>
         <div id="accountMsg" style="font-family:monospace;font-size:11px;display:none;margin-top:8px;"></div>
@@ -409,9 +409,9 @@ tr:hover td{background:rgba(79,140,255,.03);}
 <div class="toast" id="toast"></div>
 
 <script>
-// Supabase configuration
-var SUPABASE_URL = 'https://zzkhxlgolgnxepcvgrza.supabase.co';
-var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp6a2h4bGdvbGdueGVwY3ZncnphIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMTU5ODksImV4cCI6MjA4OTU5MTk4OX0.VK1MsgvZpXw5aQOgt1WKR-BM_5jCUBb1a8PRCBGSgyM';
+// Supabase configuration (REPLACE WITH YOUR OWN)
+var SUPABASE_URL = 'https://uygnkczbbctypleijmls.supabase.co';
+var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5Z25rY3piYmN0eXBsZWlqbWxzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5OTgxNTAsImV4cCI6MjA4OTU3NDE1MH0.CeXH9krVW8YMpkhn6Pw1ThlHKx6r_4_RgybhKBor55k';
 
 var sb = null;
 var agentMap = {};
@@ -419,6 +419,7 @@ var currentFilter = 'all';
 var currentCallKey = null;
 var currentUser = null;
 var isAdmin = false;
+var currentAgentName = null; // For agents: their own agent name
 var weeklyChartInst = null, stackedChartInst = null, agentChartInst = null;
 var CHART_CFG = { gridColor:'rgba(255,255,255,0.06)', tickFont:{ family:'DM Mono, monospace', size:11 } };
 
@@ -432,7 +433,6 @@ window.addEventListener('load', function() {
       auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: false }
     });
     console.log('Supabase client ready');
-    // After SDK is ready, restore session
     restoreSession();
   } catch (e) {
     console.error('Supabase init failed:', e);
@@ -441,7 +441,6 @@ window.addEventListener('load', function() {
   }
 });
 
-// Event listeners after DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
   // Login UI
   var loginPassEl = document.getElementById('loginPass');
@@ -468,7 +467,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
-  // Upload
+  // Upload (only for admins, but we'll hide UI if not admin)
   var chooseBtnEl = document.getElementById('chooseBtnEl');
   if (chooseBtnEl) chooseBtnEl.addEventListener('click', function(e){ e.stopPropagation(); document.getElementById('fileInputBig').click(); });
 
@@ -532,7 +531,6 @@ document.addEventListener('DOMContentLoaded', function() {
   } catch(e) {}
 });
 
-// Helper functions
 function togglePass() {
   var input = document.getElementById('loginPass');
   var icon  = document.getElementById('passToggle');
@@ -581,8 +579,7 @@ async function doLogin() {
 
     if (result.error) {
       var msg = result.error.message || 'Login failed';
-      var code = result.error.status || '';
-      if (code === 400 || /invalid|credentials|password|not found/i.test(msg)) {
+      if (/invalid|credentials|password|not found/i.test(msg)) {
         msg = 'Incorrect email or password. Please try again.';
       } else if (/confirm/i.test(msg)) {
         msg = 'Email not confirmed. Please check your inbox or contact admin.';
@@ -635,6 +632,12 @@ function hideLoginError() {
 }
 
 async function onLogin() {
+  // Determine role: admin if email is admin@scoredesk.com OR user_metadata.role === 'admin'
+  var meta = currentUser.user_metadata || {};
+  isAdmin = (currentUser.email === 'admin@scoredesk.com') || (meta.role === 'admin');
+  // For agents, we get agent_name from metadata
+  currentAgentName = meta.agent_name || null;
+
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('loginBtn').disabled = false;
   document.getElementById('loginBtn').textContent = 'Sign In';
@@ -644,8 +647,22 @@ async function onLogin() {
   var mo = new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'});
   document.getElementById('hdrMonth').textContent = mo;
   document.getElementById('compactMonth').textContent = mo;
-  isAdmin = (currentUser.email === 'admin@scoredesk.com') || ((currentUser.user_metadata||{}).role === 'admin');
   document.getElementById('manageAccountsBtn').style.display = isAdmin ? '' : 'none';
+
+  // Show/hide upload UI based on admin
+  if (!isAdmin) {
+    document.getElementById('uploadBig').style.display = 'none';
+    document.getElementById('uploadCompact').style.display = 'none';
+    // Also remove the "add files" button if any
+    var addBtn = document.getElementById('addMoreBtnEl');
+    if (addBtn) addBtn.style.display = 'none';
+    var viewBtn = document.getElementById('viewFilesBtnEl');
+    if (viewBtn) viewBtn.style.display = 'none';
+  } else {
+    // Admin can see upload
+    // We'll let loadScorecards decide to show uploadBig or compact
+  }
+
   showLoading(true);
   await loadScorecards();
   showLoading(false);
@@ -675,15 +692,27 @@ function closeAccountModal() { document.getElementById('accountModalOverlay').cl
 
 async function createAccount() {
   var email = document.getElementById('newEmail').value.trim();
+  var agentName = document.getElementById('newAgentName').value.trim();
   var pass  = document.getElementById('newPassword').value.trim();
   var msg   = document.getElementById('accountMsg');
   if (!email||!pass) { showAcctMsg('Email and password required', false); return; }
   if (pass.length<6) { showAcctMsg('Password must be at least 6 characters', false); return; }
+  if (!agentName) { showAcctMsg('Agent Name is required', false); return; }
   showLoading(true);
-  var r = await sb.auth.signUp({ email:email, password:pass });
+  // Sign up with metadata including role and agent_name
+  var r = await sb.auth.signUp({ 
+    email: email, 
+    password: pass,
+    options: {
+      data: {
+        role: 'agent',
+        agent_name: agentName
+      }
+    }
+  });
   showLoading(false);
   if (r.error) { showAcctMsg(r.error.message, false); }
-  else { document.getElementById('newEmail').value=''; document.getElementById('newPassword').value=''; showAcctMsg('Account created: '+email, true); }
+  else { document.getElementById('newEmail').value=''; document.getElementById('newAgentName').value=''; document.getElementById('newPassword').value=''; showAcctMsg('Account created: '+email+' (agent: '+agentName+')', true); }
 }
 function showAcctMsg(msg,ok){ var el=document.getElementById('accountMsg'); el.textContent=msg; el.style.color=ok?'var(--pass)':'var(--fail)'; el.style.display='block'; setTimeout(function(){el.style.display='none';},5000); }
 
@@ -710,7 +739,12 @@ async function parseFile(file) {
 }
 
 async function loadScorecards() {
-  var r = await sb.from('scorecards').select('*').order('created_at',{ascending:true});
+  // Build query: if not admin, filter by agent_name matching currentAgentName
+  let query = sb.from('scorecards').select('*').order('created_at',{ascending:true});
+  if (!isAdmin && currentAgentName) {
+    query = query.eq('agent_name', currentAgentName);
+  }
+  var r = await query;
   if (r.error) { showToast('Load error: '+r.error.message, false); return; }
   agentMap = {};
   document.getElementById('filesList').innerHTML = '';
@@ -718,15 +752,29 @@ async function loadScorecards() {
     r.data.forEach(function(row){
       var sc={ name:row.agent_name, account:row.account_ref, callDate:row.call_date, auditor:row.auditor, fileName:row.file_name, pass:row.pass, pfReason:row.pf_reason, autoFails:row.auto_fails||[], criteria:row.criteria||[], dbId:row.id };
       addToAgentMap(sc);
-      appendFileBar(row.file_name, sc);
+      if (isAdmin) appendFileBar(row.file_name, sc);
     });
-    switchToCompact();
+    if (isAdmin) {
+      switchToCompact();
+    } else {
+      // For agents, no upload area; just show data
+      document.getElementById('uploadBig').style.display = 'none';
+      document.getElementById('uploadCompact').style.display = 'none';
+      document.getElementById('filesDrawer').style.display = 'none';
+    }
     renderAll();
   } else {
-    document.getElementById('uploadBig').style.display='';
-    document.getElementById('uploadCompact').style.display='none';
+    document.getElementById('uploadBig').style.display = isAdmin ? '' : 'none';
+    document.getElementById('uploadCompact').style.display = 'none';
     document.getElementById('dashSection').classList.add('hidden');
-    document.getElementById('placeholder').style.display='';
+    document.getElementById('placeholder').style.display = isAdmin ? '' : 'none';
+    if (!isAdmin && (!currentAgentName || r.data.length===0)) {
+      document.getElementById('placeholder').innerHTML = '<div class="pi">&#x1F5C2;&#xFE0F;</div><p style="font-size:15px;">No scorecards found for your agent name.</p>';
+      document.getElementById('placeholder').style.display = '';
+    } else if (!isAdmin && r.data.length===0) {
+      document.getElementById('placeholder').innerHTML = '<div class="pi">&#x1F5C2;&#xFE0F;</div><p style="font-size:15px;">No scorecards uploaded yet.</p>';
+      document.getElementById('placeholder').style.display = '';
+    }
   }
 }
 
@@ -742,6 +790,7 @@ function addToAgentMap(sc) {
 }
 
 async function removeFile(agentName,fileName,dbId,btn){
+  if (!isAdmin) return;
   showLoading(true);
   await sb.from('scorecards').delete().eq('id',dbId);
   showLoading(false);
@@ -918,7 +967,10 @@ function renderAnalysis(){
   var agents=Object.values(agentMap);
   var allCalls=agents.reduce(function(arr,a){return arr.concat(a.calls);},[]); 
   var container=document.getElementById('analysisContent');
-  if(!allCalls.length){container.innerHTML='<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">Upload scorecards to see failure analysis.</p></div>';return;}
+  if(!allCalls.length){
+    container.innerHTML='<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">Upload scorecards to see failure analysis.</p></div>';
+    return;
+  }
 
   // Build criteria map
   var cm={};
@@ -957,7 +1009,11 @@ function renderAnalysis(){
   var html='';
 
   // TEAM summary
-  html+='<div class="analysis-card"><div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:4px;"><div><div class="a-card-title">&#x1F465; Team — Most Commonly Failed Criteria</div><div class="a-card-sub">Where the whole team needs coaching focus</div></div><button class="save-btn" style="margin-top:0;white-space:nowrap;" onclick="generateAIReport()">&#x2728; Generate AI Coaching Report</button></div>';
+  html+='<div class="analysis-card"><div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:4px;"><div><div class="a-card-title">&#x1F465; Team — Most Commonly Failed Criteria</div><div class="a-card-sub">Where the whole team needs coaching focus</div></div>';
+  if (isAdmin) {
+    html+='<button class="save-btn" style="margin-top:0;white-space:nowrap;" onclick="generateAIReport()">&#x2728; Generate AI Coaching Report</button>';
+  }
+  html+='</div>';
   if(topFails.length){
     html+='<div class="top-fails-list">';
     topFails.forEach(function(e,i){
@@ -969,7 +1025,7 @@ function renderAnalysis(){
   } else { html+='<p style="font-family:monospace;font-size:12px;color:var(--pass);padding:8px 0;">&#x2705; No criteria failures found.</p>'; }
   html+='</div>';
 
-  // Per-agent
+  // Per-agent breakdown (only show if admin, or if agent wants to see own? We'll show always, but if agent only sees their own agent, it's fine)
   html+='<div class="analysis-card"><div class="a-card-title">&#x1F464; Per-Agent Failure Breakdown</div><div class="a-card-sub">What each agent fails most — prep for 1-on-1 coaching</div><div class="agent-breakdown">';
   agents.forEach(function(agent){
     var d=afm[agent.name];
@@ -987,7 +1043,7 @@ function renderAnalysis(){
   });
   html+='</div></div>';
 
-  // Heatmap
+  // Heatmap (only if more than one agent? show always)
   var an=agents.map(function(a){return a.name;}),fc2=cl.filter(function(e){return e.fails>0;});
   if(fc2.length&&an.length){
     html+='<div class="analysis-card"><div class="a-card-title">&#x1F9EF; Failure Heatmap</div><div class="a-card-sub">Darker = more failures for that agent on that criteria</div><div class="heatmap-wrap"><table class="heatmap-table"><thead><tr><th>Criteria</th><th>Section</th>';
@@ -1001,8 +1057,10 @@ function renderAnalysis(){
   var fbs=[];cl.forEach(function(e){fbs=fbs.concat(e.feedbacks);});fbs=fbs.filter(function(f){return f.text;}).slice(0,40);
   if(fbs.length){html+='<div class="analysis-card"><div class="a-card-title">&#x1F4AC; Auditor Feedback Log</div><div class="a-card-sub">All written feedback from failed criteria</div><div class="feedback-list">';fbs.forEach(function(fb){html+='<div class="fb-item"><div class="fb-item-header"><span class="fb-agent">'+fb.agent+'</span><span class="fb-date">'+fb.date+'</span></div><div class="fb-text">&ldquo;'+fb.text+'&rdquo;</div></div>';});html+='</div></div>';}
 
-  // AI report placeholder
-  html+='<div class="analysis-card" id="aiCard" style="display:none;"><div class="a-card-title">&#x2728; AI Coaching Report</div><div class="a-card-sub">Generated analysis and recommendations</div><div id="aiContent" style="font-size:13px;line-height:1.8;color:var(--text);white-space:pre-wrap;font-family:\'DM Mono\',monospace;"></div></div>';
+  // AI report placeholder (admin only)
+  if (isAdmin) {
+    html+='<div class="analysis-card" id="aiCard" style="display:none;"><div class="a-card-title">&#x2728; AI Coaching Report</div><div class="a-card-sub">Generated analysis and recommendations</div><div id="aiContent" style="font-size:13px;line-height:1.8;color:var(--text);white-space:pre-wrap;font-family:\'DM Mono\',monospace;"></div></div>';
+  }
 
   container.innerHTML=html;
 }
