@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScoreDesk – QA Platform</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
+<style>
+/* ... (keep all CSS exactly as before) ... */
+</style>
+</head>
+<body>
+
+<!-- ... (keep all HTML exactly as before) ... -->
+
+<script>
+// Supabase configuration (REPLACE WITH YOUR OWN)
+var SUPABASE_URL = 'https://yourproject.supabase.co';
+var SUPABASE_KEY = 'your-anon-key-here';
+
+var sb = null;
+var agentMap = {};
+var currentFilter = 'all';
+var currentCallKey = null;
+var currentUser = null;
+var isAdmin = false;
+var currentAgentName = null;
+var weeklyChartInst = null, stackedChartInst = null, agentChartInst = null;
+var CHART_CFG = { gridColor:'rgba(255,255,255,0.06)', tickFont:{ family:'DM Mono, monospace', size:11 } };
+
+// ... (keep all helper functions unchanged until renderAnalysis) ...
+
+// Updated renderAnalysis with Zero Score Trends
+function renderAnalysis(){
+  var agents = Object.values(agentMap);
+  var allCalls = agents.reduce(function(arr,a){ return arr.concat(a.calls); }, []); 
+  var container = document.getElementById('analysisContent');
+  
+  if (!allCalls.length) {
+    if (!isAdmin && currentAgentName) {
+      container.innerHTML = '<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">No scorecards found for your agent name. Please contact your administrator.</p></div>';
+    } else {
+      container.innerHTML = '<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">Upload scorecards to see failure analysis.</p></div>';
+    }
+    return;
+  }
+
+  // ---- Build existing criteria maps (failures) ----
+  var cm = {};
+  allCalls.forEach(function(call){
+    var crit = call.criteria; if (!crit || !crit.length) return;
+    crit.forEach(function(cr){
+      var label = (cr.label||'').trim(), section = cr.section||'', weight = parseFloat(cr.weight||0);
+      var score = cr.score!==undefined ? cr.score : null, feedback = cr.feedback||'';
+      if (!label || weight<=0) return;
+      var sn = (score===null || score==='') ? null : parseFloat(score);
+      var key = label.toLowerCase().replace(/\s+/g,' ');
+      if (!cm[key]) cm[key] = { section:section, label:label, total:0, fails:0, agentFails:{}, feedbacks:[] };
+      cm[key].total++;
+      if (sn!==null && sn < weight) {
+        cm[key].fails++;
+        cm[key].agentFails[call.name] = (cm[key].agentFails[call.name]||0) + 1;
+        if (feedback) cm[key].feedbacks.push({ agent:call.name, date:call.callDate||'', text:feedback });
+      }
+    });
+  });
+
+  var cl = Object.values(cm).filter(function(e){ return e.total>0; }).sort(function(a,b){ return (b.fails/b.total) - (a.fails/a.total); });
+  var topFails = cl.filter(function(e){ return e.fails>0; }).slice(0,10);
+
+  // Per-agent fail map (for existing sections)
+  var afm = {};
+  agents.forEach(function(agent){
+    afm[agent.name] = { fails:{}, total:agent.calls.length, failed:agent.calls.filter(function(c){ return !c.pass; }).length };
+    agent.calls.forEach(function(call){
+      if (!call.criteria) return;
+      call.criteria.forEach(function(cr){
+        var l = (cr.label||'').trim(), w = parseFloat(cr.weight||0), sc = cr.score!==undefined ? cr.score : null;
+        var sn = (sc===null || sc==='') ? null : parseFloat(sc);
+        if (!l || w<=0) return;
+        if (sn!==null && sn < w) afm[agent.name].fails[l] = (afm[agent.name].fails[l]||0) + 1;
+      });
+    });
+  });
+
+  // ---- NEW: Zero Score Analysis ----
+  var weeklyZeroMap = {}; // weekLabel -> { criteriaLabel -> count }
+  var agentWeeklyZeroMap = {}; // agentName -> weekLabel -> { criteriaLabel -> count }
+
+  allCalls.forEach(function(call){
+    var week = getWeekLabel(call.callDate);
+    if (!weeklyZeroMap[week]) weeklyZeroMap[week] = {};
+    if (!agentWeeklyZeroMap[call.name]) agentWeeklyZeroMap[call.name] = {};
+    if (!agentWeeklyZeroMap[call.name][week]) agentWeeklyZeroMap[call.name][week] = {};
+
+    if (!call.criteria) return;
+    call.criteria.forEach(function(cr){
+      var label = (cr.label||'').trim();
+      var score = cr.score!==undefined ? cr.score : null;
+      var weight = parseFloat(cr.weight||0);
+      if (!label || weight<=0) return;
+      var sn = (score===null || score==='') ? null : parseFloat(score);
+      if (sn !== null && sn === 0) {  // exactly zero score
+        // Team count
+        weeklyZeroMap[week][label] = (weeklyZeroMap[week][label] || 0) + 1;
+        // Agent count
+        agentWeeklyZeroMap[call.name][week][label] = (agentWeeklyZeroMap[call.name][week][label] || 0) + 1;
+      }
+    });
+  });
+
+  // Prepare weeks in order
+  var weeks = Object.keys(weeklyZeroMap).sort(function(a,b){
+    function p(s){ var m=s.match(/(\d+)\s(\w+)/); return m?new Date('2026 '+m[2]+' '+m[1]):new Date(0); }
+    return p(a)-p(b);
+  });
+
+  // Build HTML
+  var html = '';
+
+  // --- Existing sections (same as before, but we'll keep them) ---
+  if (isAdmin) {
+    // Team failures section (unchanged)
+    html += '<div class="analysis-card"><div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:4px;"><div><div class="a-card-title">&#x1F465; Team — Most Commonly Failed Criteria</div><div class="a-card-sub">Where the whole team needs coaching focus</div></div><button class="save-btn" style="margin-top:0;white-space:nowrap;" onclick="generateAIReport()">&#x2728; Generate AI Coaching Report</button></div>';
+    if (topFails.length){
+      html += '<div class="top-fails-list">';
+      topFails.forEach(function(e,i){
+        var pct = Math.round(e.fails/e.total*100), bc = pct>=60 ? 'var(--fail)' : pct>=30 ? 'var(--warn)' : 'var(--pass)', sc = pct>=60 ? 'high' : pct>=30 ? 'med' : 'low';
+        var aff = Object.keys(e.agentFails).join(', ');
+        html += '<div class="tf-row"><span class="tf-rank">'+(i+1)+'</span><div style="flex:1;min-width:0;"><div class="tf-label">'+e.label+'</div>'+(aff?'<div style="font-family:monospace;font-size:10px;color:var(--muted);margin-top:2px;">Affects: '+aff+'</div>':'')+'</div>'+(e.section?'<span class="tf-section">'+e.section+'</span>':'')+'<div class="tf-bar-wrap"><div class="tf-bar" style="width:'+pct+'%;background:'+bc+'"></div></div><span class="tf-stat fail-pct '+sc+'">'+pct+'%</span><span style="font-family:monospace;font-size:10px;color:var(--muted);white-space:nowrap;">'+e.fails+'/'+e.total+'</span></div>';
+      });
+      html += '</div>';
+    } else {
+      html += '<p style="font-family:monospace;font-size:12px;color:var(--pass);padding:8px 0;">&#x2705; No criteria failures found.</p>';
+    }
+    html += '</div>';
+
+    // Per-agent breakdown (admin)
+    html += '<div class="analysis-card"><div class="a-card-title">&#x1F464; Per-Agent Failure Breakdown</div><div class="a-card-sub">What each agent fails most — prep for 1-on-1 coaching</div><div class="agent-breakdown">';
+    agents.forEach(function(agent){
+      var d = afm[agent.name];
+      var sf = Object.keys(d.fails).sort(function(a,b){ return d.fails[b] - d.fails[a]; });
+      var mf = sf.length ? d.fails[sf[0]] : 1;
+      var pr = d.total ? Math.round((d.total-d.failed)/d.total*100) : 0;
+      var bc = pr>=90 ? 'pass' : pr>=60 ? 'mixed' : 'fail';
+      html += '<div class="ab-row"><div class="ab-header"><span class="ab-name">'+agent.name+'</span><div style="display:flex;align-items:center;gap:8px;"><span class="mini-badge '+bc+'">'+pr+'% pass rate</span><span class="ab-meta">'+d.total+' calls \u00b7 '+d.failed+' failed</span></div></div>';
+      if (sf.length){
+        html += '<div class="ab-fails">';
+        sf.slice(0,6).forEach(function(l){
+          var cnt = d.fails[l], bw = Math.round(cnt/mf*100), sec = cm[l.toLowerCase().replace(/\s+/g,' ')] ? cm[l.toLowerCase().replace(/\s+/g,' ')].section : '';
+          html += '<div class="ab-fail-item"><span class="ab-fail-label">'+l+(sec?' <span style="font-family:monospace;font-size:10px;color:var(--muted);">('+sec+')</span>':'')+'</span><div class="ab-fail-bar-wrap"><div class="ab-fail-bar" style="width:'+bw+'%"></div></div><span class="ab-fail-count">'+cnt+'x</span></div>';
+        });
+        html += '</div>';
+      } else {
+        html += '<div class="ab-no-fails">&#x2705; No scored criteria failures</div>';
+      }
+      html += '</div>';
+    });
+    html += '</div></div>';
+
+    // Heatmap (admin)
+    var an = agents.map(function(a){ return a.name; }), fc2 = cl.filter(function(e){ return e.fails>0; });
+    if (fc2.length && an.length){
+      html += '<div class="analysis-card"><div class="a-card-title">&#x1F9EF; Failure Heatmap</div><div class="a-card-sub">Darker = more failures for that agent on that criteria</div><div class="heatmap-wrap"><table class="heatmap-table"><thead> Bonn<th>Criteria</th><th>Section</th>';
+      an.forEach(function(n){ html += '<th style="text-align:center;white-space:nowrap;">'+n.split(' ')[0]+'</th>'; });
+      html += '<th>Team %</th> </thead><tbody>';
+      fc2.forEach(function(e){
+        var pct = Math.round(e.fails/e.total*100), sc = pct>=60 ? 'high' : pct>=30 ? 'med' : 'low';
+        html += '<tr><td style="font-size:12px;max-width:260px;">'+e.label+'</td><td style="font-family:monospace;font-size:10px;color:var(--muted);white-space:nowrap;">'+(e.section||'')+'</td>';
+        an.forEach(function(n){
+          var cnt = afm[n] ? (afm[n].fails[e.label]||0) : 0;
+          var hc = cnt===0 ? 'heat-0' : cnt===1 ? 'heat-1' : cnt===2 ? 'heat-2' : cnt<=4 ? 'heat-3' : 'heat-4';
+          html += '<td style="text-align:center;"><span class="heat-cell '+hc+'">'+(cnt||'\u2014')+'</span></td>';
+        });
+        html += '<td><span class="fail-pct '+sc+'">'+pct+'%</span></td></tr>';
+      });
+      html += '</tbody></table></div></div>';
+    }
+  } else {
+    // AGENT: Show only personal failure summary (unchanged)
+    html += '<div class="analysis-card"><div class="a-card-title">&#x1F464; Your Most Commonly Failed Criteria</div><div class="a-card-sub">Areas where you need coaching focus</div>';
+    if (topFails.length){
+      html += '<div class="top-fails-list">';
+      topFails.forEach(function(e,i){
+        var pct = Math.round(e.fails/e.total*100), bc = pct>=60 ? 'var(--fail)' : pct>=30 ? 'var(--warn)' : 'var(--pass)', sc = pct>=60 ? 'high' : pct>=30 ? 'med' : 'low';
+        var aff = Object.keys(e.agentFails).join(', ');
+        html += '<div class="tf-row"><span class="tf-rank">'+(i+1)+'</span><div style="flex:1;min-width:0;"><div class="tf-label">'+e.label+'</div>'+(aff?'<div style="font-family:monospace;font-size:10px;color:var(--muted);margin-top:2px;">Failed on '+aff+' calls</div>':'')+'</div>'+(e.section?'<span class="tf-section">'+e.section+'</span>':'')+'<div class="tf-bar-wrap"><div class="tf-bar" style="width:'+pct+'%;background:'+bc+'"></div></div><span class="tf-stat fail-pct '+sc+'">'+pct+'%</span><span style="font-family:monospace;font-size:10px;color:var(--muted);white-space:nowrap;">'+e.fails+'/'+e.total+'</span></div>';
+      });
+      html += '</div>';
+    } else {
+      html += '<p style="font-family:monospace;font-size:12px;color:var(--pass);padding:8px 0;">&#x2705; No criteria failures found.</p>';
+    }
+    html += '</div>';
+
+    // Personal failure breakdown (agent only)
+    if (agents.length === 1) {
+      var agent = agents[0];
+      var d = afm[agent.name];
+      var sf = Object.keys(d.fails).sort(function(a,b){ return d.fails[b] - d.fails[a]; });
+      var mf = sf.length ? d.fails[sf[0]] : 1;
+      var pr = d.total ? Math.round((d.total-d.failed)/d.total*100) : 0;
+      var bc = pr>=90 ? 'pass' : pr>=60 ? 'mixed' : 'fail';
+      html += '<div class="analysis-card"><div class="a-card-title">&#x1F4DD; Your Failure Breakdown</div><div class="a-card-sub">Specific criteria you failed most often</div><div class="ab-row">';
+      if (sf.length){
+        html += '<div class="ab-fails">';
+        sf.slice(0,6).forEach(function(l){
+          var cnt = d.fails[l], bw = Math.round(cnt/mf*100), sec = cm[l.toLowerCase().replace(/\s+/g,' ')] ? cm[l.toLowerCase().replace(/\s+/g,' ')].section : '';
+          html += '<div class="ab-fail-item"><span class="ab-fail-label">'+l+(sec?' <span style="font-family:monospace;font-size:10px;color:var(--muted);">('+sec+')</span>':'')+'</span><div class="ab-fail-bar-wrap"><div class="ab-fail-bar" style="width:'+bw+'%"></div></div><span class="ab-fail-count">'+cnt+'x</span></div>';
+        });
+        html += '</div>';
+      } else {
+        html += '<div class="ab-no-fails">&#x2705; No scored criteria failures</div>';
+      }
+      html += '</div></div>';
+    }
+
+    // Personal feedback log (agent only)
+    var fbs = [];
+    cl.forEach(function(e){
+      fbs = fbs.concat(e.feedbacks.filter(function(fb){ return fb.agent === currentAgentName; }));
+    });
+    fbs = fbs.filter(function(f){ return f.text; }).slice(0,40);
+    if (fbs.length){
+      html += '<div class="analysis-card"><div class="a-card-title">&#x1F4AC; Feedback You Received</div><div class="a-card-sub">Auditor comments on your failed criteria</div><div class="feedback-list">';
+      fbs.forEach(function(fb){
+        html += '<div class="fb-item"><div class="fb-item-header"><span class="fb-agent">'+fb.agent+'</span><span class="fb-date">'+fb.date+'</span></div><div class="fb-text">&ldquo;'+fb.text+'&rdquo;</div></div>';
+      });
+      html += '</div></div>';
+    }
+  }
+
+  // ---- NEW SECTION: Zero Score Trends (Team) ----
+  if (isAdmin && weeks.length) {
+    html += '<div class="analysis-card"><div class="a-card-title">⛔ Zero Score Trends (Team)</div><div class="a-card-sub">Criteria that received a score of 0 per week – identify recurring gaps</div>';
+    // Build a matrix of weeks x criteria
+    var allZeroCriteria = new Set();
+    weeks.forEach(function(w){
+      Object.keys(weeklyZeroMap[w]).forEach(function(c){ allZeroCriteria.add(c); });
+    });
+    var criteriaList = Array.from(allZeroCriteria).sort();
+    if (criteriaList.length) {
+      html += '<div class="heatmap-wrap"><table class="heatmap-table"><thead><tr><th>Week</th>';
+      criteriaList.forEach(function(c){ html += '<th style="white-space:nowrap;">'+c+'</th>'; });
+      html += '</tr></thead><tbody>';
+      weeks.slice().reverse().forEach(function(w){ // show latest weeks first
+        html += '<tr><td style="font-weight:600;">'+w+'</td>';
+        criteriaList.forEach(function(c){
+          var cnt = weeklyZeroMap[w][c] || 0;
+          var cls = cnt===0 ? 'heat-0' : cnt===1 ? 'heat-1' : cnt===2 ? 'heat-2' : cnt<=4 ? 'heat-3' : 'heat-4';
+          html += '<td style="text-align:center;"><span class="heat-cell '+cls+'">'+(cnt||'\u2014')+'</span></td>';
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table></div>';
+    } else {
+      html += '<p style="font-family:monospace;font-size:12px;color:var(--pass);padding:8px 0;">&#x2705; No zero scores found.</p>';
+    }
+    html += '</div>';
+  }
+
+  // ---- NEW SECTION: Per-Agent Zero Score Breakdown (Admin) ----
+  if (isAdmin && agents.length) {
+    html += '<div class="analysis-card"><div class="a-card-title">👤 Per-Agent Zero Score Breakdown</div><div class="a-card-sub">Each agent’s criteria with zero scores, by week</div>';
+    agents.forEach(function(agent){
+      var agentZeros = agentWeeklyZeroMap[agent.name];
+      if (!agentZeros || Object.keys(agentZeros).length === 0) return;
+      var agentHtml = '<div class="ab-row"><div class="ab-header"><span class="ab-name">'+agent.name+'</span><span class="ab-meta">'+agent.calls.length+' calls</span></div><div class="heatmap-wrap"><table class="heatmap-table" style="margin-top:8px;"><thead><tr><th>Week</th><th>Criteria</th><th>Zero Count</th></tr></thead><tbody>';
+      var weeksForAgent = Object.keys(agentZeros).sort(function(a,b){ return getWeekNumber(a)-getWeekNumber(b); }).reverse();
+      weeksForAgent.forEach(function(w){
+        var criteria = agentZeros[w];
+        var critList = Object.keys(criteria).sort();
+        critList.forEach(function(c){
+          agentHtml += '<tr><td style="white-space:nowrap;">'+w+'</td><td>'+c+'</td><td style="text-align:center;">'+criteria[c]+'</td></tr>';
+        });
+      });
+      agentHtml += '</tbody></table></div></div>';
+      html += agentHtml;
+    });
+    html += '</div>';
+  }
+
+  // ---- Agent Zero Score Breakdown (Agent only) ----
+  if (!isAdmin && agents.length === 1 && agentWeeklyZeroMap[currentAgentName]) {
+    var agentZeros = agentWeeklyZeroMap[currentAgentName];
+    var agent = agents[0];
+    if (agentZeros && Object.keys(agentZeros).length) {
+      html += '<div class="analysis-card"><div class="a-card-title">⛔ Your Zero Score Breakdown</div><div class="a-card-sub">Criteria where you scored 0 – by week</div>';
+      html += '<div class="heatmap-wrap"><table class="heatmap-table"><thead><tr><th>Week</th><th>Criteria</th><th>Zero Count</th></tr></thead><tbody>';
+      var weeksForAgent = Object.keys(agentZeros).sort(function(a,b){ return getWeekNumber(a)-getWeekNumber(b); }).reverse();
+      weeksForAgent.forEach(function(w){
+        var criteria = agentZeros[w];
+        var critList = Object.keys(criteria).sort();
+        critList.forEach(function(c){
+          html += '<tr><td style="white-space:nowrap;">'+w+'</td><td>'+c+'</td><td style="text-align:center;">'+criteria[c]+'</td></tr>';
+        });
+      });
+      html += '</tbody></table></div></div>';
+    }
+  }
+
+  // AI report placeholder (admin only)
+  if (isAdmin) {
+    html += '<div class="analysis-card" id="aiCard" style="display:none;"><div class="a-card-title">&#x2728; AI Coaching Report</div><div class="a-card-sub">Generated analysis and recommendations</div><div id="aiContent" style="font-size:13px;line-height:1.8;color:var(--text);white-space:pre-wrap;font-family:\'DM Mono\',monospace;"></div></div>';
+  }
+
+  container.innerHTML = html;
+}
+
+// Helper to convert week label to comparable number
+function getWeekNumber(weekLabel){
+  var m = weekLabel.match(/(\d+)\s(\w+)/);
+  if (!m) return 0;
+  var months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+  var day = parseInt(m[1]);
+  var month = months[m[2]];
+  var year = 2026; // fixed year for sorting
+  return (year * 1000) + (month * 100) + day;
+}
+
+// ... (keep all other functions exactly as before) ...
+</script>
+</body>
+</html>
