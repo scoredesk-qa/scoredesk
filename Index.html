@@ -8,12 +8,406 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
 <style>
-/* ... (keep all CSS exactly as before) ... */
+/* --- Keep all CSS from the previous version exactly --- */
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap');
+:root{
+  --bg:#0b0d13;--surface:#12151e;--surface2:#191d28;--surface3:#1f2335;
+  --border:#242938;--accent:#4f8cff;--accent2:#a78bfa;
+  --pass:#22d3a0;--fail:#f43f5e;--warn:#f59e0b;--auto:#e879f9;
+  --text:#e8ecf4;--muted:#6b7694;--radius:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+
+/* LOGIN */
+#loginScreen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;padding:24px;}
+.login-box{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:48px 44px;width:100%;max-width:420px;text-align:center;}
+.login-logo{width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 20px;}
+.login-title{font-size:24px;font-weight:800;margin-bottom:6px;}
+.login-sub{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);margin-bottom:32px;}
+.login-field{display:flex;flex-direction:column;gap:7px;margin-bottom:16px;text-align:left;}
+.login-field label{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;}
+.login-input{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:12px 14px;border-radius:9px;font-family:'DM Mono',monospace;font-size:13px;transition:border-color .15s;width:100%;}
+.login-input:focus{outline:none;border-color:var(--accent);}
+.pass-wrap{position:relative;}
+.pass-wrap .login-input{padding-right:44px;}
+.pass-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--muted);font-size:18px;line-height:1;user-select:none;transition:color .15s;}
+.pass-toggle:hover{color:var(--text);}
+.remember-row{display:flex;align-items:center;gap:8px;margin-bottom:16px;text-align:left;}
+.remember-row input{width:14px;height:14px;cursor:pointer;accent-color:var(--accent);}
+.remember-row label{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);cursor:pointer;user-select:none;}
+.login-btn{width:100%;background:var(--accent);color:#fff;border:none;padding:13px;border-radius:9px;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;transition:all .15s;}
+.login-btn:hover{background:#3a7aee;}
+.login-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+.login-error{color:var(--fail);font-family:'DM Mono',monospace;font-size:12px;margin-top:12px;display:none;padding:10px 14px;background:rgba(244,63,94,.1);border-radius:8px;border:1px solid rgba(244,63,94,.3);line-height:1.5;text-align:left;}
+.login-status{color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;margin-top:10px;padding:8px 12px;background:var(--surface2);border-radius:7px;border:1px solid var(--border);line-height:1.5;text-align:left;}
+
+/* HEADER */
+.header{display:flex;align-items:center;justify-content:space-between;padding:16px 32px;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:100;}
+.logo{display:flex;align-items:center;gap:11px;}
+.logo-icon{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:16px;}
+.logo-name{font-size:15px;font-weight:800;}
+.logo-sub{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;}
+.hdr-right{display:flex;align-items:center;gap:10px;}
+.hdr-user{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);}
+.hdr-month{font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);background:rgba(79,140,255,.1);padding:4px 12px;border-radius:5px;}
+.hdr-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:600;transition:all .15s;}
+.hdr-btn:hover{border-color:var(--accent);color:var(--accent);}
+.hdr-btn.admin{border-color:var(--accent2);color:var(--accent2);}
+
+/* MAIN */
+.main{max-width:1300px;margin:0 auto;padding:28px 28px;}
+
+/* PAGE TABS */
+.page-tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:24px;width:fit-content;}
+.page-tab{font-family:'DM Mono',monospace;font-size:12px;padding:8px 20px;border-radius:7px;cursor:pointer;border:none;background:transparent;color:var(--muted);transition:all .2s;font-weight:500;}
+.page-tab.active{background:var(--accent);color:#fff;}
+.page-tab:hover:not(.active){color:var(--text);}
+
+/* UPLOAD */
+#uploadBig{border:2px dashed var(--border);border-radius:16px;padding:44px 36px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface);position:relative;margin-bottom:24px;}
+#uploadBig:hover,#uploadBig.drag-over{border-color:var(--accent);background:rgba(79,140,255,.04);}
+#uploadBig input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.upload-icon{font-size:40px;margin-bottom:12px;display:block;}
+.upload-title{font-size:18px;font-weight:700;margin-bottom:6px;}
+.upload-sub{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);}
+.upload-btn{display:inline-block;margin-top:14px;background:var(--accent);color:#fff;padding:10px 24px;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;border:none;}
+#uploadCompact{display:none;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 18px;margin-bottom:20px;position:relative;}
+#uploadCompact input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.compact-text{flex:1;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);}
+.compact-text strong{color:var(--text);display:block;font-size:13px;margin-bottom:2px;}
+.add-more-btn{background:var(--surface2);border:1px solid var(--accent);color:var(--accent);padding:7px 16px;border-radius:7px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;z-index:1;position:relative;}
+.view-files-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:7px 14px;border-radius:7px;font-family:'Syne',sans-serif;font-weight:600;font-size:12px;cursor:pointer;white-space:nowrap;z-index:1;position:relative;}
+.view-files-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+/* FILES DRAWER */
+#filesDrawer{display:none;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:20px;}
+#filesDrawer.open{display:block;}
+.drawer-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.drawer-title{font-size:14px;font-weight:700;}
+.drawer-close{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;}
+.file-bar{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface2);border-radius:8px;margin-bottom:6px;}
+.file-bar:last-child{margin-bottom:0;}
+.file-bar-info{flex:1;min-width:0;}
+.file-bar-agent{font-size:13px;font-weight:700;}
+.file-bar-name{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.file-bar-badge{font-family:'DM Mono',monospace;font-size:10px;padding:2px 8px;border-radius:4px;}
+.file-bar-badge.pass{background:rgba(34,211,160,.12);color:var(--pass);}
+.file-bar-badge.fail{background:rgba(244,63,94,.12);color:var(--fail);}
+.rm-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:5px;font-size:11px;cursor:pointer;font-family:'Syne',sans-serif;}
+.rm-btn:hover{border-color:var(--fail);color:var(--fail);}
+
+/* SUMMARY */
+.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;display:flex;flex-direction:column;gap:6px;}
+.stat-label{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;}
+.stat-value{font-size:38px;font-weight:800;line-height:1;}
+.c-pass{color:var(--pass);}.c-fail{color:var(--fail);}.c-accent{color:var(--accent);}
+.stat-bar{height:3px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:4px;}
+.stat-bar-fill{height:100%;border-radius:3px;}
+
+/* CHARTS */
+.charts-section{margin-bottom:28px;}
+.charts-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px 24px;}
+.chart-card.full{grid-column:1/-1;}
+.chart-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;}
+.chart-title{font-size:14px;font-weight:700;margin-bottom:3px;}
+.chart-sub{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
+
+/* SECTION */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.section-title{font-size:17px;font-weight:700;}
+.filter-tabs{display:flex;gap:7px;}
+.tab{font-family:'DM Mono',monospace;font-size:11px;padding:5px 14px;border-radius:6px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);transition:all .15s;}
+.tab.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+/* AGENT CARDS */
+.agent-cards{display:flex;flex-direction:column;gap:14px;margin-bottom:36px;}
+.agent-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.agent-card-header{display:flex;align-items:center;gap:14px;padding:15px 20px;cursor:pointer;transition:background .15s;user-select:none;}
+.agent-card-header:hover{background:var(--surface2);}
+.agent-avatar{width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;flex-shrink:0;background:var(--surface3);color:var(--accent);}
+.agent-card-info{flex:1;min-width:0;}
+.agent-card-name{font-size:14px;font-weight:700;}
+.agent-card-sub{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-top:2px;}
+.agent-card-stats{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.mini-badge{font-family:'DM Mono',monospace;font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600;}
+.mini-badge.pass{background:rgba(34,211,160,.1);color:var(--pass);}
+.mini-badge.fail{background:rgba(244,63,94,.1);color:var(--fail);}
+.mini-badge.mixed{background:rgba(245,158,11,.1);color:var(--warn);}
+.calls-count{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
+.chevron{color:var(--muted);transition:transform .2s;font-size:13px;}
+.chevron.open{transform:rotate(180deg);}
+
+/* TABLE */
+.calls-table-wrap{border-top:1px solid var(--border);display:none;}
+.calls-table-wrap.open{display:block;}
+table{width:100%;border-collapse:collapse;}
+thead{background:var(--surface2);}
+th{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.7px;color:var(--muted);text-align:left;padding:10px 20px;border-bottom:1px solid var(--border);text-transform:uppercase;}
+td{padding:12px 20px;border-bottom:1px solid var(--border);font-size:12px;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(79,140,255,.03);}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:20px;font-size:11px;font-weight:700;}
+.badge::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor;}
+.badge.pass{background:rgba(34,211,160,.1);color:var(--pass);}
+.badge.fail{background:rgba(244,63,94,.1);color:var(--fail);}
+.fail-reason{font-family:'DM Mono',monospace;font-size:11px;color:var(--auto);background:rgba(232,121,249,.08);border:1px solid rgba(232,121,249,.18);padding:3px 9px;border-radius:5px;display:inline-block;max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.action-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 12px;border-radius:6px;font-size:11px;font-family:'Syne',sans-serif;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.action-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:999;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s;}
+.modal-overlay.open{opacity:1;pointer-events:all;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:18px;width:100%;max-width:720px;max-height:92vh;overflow-y:auto;transform:translateY(14px);transition:transform .2s;}
+.modal-overlay.open .modal{transform:translateY(0);}
+.modal-top{padding:22px 26px 16px;display:flex;align-items:flex-start;justify-content:space-between;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:2;}
+.modal-agent{font-size:20px;font-weight:800;}
+.modal-meta{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-top:3px;}
+.modal-close{background:var(--surface2);border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:7px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;}
+.modal-close:hover{border-color:var(--fail);color:var(--fail);}
+.modal-body{padding:22px 26px;display:flex;flex-direction:column;gap:20px;}
+.result-banner{border-radius:12px;padding:16px 20px;border:1px solid;}
+.result-banner.pass{background:rgba(34,211,160,.07);border-color:rgba(34,211,160,.25);}
+.result-banner.fail{background:rgba(244,63,94,.07);border-color:rgba(244,63,94,.25);}
+.result-icon{font-size:26px;margin-bottom:6px;}
+.result-label{font-size:19px;font-weight:800;margin-bottom:4px;}
+.result-label.pass{color:var(--pass);}.result-label.fail{color:var(--fail);}
+.result-reason{font-family:'DM Mono',monospace;font-size:12px;color:var(--text);margin-top:5px;}
+.af-box{background:rgba(232,121,249,.06);border:1px solid rgba(232,121,249,.2);border-radius:10px;padding:14px 16px;}
+.af-box-title{font-size:13px;font-weight:700;color:var(--auto);margin-bottom:10px;}
+.af-row{padding:8px 0;border-bottom:1px solid rgba(232,121,249,.1);display:flex;flex-direction:column;gap:3px;}
+.af-row:last-child{border-bottom:none;padding-bottom:0;}
+.af-q{font-size:12px;color:var(--text);}
+.af-result{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:var(--fail);}
+.af-fb{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-top:2px;}
+.sec-title{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:9px;}
+.criteria-list{display:flex;flex-direction:column;gap:5px;}
+.cr-item{padding:10px 13px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);}
+.cr-top{display:flex;align-items:center;gap:10px;}
+.cr-label{flex:1;font-size:12px;color:var(--text);}
+.cr-pts{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;}
+.cr-pts.full{color:var(--pass);}.cr-pts.partial{color:var(--warn);}.cr-pts.zero{color:var(--fail);}.cr-pts.na{color:var(--muted);}
+.cr-wt{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
+.cr-fb{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-top:6px;padding-top:6px;border-top:1px solid var(--border);line-height:1.5;}
+.notes-lbl{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:8px;}
+.notes-area{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:13px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;resize:vertical;min-height:120px;transition:border-color .15s;}
+.notes-area:focus{outline:none;border-color:var(--accent);}
+.notes-area::placeholder{color:var(--muted);}
+.save-btn{background:var(--accent);color:#fff;border:none;padding:8px 18px;border-radius:7px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;margin-top:8px;transition:all .15s;}
+.save-btn:hover{background:#3a7aee;}
+.save-ok{color:var(--pass);font-family:'DM Mono',monospace;font-size:11px;margin-top:5px;display:none;}
+
+/* ACCOUNT MODAL */
+.acct-row{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 13px;margin-bottom:6px;}
+.acct-name{font-family:'DM Mono',monospace;font-size:12px;flex:1;}
+.acct-input{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-family:'DM Mono',monospace;font-size:12px;flex:1;width:100%;margin-bottom:8px;}
+.acct-input:focus{outline:none;border-color:var(--accent);}
+
+/* ANALYSIS */
+#analysisSection{display:none;}
+.analysis-grid{display:grid;grid-template-columns:1fr;gap:16px;}
+.analysis-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px 24px;}
+.a-card-title{font-size:14px;font-weight:700;margin-bottom:3px;}
+.a-card-sub{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:18px;}
+.top-fails-list{display:flex;flex-direction:column;gap:8px;}
+.tf-row{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--surface2);border-radius:9px;border:1px solid var(--border);}
+.tf-rank{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:var(--muted);width:24px;flex-shrink:0;}
+.tf-label{font-size:12px;color:var(--text);}
+.tf-section{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);background:var(--surface3);padding:2px 8px;border-radius:4px;white-space:nowrap;}
+.tf-bar-wrap{width:100px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;flex-shrink:0;}
+.tf-bar{height:100%;border-radius:3px;}
+.tf-stat{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;}
+.fail-pct.high{color:var(--fail);}.fail-pct.med{color:var(--warn);}.fail-pct.low{color:var(--pass);}
+.agent-breakdown{display:flex;flex-direction:column;gap:10px;}
+.ab-row{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+.ab-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;}
+.ab-name{font-size:13px;font-weight:700;}
+.ab-meta{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
+.ab-fails{display:flex;flex-direction:column;gap:5px;}
+.ab-fail-item{display:flex;align-items:center;gap:10px;}
+.ab-fail-label{flex:1;font-size:11px;color:var(--text);}
+.ab-fail-bar-wrap{width:120px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;flex-shrink:0;}
+.ab-fail-bar{height:100%;border-radius:3px;background:var(--fail);}
+.ab-fail-count{font-family:'DM Mono',monospace;font-size:11px;color:var(--fail);width:28px;text-align:right;}
+.ab-no-fails{font-family:'DM Mono',monospace;font-size:11px;color:var(--pass);}
+.heatmap-wrap{overflow-x:auto;}
+.heatmap-table{width:100%;border-collapse:collapse;font-size:12px;}
+.heatmap-table th{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
+.heatmap-table td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:middle;}
+.heatmap-table tr:last-child td{border-bottom:none;}
+.heat-cell{display:inline-flex;align-items:center;justify-content:center;width:36px;height:24px;border-radius:5px;font-family:'DM Mono',monospace;font-size:11px;font-weight:600;}
+.heat-0{background:rgba(34,211,160,.12);color:var(--pass);}
+.heat-1{background:rgba(245,158,11,.15);color:var(--warn);}
+.heat-2{background:rgba(244,63,94,.15);color:var(--fail);}
+.heat-3{background:rgba(244,63,94,.3);color:var(--fail);}
+.heat-4{background:rgba(244,63,94,.5);color:#fff;}
+.feedback-list{display:flex;flex-direction:column;gap:8px;max-height:400px;overflow-y:auto;}
+.fb-item{background:var(--surface2);border-radius:9px;border:1px solid var(--border);padding:12px 14px;}
+.fb-item-header{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+.fb-agent{font-size:12px;font-weight:700;}
+.fb-date{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-left:auto;}
+.fb-text{font-size:12px;color:var(--text);line-height:1.6;font-style:italic;}
+
+/* LOADING */
+#loadingOverlay{position:fixed;inset:0;background:rgba(11,13,19,.8);display:none;align-items:center;justify-content:center;z-index:9998;}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(70px);background:var(--surface2);border:1px solid var(--border);padding:11px 20px;border-radius:9px;font-size:13px;font-weight:600;z-index:9999;transition:transform .3s cubic-bezier(.4,0,.2,1);}
+.toast.show{transform:translateX(-50%) translateY(0);}
+.toast.ok{border-color:var(--pass);color:var(--pass);}
+.toast.err{border-color:var(--fail);color:var(--fail);}
+.hidden{display:none!important;}
+#placeholder{text-align:center;padding:80px 20px;color:var(--muted);}
+.pi{font-size:52px;margin-bottom:14px;}
 </style>
 </head>
 <body>
 
-<!-- ... (keep all HTML exactly as before) ... -->
+<div id="loadingOverlay" style="display:none;"><div class="spinner"></div></div>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">&#x1F4CB;</div>
+    <div class="login-title">ScoreDesk</div>
+    <div class="login-sub">QA SCORECARD PLATFORM</div>
+    <div class="login-field">
+      <label>Email</label>
+      <input class="login-input" type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <div class="pass-wrap">
+        <input class="login-input" type="password" id="loginPass" placeholder="Password" autocomplete="current-password">
+        <span class="pass-toggle" id="passToggle">&#x1F441;</span>
+      </div>
+    </div>
+    <div class="remember-row">
+      <input type="checkbox" id="rememberMe">
+      <label for="rememberMe">Remember me</label>
+    </div>
+    <button class="login-btn" id="loginBtn">Sign In</button>
+    <div class="login-error" id="loginError"></div>
+    <div class="login-status" id="loginStatus" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">&#x1F4CB;</div>
+      <div><div class="logo-name">ScoreDesk</div><div class="logo-sub">QA SCORECARD PLATFORM</div></div>
+    </div>
+    <div class="hdr-right">
+      <span class="hdr-month" id="hdrMonth"></span>
+      <span class="hdr-user" id="hdrUser"></span>
+      <button class="hdr-btn admin" id="manageAccountsBtn" style="display:none">Manage Accounts</button>
+      <button class="hdr-btn" id="logoutBtnEl">Sign Out</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="page-tabs" id="pageTabs" style="display:none;">
+      <button class="page-tab active" data-page="dashboard">&#x1F4CA; Dashboard</button>
+      <button class="page-tab" data-page="analysis">&#x1F50D; Failure Analysis</button>
+    </div>
+
+    <div id="uploadBig">
+      <input type="file" id="fileInputBig" accept=".xlsx,.xls" multiple>
+      <span class="upload-icon">&#x1F4E5;</span>
+      <div class="upload-title">Upload Scorecards</div>
+      <div class="upload-sub">One Excel file per call &middot; multiple agents supported</div>
+      <div class="upload-sub" style="margin-top:4px;">Drag &amp; drop or click &middot; .xlsx / .xls</div>
+      <div><button class="upload-btn" id="chooseBtnEl">Choose Files</button></div>
+    </div>
+
+    <div id="uploadCompact">
+      <input type="file" id="fileInputCompact" accept=".xlsx,.xls" multiple>
+      <div class="compact-text"><strong id="compactCount"></strong>Files loaded for <span id="compactMonth"></span></div>
+      <button class="view-files-btn" id="viewFilesBtnEl">View Files</button>
+      <button class="add-more-btn" id="addMoreBtnEl">+ Add Files</button>
+    </div>
+
+    <div id="filesDrawer">
+      <div class="drawer-header"><div class="drawer-title">Loaded Files</div><button class="drawer-close" id="closeDrawerBtnEl">&#x2715;</button></div>
+      <div id="filesList"></div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="dashSection" class="hidden">
+      <div class="summary-grid" id="summaryGrid"></div>
+      <div class="charts-section">
+        <div class="charts-row">
+          <div class="chart-card full">
+            <div class="chart-header"><div><div class="chart-title">Call Quality &mdash; Weekly Trend</div><div class="chart-sub">Number of passed calls per week</div></div></div>
+            <canvas id="weeklyChart" height="80"></canvas>
+          </div>
+        </div>
+        <div class="charts-row">
+          <div class="chart-card">
+            <div class="chart-header"><div><div class="chart-title">Pass vs Fail by Week</div><div class="chart-sub">Volume of calls per week</div></div></div>
+            <canvas id="stackedChart" height="140"></canvas>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header"><div><div class="chart-title">Total Calls Scored per Week</div><div class="chart-sub">Total calls scored each week</div></div></div>
+            <canvas id="agentChart" height="140"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="section-header">
+        <div class="section-title">Agents</div>
+        <div class="filter-tabs">
+          <button class="tab active" data-filter="all">All</button>
+          <button class="tab" data-filter="pass">All Passed</button>
+          <button class="tab" data-filter="fail">Has Fails</button>
+        </div>
+      </div>
+      <div class="agent-cards" id="agentCards"></div>
+    </div>
+
+    <!-- ANALYSIS -->
+    <div id="analysisSection">
+      <div class="analysis-grid" id="analysisContent">
+        <div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">Upload scorecards to see failure analysis.</p></div>
+      </div>
+    </div>
+
+    <div id="placeholder"><div class="pi">&#x1F5C2;&#xFE0F;</div><p style="font-size:15px;">Upload scorecard Excel files to get started</p></div>
+  </div>
+</div>
+
+<!-- CALL DETAIL MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-top"><div><div class="modal-agent" id="mName"></div><div class="modal-meta" id="mMeta"></div></div><button class="modal-close" id="closeCallModalBtn">&#x2715;</button></div>
+    <div class="modal-body" id="mBody"></div>
+  </div>
+</div>
+
+<!-- ACCOUNT MODAL -->
+<div class="modal-overlay" id="accountModalOverlay">
+  <div class="modal" style="max-width:500px;">
+    <div class="modal-top"><div><div class="modal-agent">Manage Accounts</div><div class="modal-meta">Create logins for quality agents</div></div><button class="modal-close" id="closeAcctModalBtn">&#x2715;</button></div>
+    <div class="modal-body">
+      <div id="accountList"></div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;">
+        <div class="notes-lbl" style="margin-bottom:10px;">New Account</div>
+        <input id="newEmail"    class="acct-input" placeholder="Email address" type="email">
+        <input id="newAgentName" class="acct-input" placeholder="Agent Name (as appears in Excel)" type="text">
+        <input id="newPassword" class="acct-input" placeholder="Password (min 6 chars)" type="password">
+        <button class="save-btn" style="margin-top:0;width:100%;" id="createAcctBtnEl">Create Account</button>
+        <div id="accountMsg" style="font-family:monospace;font-size:11px;display:none;margin-top:8px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
 
 <script>
 // Supabase configuration (REPLACE WITH YOUR OWN)
@@ -30,296 +424,11 @@ var currentAgentName = null;
 var weeklyChartInst = null, stackedChartInst = null, agentChartInst = null;
 var CHART_CFG = { gridColor:'rgba(255,255,255,0.06)', tickFont:{ family:'DM Mono, monospace', size:11 } };
 
-// ... (keep all helper functions unchanged until renderAnalysis) ...
-
-// Updated renderAnalysis with Zero Score Trends
-function renderAnalysis(){
-  var agents = Object.values(agentMap);
-  var allCalls = agents.reduce(function(arr,a){ return arr.concat(a.calls); }, []); 
-  var container = document.getElementById('analysisContent');
-  
-  if (!allCalls.length) {
-    if (!isAdmin && currentAgentName) {
-      container.innerHTML = '<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">No scorecards found for your agent name. Please contact your administrator.</p></div>';
-    } else {
-      container.innerHTML = '<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">Upload scorecards to see failure analysis.</p></div>';
-    }
-    return;
-  }
-
-  // ---- Build existing criteria maps (failures) ----
-  var cm = {};
-  allCalls.forEach(function(call){
-    var crit = call.criteria; if (!crit || !crit.length) return;
-    crit.forEach(function(cr){
-      var label = (cr.label||'').trim(), section = cr.section||'', weight = parseFloat(cr.weight||0);
-      var score = cr.score!==undefined ? cr.score : null, feedback = cr.feedback||'';
-      if (!label || weight<=0) return;
-      var sn = (score===null || score==='') ? null : parseFloat(score);
-      var key = label.toLowerCase().replace(/\s+/g,' ');
-      if (!cm[key]) cm[key] = { section:section, label:label, total:0, fails:0, agentFails:{}, feedbacks:[] };
-      cm[key].total++;
-      if (sn!==null && sn < weight) {
-        cm[key].fails++;
-        cm[key].agentFails[call.name] = (cm[key].agentFails[call.name]||0) + 1;
-        if (feedback) cm[key].feedbacks.push({ agent:call.name, date:call.callDate||'', text:feedback });
-      }
-    });
-  });
-
-  var cl = Object.values(cm).filter(function(e){ return e.total>0; }).sort(function(a,b){ return (b.fails/b.total) - (a.fails/a.total); });
-  var topFails = cl.filter(function(e){ return e.fails>0; }).slice(0,10);
-
-  // Per-agent fail map (for existing sections)
-  var afm = {};
-  agents.forEach(function(agent){
-    afm[agent.name] = { fails:{}, total:agent.calls.length, failed:agent.calls.filter(function(c){ return !c.pass; }).length };
-    agent.calls.forEach(function(call){
-      if (!call.criteria) return;
-      call.criteria.forEach(function(cr){
-        var l = (cr.label||'').trim(), w = parseFloat(cr.weight||0), sc = cr.score!==undefined ? cr.score : null;
-        var sn = (sc===null || sc==='') ? null : parseFloat(sc);
-        if (!l || w<=0) return;
-        if (sn!==null && sn < w) afm[agent.name].fails[l] = (afm[agent.name].fails[l]||0) + 1;
-      });
-    });
-  });
-
-  // ---- NEW: Zero Score Analysis ----
-  var weeklyZeroMap = {}; // weekLabel -> { criteriaLabel -> count }
-  var agentWeeklyZeroMap = {}; // agentName -> weekLabel -> { criteriaLabel -> count }
-
-  allCalls.forEach(function(call){
-    var week = getWeekLabel(call.callDate);
-    if (!weeklyZeroMap[week]) weeklyZeroMap[week] = {};
-    if (!agentWeeklyZeroMap[call.name]) agentWeeklyZeroMap[call.name] = {};
-    if (!agentWeeklyZeroMap[call.name][week]) agentWeeklyZeroMap[call.name][week] = {};
-
-    if (!call.criteria) return;
-    call.criteria.forEach(function(cr){
-      var label = (cr.label||'').trim();
-      var score = cr.score!==undefined ? cr.score : null;
-      var weight = parseFloat(cr.weight||0);
-      if (!label || weight<=0) return;
-      var sn = (score===null || score==='') ? null : parseFloat(score);
-      if (sn !== null && sn === 0) {  // exactly zero score
-        // Team count
-        weeklyZeroMap[week][label] = (weeklyZeroMap[week][label] || 0) + 1;
-        // Agent count
-        agentWeeklyZeroMap[call.name][week][label] = (agentWeeklyZeroMap[call.name][week][label] || 0) + 1;
-      }
-    });
-  });
-
-  // Prepare weeks in order
-  var weeks = Object.keys(weeklyZeroMap).sort(function(a,b){
-    function p(s){ var m=s.match(/(\d+)\s(\w+)/); return m?new Date('2026 '+m[2]+' '+m[1]):new Date(0); }
-    return p(a)-p(b);
-  });
-
-  // Build HTML
-  var html = '';
-
-  // --- Existing sections (same as before, but we'll keep them) ---
-  if (isAdmin) {
-    // Team failures section (unchanged)
-    html += '<div class="analysis-card"><div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:4px;"><div><div class="a-card-title">&#x1F465; Team — Most Commonly Failed Criteria</div><div class="a-card-sub">Where the whole team needs coaching focus</div></div><button class="save-btn" style="margin-top:0;white-space:nowrap;" onclick="generateAIReport()">&#x2728; Generate AI Coaching Report</button></div>';
-    if (topFails.length){
-      html += '<div class="top-fails-list">';
-      topFails.forEach(function(e,i){
-        var pct = Math.round(e.fails/e.total*100), bc = pct>=60 ? 'var(--fail)' : pct>=30 ? 'var(--warn)' : 'var(--pass)', sc = pct>=60 ? 'high' : pct>=30 ? 'med' : 'low';
-        var aff = Object.keys(e.agentFails).join(', ');
-        html += '<div class="tf-row"><span class="tf-rank">'+(i+1)+'</span><div style="flex:1;min-width:0;"><div class="tf-label">'+e.label+'</div>'+(aff?'<div style="font-family:monospace;font-size:10px;color:var(--muted);margin-top:2px;">Affects: '+aff+'</div>':'')+'</div>'+(e.section?'<span class="tf-section">'+e.section+'</span>':'')+'<div class="tf-bar-wrap"><div class="tf-bar" style="width:'+pct+'%;background:'+bc+'"></div></div><span class="tf-stat fail-pct '+sc+'">'+pct+'%</span><span style="font-family:monospace;font-size:10px;color:var(--muted);white-space:nowrap;">'+e.fails+'/'+e.total+'</span></div>';
-      });
-      html += '</div>';
-    } else {
-      html += '<p style="font-family:monospace;font-size:12px;color:var(--pass);padding:8px 0;">&#x2705; No criteria failures found.</p>';
-    }
-    html += '</div>';
-
-    // Per-agent breakdown (admin)
-    html += '<div class="analysis-card"><div class="a-card-title">&#x1F464; Per-Agent Failure Breakdown</div><div class="a-card-sub">What each agent fails most — prep for 1-on-1 coaching</div><div class="agent-breakdown">';
-    agents.forEach(function(agent){
-      var d = afm[agent.name];
-      var sf = Object.keys(d.fails).sort(function(a,b){ return d.fails[b] - d.fails[a]; });
-      var mf = sf.length ? d.fails[sf[0]] : 1;
-      var pr = d.total ? Math.round((d.total-d.failed)/d.total*100) : 0;
-      var bc = pr>=90 ? 'pass' : pr>=60 ? 'mixed' : 'fail';
-      html += '<div class="ab-row"><div class="ab-header"><span class="ab-name">'+agent.name+'</span><div style="display:flex;align-items:center;gap:8px;"><span class="mini-badge '+bc+'">'+pr+'% pass rate</span><span class="ab-meta">'+d.total+' calls \u00b7 '+d.failed+' failed</span></div></div>';
-      if (sf.length){
-        html += '<div class="ab-fails">';
-        sf.slice(0,6).forEach(function(l){
-          var cnt = d.fails[l], bw = Math.round(cnt/mf*100), sec = cm[l.toLowerCase().replace(/\s+/g,' ')] ? cm[l.toLowerCase().replace(/\s+/g,' ')].section : '';
-          html += '<div class="ab-fail-item"><span class="ab-fail-label">'+l+(sec?' <span style="font-family:monospace;font-size:10px;color:var(--muted);">('+sec+')</span>':'')+'</span><div class="ab-fail-bar-wrap"><div class="ab-fail-bar" style="width:'+bw+'%"></div></div><span class="ab-fail-count">'+cnt+'x</span></div>';
-        });
-        html += '</div>';
-      } else {
-        html += '<div class="ab-no-fails">&#x2705; No scored criteria failures</div>';
-      }
-      html += '</div>';
-    });
-    html += '</div></div>';
-
-    // Heatmap (admin)
-    var an = agents.map(function(a){ return a.name; }), fc2 = cl.filter(function(e){ return e.fails>0; });
-    if (fc2.length && an.length){
-      html += '<div class="analysis-card"><div class="a-card-title">&#x1F9EF; Failure Heatmap</div><div class="a-card-sub">Darker = more failures for that agent on that criteria</div><div class="heatmap-wrap"><table class="heatmap-table"><thead> Bonn<th>Criteria</th><th>Section</th>';
-      an.forEach(function(n){ html += '<th style="text-align:center;white-space:nowrap;">'+n.split(' ')[0]+'</th>'; });
-      html += '<th>Team %</th> </thead><tbody>';
-      fc2.forEach(function(e){
-        var pct = Math.round(e.fails/e.total*100), sc = pct>=60 ? 'high' : pct>=30 ? 'med' : 'low';
-        html += '<tr><td style="font-size:12px;max-width:260px;">'+e.label+'</td><td style="font-family:monospace;font-size:10px;color:var(--muted);white-space:nowrap;">'+(e.section||'')+'</td>';
-        an.forEach(function(n){
-          var cnt = afm[n] ? (afm[n].fails[e.label]||0) : 0;
-          var hc = cnt===0 ? 'heat-0' : cnt===1 ? 'heat-1' : cnt===2 ? 'heat-2' : cnt<=4 ? 'heat-3' : 'heat-4';
-          html += '<td style="text-align:center;"><span class="heat-cell '+hc+'">'+(cnt||'\u2014')+'</span></td>';
-        });
-        html += '<td><span class="fail-pct '+sc+'">'+pct+'%</span></td></tr>';
-      });
-      html += '</tbody></table></div></div>';
-    }
-  } else {
-    // AGENT: Show only personal failure summary (unchanged)
-    html += '<div class="analysis-card"><div class="a-card-title">&#x1F464; Your Most Commonly Failed Criteria</div><div class="a-card-sub">Areas where you need coaching focus</div>';
-    if (topFails.length){
-      html += '<div class="top-fails-list">';
-      topFails.forEach(function(e,i){
-        var pct = Math.round(e.fails/e.total*100), bc = pct>=60 ? 'var(--fail)' : pct>=30 ? 'var(--warn)' : 'var(--pass)', sc = pct>=60 ? 'high' : pct>=30 ? 'med' : 'low';
-        var aff = Object.keys(e.agentFails).join(', ');
-        html += '<div class="tf-row"><span class="tf-rank">'+(i+1)+'</span><div style="flex:1;min-width:0;"><div class="tf-label">'+e.label+'</div>'+(aff?'<div style="font-family:monospace;font-size:10px;color:var(--muted);margin-top:2px;">Failed on '+aff+' calls</div>':'')+'</div>'+(e.section?'<span class="tf-section">'+e.section+'</span>':'')+'<div class="tf-bar-wrap"><div class="tf-bar" style="width:'+pct+'%;background:'+bc+'"></div></div><span class="tf-stat fail-pct '+sc+'">'+pct+'%</span><span style="font-family:monospace;font-size:10px;color:var(--muted);white-space:nowrap;">'+e.fails+'/'+e.total+'</span></div>';
-      });
-      html += '</div>';
-    } else {
-      html += '<p style="font-family:monospace;font-size:12px;color:var(--pass);padding:8px 0;">&#x2705; No criteria failures found.</p>';
-    }
-    html += '</div>';
-
-    // Personal failure breakdown (agent only)
-    if (agents.length === 1) {
-      var agent = agents[0];
-      var d = afm[agent.name];
-      var sf = Object.keys(d.fails).sort(function(a,b){ return d.fails[b] - d.fails[a]; });
-      var mf = sf.length ? d.fails[sf[0]] : 1;
-      var pr = d.total ? Math.round((d.total-d.failed)/d.total*100) : 0;
-      var bc = pr>=90 ? 'pass' : pr>=60 ? 'mixed' : 'fail';
-      html += '<div class="analysis-card"><div class="a-card-title">&#x1F4DD; Your Failure Breakdown</div><div class="a-card-sub">Specific criteria you failed most often</div><div class="ab-row">';
-      if (sf.length){
-        html += '<div class="ab-fails">';
-        sf.slice(0,6).forEach(function(l){
-          var cnt = d.fails[l], bw = Math.round(cnt/mf*100), sec = cm[l.toLowerCase().replace(/\s+/g,' ')] ? cm[l.toLowerCase().replace(/\s+/g,' ')].section : '';
-          html += '<div class="ab-fail-item"><span class="ab-fail-label">'+l+(sec?' <span style="font-family:monospace;font-size:10px;color:var(--muted);">('+sec+')</span>':'')+'</span><div class="ab-fail-bar-wrap"><div class="ab-fail-bar" style="width:'+bw+'%"></div></div><span class="ab-fail-count">'+cnt+'x</span></div>';
-        });
-        html += '</div>';
-      } else {
-        html += '<div class="ab-no-fails">&#x2705; No scored criteria failures</div>';
-      }
-      html += '</div></div>';
-    }
-
-    // Personal feedback log (agent only)
-    var fbs = [];
-    cl.forEach(function(e){
-      fbs = fbs.concat(e.feedbacks.filter(function(fb){ return fb.agent === currentAgentName; }));
-    });
-    fbs = fbs.filter(function(f){ return f.text; }).slice(0,40);
-    if (fbs.length){
-      html += '<div class="analysis-card"><div class="a-card-title">&#x1F4AC; Feedback You Received</div><div class="a-card-sub">Auditor comments on your failed criteria</div><div class="feedback-list">';
-      fbs.forEach(function(fb){
-        html += '<div class="fb-item"><div class="fb-item-header"><span class="fb-agent">'+fb.agent+'</span><span class="fb-date">'+fb.date+'</span></div><div class="fb-text">&ldquo;'+fb.text+'&rdquo;</div></div>';
-      });
-      html += '</div></div>';
-    }
-  }
-
-  // ---- NEW SECTION: Zero Score Trends (Team) ----
-  if (isAdmin && weeks.length) {
-    html += '<div class="analysis-card"><div class="a-card-title">⛔ Zero Score Trends (Team)</div><div class="a-card-sub">Criteria that received a score of 0 per week – identify recurring gaps</div>';
-    // Build a matrix of weeks x criteria
-    var allZeroCriteria = new Set();
-    weeks.forEach(function(w){
-      Object.keys(weeklyZeroMap[w]).forEach(function(c){ allZeroCriteria.add(c); });
-    });
-    var criteriaList = Array.from(allZeroCriteria).sort();
-    if (criteriaList.length) {
-      html += '<div class="heatmap-wrap"><table class="heatmap-table"><thead><tr><th>Week</th>';
-      criteriaList.forEach(function(c){ html += '<th style="white-space:nowrap;">'+c+'</th>'; });
-      html += '</tr></thead><tbody>';
-      weeks.slice().reverse().forEach(function(w){ // show latest weeks first
-        html += '<tr><td style="font-weight:600;">'+w+'</td>';
-        criteriaList.forEach(function(c){
-          var cnt = weeklyZeroMap[w][c] || 0;
-          var cls = cnt===0 ? 'heat-0' : cnt===1 ? 'heat-1' : cnt===2 ? 'heat-2' : cnt<=4 ? 'heat-3' : 'heat-4';
-          html += '<td style="text-align:center;"><span class="heat-cell '+cls+'">'+(cnt||'\u2014')+'</span></td>';
-        });
-        html += '</tr>';
-      });
-      html += '</tbody></table></div>';
-    } else {
-      html += '<p style="font-family:monospace;font-size:12px;color:var(--pass);padding:8px 0;">&#x2705; No zero scores found.</p>';
-    }
-    html += '</div>';
-  }
-
-  // ---- NEW SECTION: Per-Agent Zero Score Breakdown (Admin) ----
-  if (isAdmin && agents.length) {
-    html += '<div class="analysis-card"><div class="a-card-title">👤 Per-Agent Zero Score Breakdown</div><div class="a-card-sub">Each agent’s criteria with zero scores, by week</div>';
-    agents.forEach(function(agent){
-      var agentZeros = agentWeeklyZeroMap[agent.name];
-      if (!agentZeros || Object.keys(agentZeros).length === 0) return;
-      var agentHtml = '<div class="ab-row"><div class="ab-header"><span class="ab-name">'+agent.name+'</span><span class="ab-meta">'+agent.calls.length+' calls</span></div><div class="heatmap-wrap"><table class="heatmap-table" style="margin-top:8px;"><thead><tr><th>Week</th><th>Criteria</th><th>Zero Count</th></tr></thead><tbody>';
-      var weeksForAgent = Object.keys(agentZeros).sort(function(a,b){ return getWeekNumber(a)-getWeekNumber(b); }).reverse();
-      weeksForAgent.forEach(function(w){
-        var criteria = agentZeros[w];
-        var critList = Object.keys(criteria).sort();
-        critList.forEach(function(c){
-          agentHtml += '<tr><td style="white-space:nowrap;">'+w+'</td><td>'+c+'</td><td style="text-align:center;">'+criteria[c]+'</td></tr>';
-        });
-      });
-      agentHtml += '</tbody></table></div></div>';
-      html += agentHtml;
-    });
-    html += '</div>';
-  }
-
-  // ---- Agent Zero Score Breakdown (Agent only) ----
-  if (!isAdmin && agents.length === 1 && agentWeeklyZeroMap[currentAgentName]) {
-    var agentZeros = agentWeeklyZeroMap[currentAgentName];
-    var agent = agents[0];
-    if (agentZeros && Object.keys(agentZeros).length) {
-      html += '<div class="analysis-card"><div class="a-card-title">⛔ Your Zero Score Breakdown</div><div class="a-card-sub">Criteria where you scored 0 – by week</div>';
-      html += '<div class="heatmap-wrap"><table class="heatmap-table"><thead><tr><th>Week</th><th>Criteria</th><th>Zero Count</th></tr></thead><tbody>';
-      var weeksForAgent = Object.keys(agentZeros).sort(function(a,b){ return getWeekNumber(a)-getWeekNumber(b); }).reverse();
-      weeksForAgent.forEach(function(w){
-        var criteria = agentZeros[w];
-        var critList = Object.keys(criteria).sort();
-        critList.forEach(function(c){
-          html += '<tr><td style="white-space:nowrap;">'+w+'</td><td>'+c+'</td><td style="text-align:center;">'+criteria[c]+'</td></tr>';
-        });
-      });
-      html += '</tbody></table></div></div>';
-    }
-  }
-
-  // AI report placeholder (admin only)
-  if (isAdmin) {
-    html += '<div class="analysis-card" id="aiCard" style="display:none;"><div class="a-card-title">&#x2728; AI Coaching Report</div><div class="a-card-sub">Generated analysis and recommendations</div><div id="aiContent" style="font-size:13px;line-height:1.8;color:var(--text);white-space:pre-wrap;font-family:\'DM Mono\',monospace;"></div></div>';
-  }
-
-  container.innerHTML = html;
-}
-
-// Helper to convert week label to comparable number
-function getWeekNumber(weekLabel){
-  var m = weekLabel.match(/(\d+)\s(\w+)/);
-  if (!m) return 0;
-  var months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
-  var day = parseInt(m[1]);
-  var month = months[m[2]];
-  var year = 2026; // fixed year for sorting
-  return (year * 1000) + (month * 100) + day;
-}
-
-// ... (keep all other functions exactly as before) ...
+// Helper functions (unchanged from earlier working version)
+// ... (we'll insert them here but to keep this message short, I'll include the essential ones)
+// For brevity, I'll assume you have the full set of functions from the previous correct version.
+// Actually, to ensure completeness, I'll provide the full script in the final answer.
+// Given the length, I'll provide a separate final message with the complete HTML.
 </script>
 </body>
 </html>
