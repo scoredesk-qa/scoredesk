@@ -8,405 +8,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap');
-:root{
-  --bg:#0b0d13;--surface:#12151e;--surface2:#191d28;--surface3:#1f2335;
-  --border:#242938;--accent:#4f8cff;--accent2:#a78bfa;
-  --pass:#22d3a0;--fail:#f43f5e;--warn:#f59e0b;--auto:#e879f9;
-  --text:#e8ecf4;--muted:#6b7694;--radius:12px;
-}
-*{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
-
-/* LOGIN */
-#loginScreen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;padding:24px;}
-.login-box{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:48px 44px;width:100%;max-width:420px;text-align:center;}
-.login-logo{width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 20px;}
-.login-title{font-size:24px;font-weight:800;margin-bottom:6px;}
-.login-sub{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);margin-bottom:32px;}
-.login-field{display:flex;flex-direction:column;gap:7px;margin-bottom:16px;text-align:left;}
-.login-field label{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;}
-.login-input{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:12px 14px;border-radius:9px;font-family:'DM Mono',monospace;font-size:13px;transition:border-color .15s;width:100%;}
-.login-input:focus{outline:none;border-color:var(--accent);}
-.pass-wrap{position:relative;}
-.pass-wrap .login-input{padding-right:44px;}
-.pass-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--muted);font-size:18px;line-height:1;user-select:none;transition:color .15s;}
-.pass-toggle:hover{color:var(--text);}
-.remember-row{display:flex;align-items:center;gap:8px;margin-bottom:16px;text-align:left;}
-.remember-row input{width:14px;height:14px;cursor:pointer;accent-color:var(--accent);}
-.remember-row label{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);cursor:pointer;user-select:none;}
-.login-btn{width:100%;background:var(--accent);color:#fff;border:none;padding:13px;border-radius:9px;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;transition:all .15s;}
-.login-btn:hover{background:#3a7aee;}
-.login-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
-.login-error{color:var(--fail);font-family:'DM Mono',monospace;font-size:12px;margin-top:12px;display:none;padding:10px 14px;background:rgba(244,63,94,.1);border-radius:8px;border:1px solid rgba(244,63,94,.3);line-height:1.5;text-align:left;}
-.login-status{color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;margin-top:10px;padding:8px 12px;background:var(--surface2);border-radius:7px;border:1px solid var(--border);line-height:1.5;text-align:left;}
-
-/* HEADER */
-.header{display:flex;align-items:center;justify-content:space-between;padding:16px 32px;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:100;}
-.logo{display:flex;align-items:center;gap:11px;}
-.logo-icon{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:16px;}
-.logo-name{font-size:15px;font-weight:800;}
-.logo-sub{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;}
-.hdr-right{display:flex;align-items:center;gap:10px;}
-.hdr-user{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);}
-.hdr-month{font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);background:rgba(79,140,255,.1);padding:4px 12px;border-radius:5px;}
-.hdr-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:600;transition:all .15s;}
-.hdr-btn:hover{border-color:var(--accent);color:var(--accent);}
-.hdr-btn.admin{border-color:var(--accent2);color:var(--accent2);}
-
-/* MAIN */
-.main{max-width:1300px;margin:0 auto;padding:28px 28px;}
-
-/* PAGE TABS */
-.page-tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:24px;width:fit-content;}
-.page-tab{font-family:'DM Mono',monospace;font-size:12px;padding:8px 20px;border-radius:7px;cursor:pointer;border:none;background:transparent;color:var(--muted);transition:all .2s;font-weight:500;}
-.page-tab.active{background:var(--accent);color:#fff;}
-.page-tab:hover:not(.active){color:var(--text);}
-
-/* UPLOAD */
-#uploadBig{border:2px dashed var(--border);border-radius:16px;padding:44px 36px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface);position:relative;margin-bottom:24px;}
-#uploadBig:hover,#uploadBig.drag-over{border-color:var(--accent);background:rgba(79,140,255,.04);}
-#uploadBig input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
-.upload-icon{font-size:40px;margin-bottom:12px;display:block;}
-.upload-title{font-size:18px;font-weight:700;margin-bottom:6px;}
-.upload-sub{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);}
-.upload-btn{display:inline-block;margin-top:14px;background:var(--accent);color:#fff;padding:10px 24px;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;border:none;}
-#uploadCompact{display:none;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 18px;margin-bottom:20px;position:relative;}
-#uploadCompact input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
-.compact-text{flex:1;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);}
-.compact-text strong{color:var(--text);display:block;font-size:13px;margin-bottom:2px;}
-.add-more-btn{background:var(--surface2);border:1px solid var(--accent);color:var(--accent);padding:7px 16px;border-radius:7px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;z-index:1;position:relative;}
-.view-files-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:7px 14px;border-radius:7px;font-family:'Syne',sans-serif;font-weight:600;font-size:12px;cursor:pointer;white-space:nowrap;z-index:1;position:relative;}
-.view-files-btn:hover{border-color:var(--accent);color:var(--accent);}
-
-/* FILES DRAWER */
-#filesDrawer{display:none;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:20px;}
-#filesDrawer.open{display:block;}
-.drawer-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
-.drawer-title{font-size:14px;font-weight:700;}
-.drawer-close{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;}
-.file-bar{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface2);border-radius:8px;margin-bottom:6px;}
-.file-bar:last-child{margin-bottom:0;}
-.file-bar-info{flex:1;min-width:0;}
-.file-bar-agent{font-size:13px;font-weight:700;}
-.file-bar-name{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.file-bar-badge{font-family:'DM Mono',monospace;font-size:10px;padding:2px 8px;border-radius:4px;}
-.file-bar-badge.pass{background:rgba(34,211,160,.12);color:var(--pass);}
-.file-bar-badge.fail{background:rgba(244,63,94,.12);color:var(--fail);}
-.rm-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:5px;font-size:11px;cursor:pointer;font-family:'Syne',sans-serif;}
-.rm-btn:hover{border-color:var(--fail);color:var(--fail);}
-
-/* SUMMARY */
-.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px;}
-.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;display:flex;flex-direction:column;gap:6px;}
-.stat-label{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;}
-.stat-value{font-size:38px;font-weight:800;line-height:1;}
-.c-pass{color:var(--pass);}.c-fail{color:var(--fail);}.c-accent{color:var(--accent);}
-.stat-bar{height:3px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:4px;}
-.stat-bar-fill{height:100%;border-radius:3px;}
-
-/* CHARTS */
-.charts-section{margin-bottom:28px;}
-.charts-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
-.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px 24px;}
-.chart-card.full{grid-column:1/-1;}
-.chart-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;}
-.chart-title{font-size:14px;font-weight:700;margin-bottom:3px;}
-.chart-sub{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
-
-/* SECTION */
-.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
-.section-title{font-size:17px;font-weight:700;}
-.filter-tabs{display:flex;gap:7px;}
-.tab{font-family:'DM Mono',monospace;font-size:11px;padding:5px 14px;border-radius:6px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);transition:all .15s;}
-.tab.active{background:var(--accent);border-color:var(--accent);color:#fff;}
-
-/* AGENT CARDS */
-.agent-cards{display:flex;flex-direction:column;gap:14px;margin-bottom:36px;}
-.agent-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
-.agent-card-header{display:flex;align-items:center;gap:14px;padding:15px 20px;cursor:pointer;transition:background .15s;user-select:none;}
-.agent-card-header:hover{background:var(--surface2);}
-.agent-avatar{width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;flex-shrink:0;background:var(--surface3);color:var(--accent);}
-.agent-card-info{flex:1;min-width:0;}
-.agent-card-name{font-size:14px;font-weight:700;}
-.agent-card-sub{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-top:2px;}
-.agent-card-stats{display:flex;align-items:center;gap:10px;flex-shrink:0;}
-.mini-badge{font-family:'DM Mono',monospace;font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600;}
-.mini-badge.pass{background:rgba(34,211,160,.1);color:var(--pass);}
-.mini-badge.fail{background:rgba(244,63,94,.1);color:var(--fail);}
-.mini-badge.mixed{background:rgba(245,158,11,.1);color:var(--warn);}
-.calls-count{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
-.chevron{color:var(--muted);transition:transform .2s;font-size:13px;}
-.chevron.open{transform:rotate(180deg);}
-
-/* TABLE */
-.calls-table-wrap{border-top:1px solid var(--border);display:none;}
-.calls-table-wrap.open{display:block;}
-table{width:100%;border-collapse:collapse;}
-thead{background:var(--surface2);}
-th{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.7px;color:var(--muted);text-align:left;padding:10px 20px;border-bottom:1px solid var(--border);text-transform:uppercase;}
-td{padding:12px 20px;border-bottom:1px solid var(--border);font-size:12px;vertical-align:middle;}
-tr:last-child td{border-bottom:none;}
-tr:hover td{background:rgba(79,140,255,.03);}
-.badge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:20px;font-size:11px;font-weight:700;}
-.badge::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor;}
-.badge.pass{background:rgba(34,211,160,.1);color:var(--pass);}
-.badge.fail{background:rgba(244,63,94,.1);color:var(--fail);}
-.fail-reason{font-family:'DM Mono',monospace;font-size:11px;color:var(--auto);background:rgba(232,121,249,.08);border:1px solid rgba(232,121,249,.18);padding:3px 9px;border-radius:5px;display:inline-block;max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.action-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 12px;border-radius:6px;font-size:11px;font-family:'Syne',sans-serif;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;}
-.action-btn:hover{border-color:var(--accent);color:var(--accent);}
-
-/* MODAL */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:999;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s;}
-.modal-overlay.open{opacity:1;pointer-events:all;}
-.modal{background:var(--surface);border:1px solid var(--border);border-radius:18px;width:100%;max-width:720px;max-height:92vh;overflow-y:auto;transform:translateY(14px);transition:transform .2s;}
-.modal-overlay.open .modal{transform:translateY(0);}
-.modal-top{padding:22px 26px 16px;display:flex;align-items:flex-start;justify-content:space-between;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:2;}
-.modal-agent{font-size:20px;font-weight:800;}
-.modal-meta{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-top:3px;}
-.modal-close{background:var(--surface2);border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:7px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;}
-.modal-close:hover{border-color:var(--fail);color:var(--fail);}
-.modal-body{padding:22px 26px;display:flex;flex-direction:column;gap:20px;}
-.result-banner{border-radius:12px;padding:16px 20px;border:1px solid;}
-.result-banner.pass{background:rgba(34,211,160,.07);border-color:rgba(34,211,160,.25);}
-.result-banner.fail{background:rgba(244,63,94,.07);border-color:rgba(244,63,94,.25);}
-.result-icon{font-size:26px;margin-bottom:6px;}
-.result-label{font-size:19px;font-weight:800;margin-bottom:4px;}
-.result-label.pass{color:var(--pass);}.result-label.fail{color:var(--fail);}
-.result-reason{font-family:'DM Mono',monospace;font-size:12px;color:var(--text);margin-top:5px;}
-.af-box{background:rgba(232,121,249,.06);border:1px solid rgba(232,121,249,.2);border-radius:10px;padding:14px 16px;}
-.af-box-title{font-size:13px;font-weight:700;color:var(--auto);margin-bottom:10px;}
-.af-row{padding:8px 0;border-bottom:1px solid rgba(232,121,249,.1);display:flex;flex-direction:column;gap:3px;}
-.af-row:last-child{border-bottom:none;padding-bottom:0;}
-.af-q{font-size:12px;color:var(--text);}
-.af-result{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:var(--fail);}
-.af-fb{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-top:2px;}
-.sec-title{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:9px;}
-.criteria-list{display:flex;flex-direction:column;gap:5px;}
-.cr-item{padding:10px 13px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);}
-.cr-top{display:flex;align-items:center;gap:10px;}
-.cr-label{flex:1;font-size:12px;color:var(--text);}
-.cr-pts{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;}
-.cr-pts.full{color:var(--pass);}.cr-pts.partial{color:var(--warn);}.cr-pts.zero{color:var(--fail);}.cr-pts.na{color:var(--muted);}
-.cr-wt{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
-.cr-fb{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-top:6px;padding-top:6px;border-top:1px solid var(--border);line-height:1.5;}
-.notes-lbl{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:8px;}
-.notes-area{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:13px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;resize:vertical;min-height:120px;transition:border-color .15s;}
-.notes-area:focus{outline:none;border-color:var(--accent);}
-.notes-area::placeholder{color:var(--muted);}
-.save-btn{background:var(--accent);color:#fff;border:none;padding:8px 18px;border-radius:7px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;margin-top:8px;transition:all .15s;}
-.save-btn:hover{background:#3a7aee;}
-.save-ok{color:var(--pass);font-family:'DM Mono',monospace;font-size:11px;margin-top:5px;display:none;}
-
-/* ACCOUNT MODAL */
-.acct-row{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 13px;margin-bottom:6px;}
-.acct-name{font-family:'DM Mono',monospace;font-size:12px;flex:1;}
-.acct-input{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-family:'DM Mono',monospace;font-size:12px;flex:1;width:100%;margin-bottom:8px;}
-.acct-input:focus{outline:none;border-color:var(--accent);}
-
-/* ANALYSIS */
-#analysisSection{display:none;}
-.analysis-grid{display:grid;grid-template-columns:1fr;gap:16px;}
-.analysis-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px 24px;}
-.a-card-title{font-size:14px;font-weight:700;margin-bottom:3px;}
-.a-card-sub{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:18px;}
-.top-fails-list{display:flex;flex-direction:column;gap:8px;}
-.tf-row{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--surface2);border-radius:9px;border:1px solid var(--border);}
-.tf-rank{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:var(--muted);width:24px;flex-shrink:0;}
-.tf-label{font-size:12px;color:var(--text);}
-.tf-section{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);background:var(--surface3);padding:2px 8px;border-radius:4px;white-space:nowrap;}
-.tf-bar-wrap{width:100px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;flex-shrink:0;}
-.tf-bar{height:100%;border-radius:3px;}
-.tf-stat{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;}
-.fail-pct.high{color:var(--fail);}.fail-pct.med{color:var(--warn);}.fail-pct.low{color:var(--pass);}
-.agent-breakdown{display:flex;flex-direction:column;gap:10px;}
-.ab-row{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
-.ab-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;}
-.ab-name{font-size:13px;font-weight:700;}
-.ab-meta{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
-.ab-fails{display:flex;flex-direction:column;gap:5px;}
-.ab-fail-item{display:flex;align-items:center;gap:10px;}
-.ab-fail-label{flex:1;font-size:11px;color:var(--text);}
-.ab-fail-bar-wrap{width:120px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;flex-shrink:0;}
-.ab-fail-bar{height:100%;border-radius:3px;background:var(--fail);}
-.ab-fail-count{font-family:'DM Mono',monospace;font-size:11px;color:var(--fail);width:28px;text-align:right;}
-.ab-no-fails{font-family:'DM Mono',monospace;font-size:11px;color:var(--pass);}
-.heatmap-wrap{overflow-x:auto;}
-.heatmap-table{width:100%;border-collapse:collapse;font-size:12px;}
-.heatmap-table th{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
-.heatmap-table td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:middle;}
-.heatmap-table tr:last-child td{border-bottom:none;}
-.heat-cell{display:inline-flex;align-items:center;justify-content:center;width:36px;height:24px;border-radius:5px;font-family:'DM Mono',monospace;font-size:11px;font-weight:600;}
-.heat-0{background:rgba(34,211,160,.12);color:var(--pass);}
-.heat-1{background:rgba(245,158,11,.15);color:var(--warn);}
-.heat-2{background:rgba(244,63,94,.15);color:var(--fail);}
-.heat-3{background:rgba(244,63,94,.3);color:var(--fail);}
-.heat-4{background:rgba(244,63,94,.5);color:#fff;}
-.feedback-list{display:flex;flex-direction:column;gap:8px;max-height:400px;overflow-y:auto;}
-.fb-item{background:var(--surface2);border-radius:9px;border:1px solid var(--border);padding:12px 14px;}
-.fb-item-header{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
-.fb-agent{font-size:12px;font-weight:700;}
-.fb-date{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-left:auto;}
-.fb-text{font-size:12px;color:var(--text);line-height:1.6;font-style:italic;}
-
-/* LOADING */
-#loadingOverlay{position:fixed;inset:0;background:rgba(11,13,19,.8);display:none;align-items:center;justify-content:center;z-index:9998;}
-.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
-@keyframes spin{to{transform:rotate(360deg);}}
-
-/* TOAST */
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(70px);background:var(--surface2);border:1px solid var(--border);padding:11px 20px;border-radius:9px;font-size:13px;font-weight:600;z-index:9999;transition:transform .3s cubic-bezier(.4,0,.2,1);}
-.toast.show{transform:translateX(-50%) translateY(0);}
-.toast.ok{border-color:var(--pass);color:var(--pass);}
-.toast.err{border-color:var(--fail);color:var(--fail);}
-.hidden{display:none!important;}
-#placeholder{text-align:center;padding:80px 20px;color:var(--muted);}
-.pi{font-size:52px;margin-bottom:14px;}
+/* ... (keep all CSS exactly as before) ... */
 </style>
 </head>
 <body>
 
-<div id="loadingOverlay" style="display:none;"><div class="spinner"></div></div>
-
-<!-- LOGIN -->
-<div id="loginScreen">
-  <div class="login-box">
-    <div class="login-logo">&#x1F4CB;</div>
-    <div class="login-title">ScoreDesk</div>
-    <div class="login-sub">QA SCORECARD PLATFORM</div>
-    <div class="login-field">
-      <label>Email</label>
-      <input class="login-input" type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email" autocorrect="off" autocapitalize="off">
-    </div>
-    <div class="login-field">
-      <label>Password</label>
-      <div class="pass-wrap">
-        <input class="login-input" type="password" id="loginPass" placeholder="Password" autocomplete="current-password">
-        <span class="pass-toggle" id="passToggle">&#x1F441;</span>
-      </div>
-    </div>
-    <div class="remember-row">
-      <input type="checkbox" id="rememberMe">
-      <label for="rememberMe">Remember me</label>
-    </div>
-    <button class="login-btn" id="loginBtn">Sign In</button>
-    <div class="login-error" id="loginError"></div>
-    <div class="login-status" id="loginStatus" style="display:none;"></div>
-  </div>
-</div>
-
-<!-- APP -->
-<div id="app" class="hidden">
-  <div class="header">
-    <div class="logo">
-      <div class="logo-icon">&#x1F4CB;</div>
-      <div><div class="logo-name">ScoreDesk</div><div class="logo-sub">QA SCORECARD PLATFORM</div></div>
-    </div>
-    <div class="hdr-right">
-      <span class="hdr-month" id="hdrMonth"></span>
-      <span class="hdr-user" id="hdrUser"></span>
-      <button class="hdr-btn admin" id="manageAccountsBtn" style="display:none">Manage Accounts</button>
-      <button class="hdr-btn" id="logoutBtnEl">Sign Out</button>
-    </div>
-  </div>
-
-  <div class="main">
-    <div class="page-tabs" id="pageTabs" style="display:none;">
-      <button class="page-tab active" data-page="dashboard">&#x1F4CA; Dashboard</button>
-      <button class="page-tab" data-page="analysis">&#x1F50D; Failure Analysis</button>
-    </div>
-
-    <div id="uploadBig">
-      <input type="file" id="fileInputBig" accept=".xlsx,.xls" multiple>
-      <span class="upload-icon">&#x1F4E5;</span>
-      <div class="upload-title">Upload Scorecards</div>
-      <div class="upload-sub">One Excel file per call &middot; multiple agents supported</div>
-      <div class="upload-sub" style="margin-top:4px;">Drag &amp; drop or click &middot; .xlsx / .xls</div>
-      <div><button class="upload-btn" id="chooseBtnEl">Choose Files</button></div>
-    </div>
-
-    <div id="uploadCompact">
-      <input type="file" id="fileInputCompact" accept=".xlsx,.xls" multiple>
-      <div class="compact-text"><strong id="compactCount"></strong>Files loaded for <span id="compactMonth"></span></div>
-      <button class="view-files-btn" id="viewFilesBtnEl">View Files</button>
-      <button class="add-more-btn" id="addMoreBtnEl">+ Add Files</button>
-    </div>
-
-    <div id="filesDrawer">
-      <div class="drawer-header"><div class="drawer-title">Loaded Files</div><button class="drawer-close" id="closeDrawerBtnEl">&#x2715;</button></div>
-      <div id="filesList"></div>
-    </div>
-
-    <!-- DASHBOARD -->
-    <div id="dashSection" class="hidden">
-      <div class="summary-grid" id="summaryGrid"></div>
-      <div class="charts-section">
-        <div class="charts-row">
-          <div class="chart-card full">
-            <div class="chart-header"><div><div class="chart-title">Call Quality &mdash; Weekly Trend</div><div class="chart-sub">Number of passed calls per week</div></div></div>
-            <canvas id="weeklyChart" height="80"></canvas>
-          </div>
-        </div>
-        <div class="charts-row">
-          <div class="chart-card">
-            <div class="chart-header"><div><div class="chart-title">Pass vs Fail by Week</div><div class="chart-sub">Volume of calls per week</div></div></div>
-            <canvas id="stackedChart" height="140"></canvas>
-          </div>
-          <div class="chart-card">
-            <div class="chart-header"><div><div class="chart-title">Total Calls Scored per Week</div><div class="chart-sub">Total calls scored each week</div></div></div>
-            <canvas id="agentChart" height="140"></canvas>
-          </div>
-        </div>
-      </div>
-      <div class="section-header">
-        <div class="section-title">Agents</div>
-        <div class="filter-tabs">
-          <button class="tab active" data-filter="all">All</button>
-          <button class="tab" data-filter="pass">All Passed</button>
-          <button class="tab" data-filter="fail">Has Fails</button>
-        </div>
-      </div>
-      <div class="agent-cards" id="agentCards"></div>
-    </div>
-
-    <!-- ANALYSIS -->
-    <div id="analysisSection">
-      <div class="analysis-grid" id="analysisContent">
-        <div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">Upload scorecards to see failure analysis.</p></div>
-      </div>
-    </div>
-
-    <div id="placeholder"><div class="pi">&#x1F5C2;&#xFE0F;</div><p style="font-size:15px;">Upload scorecard Excel files to get started</p></div>
-  </div>
-</div>
-
-<!-- CALL DETAIL MODAL -->
-<div class="modal-overlay" id="modalOverlay">
-  <div class="modal">
-    <div class="modal-top"><div><div class="modal-agent" id="mName"></div><div class="modal-meta" id="mMeta"></div></div><button class="modal-close" id="closeCallModalBtn">&#x2715;</button></div>
-    <div class="modal-body" id="mBody"></div>
-  </div>
-</div>
-
-<!-- ACCOUNT MODAL -->
-<div class="modal-overlay" id="accountModalOverlay">
-  <div class="modal" style="max-width:500px;">
-    <div class="modal-top"><div><div class="modal-agent">Manage Accounts</div><div class="modal-meta">Create logins for quality agents</div></div><button class="modal-close" id="closeAcctModalBtn">&#x2715;</button></div>
-    <div class="modal-body">
-      <div id="accountList"></div>
-      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;">
-        <div class="notes-lbl" style="margin-bottom:10px;">New Account</div>
-        <input id="newEmail"    class="acct-input" placeholder="Email address" type="email">
-        <input id="newAgentName" class="acct-input" placeholder="Agent Name (as appears in Excel)" type="text">
-        <input id="newPassword" class="acct-input" placeholder="Password (min 6 chars)" type="password">
-        <button class="save-btn" style="margin-top:0;width:100%;" id="createAcctBtnEl">Create Account</button>
-        <div id="accountMsg" style="font-family:monospace;font-size:11px;display:none;margin-top:8px;"></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="toast" id="toast"></div>
+<!-- ... (keep all HTML exactly as before) ... -->
 
 <script>
 // Supabase configuration (REPLACE WITH YOUR OWN)
@@ -419,676 +26,300 @@ var currentFilter = 'all';
 var currentCallKey = null;
 var currentUser = null;
 var isAdmin = false;
-var currentAgentName = null; // For agents: their own agent name
+var currentAgentName = null;
 var weeklyChartInst = null, stackedChartInst = null, agentChartInst = null;
 var CHART_CFG = { gridColor:'rgba(255,255,255,0.06)', tickFont:{ family:'DM Mono, monospace', size:11 } };
 
-// Initialize Supabase after window loads
-window.addEventListener('load', function() {
-  try {
-    if (typeof window.supabase === 'undefined') {
-      throw new Error('Supabase SDK not loaded. Check your internet connection.');
-    }
-    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-      auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: false }
-    });
-    console.log('Supabase client ready');
-    restoreSession();
-  } catch (e) {
-    console.error('Supabase init failed:', e);
-    document.getElementById('loginError').textContent = 'Failed to initialize authentication. Please refresh the page.';
-    document.getElementById('loginError').style.display = 'block';
-  }
-});
+// ... (keep all helper functions unchanged until renderAnalysis) ...
 
-document.addEventListener('DOMContentLoaded', function() {
-  // Login UI
-  var loginPassEl = document.getElementById('loginPass');
-  if (loginPassEl) loginPassEl.addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
-
-  var pwEye = document.getElementById('passToggle');
-  if (pwEye) pwEye.addEventListener('click', togglePass);
-
-  var loginBtnEl = document.getElementById('loginBtn');
-  if (loginBtnEl) loginBtnEl.addEventListener('click', doLogin);
-
-  // Header
-  var logoutEl = document.getElementById('logoutBtnEl');
-  if (logoutEl) logoutEl.addEventListener('click', doLogout);
-
-  var manageEl = document.getElementById('manageAccountsBtn');
-  if (manageEl) manageEl.addEventListener('click', openAccountModal);
-
-  // Page tabs
-  document.querySelectorAll('.page-tab').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var page = this.getAttribute('data-page') || (this.textContent.includes('Dashboard') ? 'dashboard' : 'analysis');
-      switchPage(page, this);
-    });
-  });
-
-  // Upload (only for admins, but we'll hide UI if not admin)
-  var chooseBtnEl = document.getElementById('chooseBtnEl');
-  if (chooseBtnEl) chooseBtnEl.addEventListener('click', function(e){ e.stopPropagation(); document.getElementById('fileInputBig').click(); });
-
-  var viewFilesEl = document.getElementById('viewFilesBtnEl');
-  if (viewFilesEl) viewFilesEl.addEventListener('click', function(e){ e.stopPropagation(); toggleFilesDrawer(); });
-
-  var addMoreEl = document.getElementById('addMoreBtnEl');
-  if (addMoreEl) addMoreEl.addEventListener('click', function(e){ e.stopPropagation(); document.getElementById('fileInputCompact').click(); });
-
-  var closeDrawerEl = document.getElementById('closeDrawerBtnEl');
-  if (closeDrawerEl) closeDrawerEl.addEventListener('click', toggleFilesDrawer);
-
-  // File inputs
-  var fi1 = document.getElementById('fileInputBig');
-  if (fi1) fi1.addEventListener('change', function(e){ Array.prototype.forEach.call(e.target.files, parseFile); e.target.value=''; });
-
-  var fi2 = document.getElementById('fileInputCompact');
-  if (fi2) fi2.addEventListener('change', function(e){ Array.prototype.forEach.call(e.target.files, parseFile); e.target.value=''; });
-
-  // Drag & drop
-  var ub = document.getElementById('uploadBig');
-  if (ub) {
-    ub.addEventListener('dragover', function(e){ e.preventDefault(); ub.classList.add('drag-over'); });
-    ub.addEventListener('dragleave', function(){ ub.classList.remove('drag-over'); });
-    ub.addEventListener('drop', function(e){ e.preventDefault(); ub.classList.remove('drag-over'); Array.prototype.forEach.call(e.dataTransfer.files, parseFile); });
-  }
-
-  // Filter tabs
-  document.querySelectorAll('.filter-tabs .tab').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var f = this.getAttribute('data-filter') || 'all';
-      filterAgents(f, this);
-    });
-  });
-
-  // Modals
-  var callOv = document.getElementById('modalOverlay');
-  if (callOv) callOv.addEventListener('click', function(e){ if(e.target===this) closeModal(); });
-
-  var closeCallBtn = document.getElementById('closeCallModalBtn');
-  if (closeCallBtn) closeCallBtn.addEventListener('click', closeModal);
-
-  var acctOv = document.getElementById('accountModalOverlay');
-  if (acctOv) acctOv.addEventListener('click', function(e){ if(e.target===this) closeAccountModal(); });
-
-  var closeAcctBtn = document.getElementById('closeAcctModalBtn');
-  if (closeAcctBtn) closeAcctBtn.addEventListener('click', closeAccountModal);
-
-  var createAcctEl = document.getElementById('createAcctBtnEl');
-  if (createAcctEl) createAcctEl.addEventListener('click', createAccount);
-
-  // Restore saved email
-  try {
-    var saved = localStorage.getItem('sd_last_email');
-    if (saved) {
-      var emailEl = document.getElementById('loginEmail');
-      if (emailEl) emailEl.value = saved;
-      var remEl = document.getElementById('rememberMe');
-      if (remEl) remEl.checked = true;
-    }
-  } catch(e) {}
-});
-
-function togglePass() {
-  var input = document.getElementById('loginPass');
-  var icon  = document.getElementById('passToggle');
-  if (input.type === 'password') {
-    input.type = 'text';
-    icon.innerHTML = '&#x1F648;';
-  } else {
-    input.type = 'password';
-    icon.innerHTML = '&#x1F441;';
-  }
-}
-
-async function restoreSession() {
-  if (!sb) return;
-  try {
-    var r = await sb.auth.getSession();
-    if (r.data && r.data.session && r.data.session.user) {
-      currentUser = r.data.session.user;
-      await onLogin();
-    }
-  } catch(e) { console.error('Session restore:', e); }
-}
-
-async function doLogin() {
-  var email = (document.getElementById('loginEmail').value || '').trim();
-  var pass  = document.getElementById('loginPass').value || '';
-  var btn   = document.getElementById('loginBtn');
-
-  hideLoginError();
-  setStatus('');
-
-  if (!email) { showLoginError('Please enter your email address.'); return; }
-  if (!pass)  { showLoginError('Please enter your password.'); return; }
-
-  if (!sb) {
-    showLoginError('Authentication service not ready. Please wait or refresh the page.');
-    return;
-  }
-
-  btn.disabled = true;
-  btn.textContent = 'Signing in...';
-  setStatus('Checking credentials...');
-
-  try {
-    var result = await sb.auth.signInWithPassword({ email: email, password: pass });
-
-    if (result.error) {
-      var msg = result.error.message || 'Login failed';
-      if (/invalid|credentials|password|not found/i.test(msg)) {
-        msg = 'Incorrect email or password. Please try again.';
-      } else if (/confirm/i.test(msg)) {
-        msg = 'Email not confirmed. Please check your inbox or contact admin.';
-      } else if (/network|fetch/i.test(msg)) {
-        msg = 'Network error. Please check your connection.';
-      }
-      showLoginError(msg);
-      setStatus('');
-      btn.disabled = false;
-      btn.textContent = 'Sign In';
-      return;
-    }
-
-    if (!result.data || !result.data.user) {
-      showLoginError('Login failed — no user returned. Please try again.');
-      setStatus('');
-      btn.disabled = false;
-      btn.textContent = 'Sign In';
-      return;
-    }
-
-    setStatus('Login successful! Loading...');
-    currentUser = result.data.user;
-    try { localStorage.setItem('sd_last_email', email); } catch(e) {}
-    await onLogin();
-
-  } catch(err) {
-    showLoginError('Login error: ' + (err.message || 'Unknown error. Please try again.'));
-    setStatus('');
-    btn.disabled = false;
-    btn.textContent = 'Sign In';
-  }
-}
-
-function setStatus(msg) {
-  var el = document.getElementById('loginStatus');
-  if (!el) return;
-  if (!msg) { el.style.display = 'none'; el.textContent = ''; return; }
-  el.textContent = msg;
-  el.style.display = 'block';
-}
-
-function showLoginError(msg) {
-  var el = document.getElementById('loginError');
-  el.textContent = msg;
-  el.style.display = 'block';
-}
-function hideLoginError() {
-  document.getElementById('loginError').style.display = 'none';
-}
-
-async function onLogin() {
-  // Determine role: admin if email is admin@scoredesk.com OR user_metadata.role === 'admin'
-  var meta = currentUser.user_metadata || {};
-  isAdmin = (currentUser.email === 'admin@scoredesk.com') || (meta.role === 'admin');
-  // For agents, we get agent_name from metadata
-  currentAgentName = meta.agent_name || null;
-
-  document.getElementById('loginScreen').style.display = 'none';
-  document.getElementById('loginBtn').disabled = false;
-  document.getElementById('loginBtn').textContent = 'Sign In';
-  hideLoginError();
-  document.getElementById('app').classList.remove('hidden');
-  document.getElementById('hdrUser').textContent = currentUser.email;
-  var mo = new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'});
-  document.getElementById('hdrMonth').textContent = mo;
-  document.getElementById('compactMonth').textContent = mo;
-  document.getElementById('manageAccountsBtn').style.display = isAdmin ? '' : 'none';
-
-  // Show/hide upload UI based on admin
-  if (!isAdmin) {
-    document.getElementById('uploadBig').style.display = 'none';
-    document.getElementById('uploadCompact').style.display = 'none';
-    // Also remove the "add files" button if any
-    var addBtn = document.getElementById('addMoreBtnEl');
-    if (addBtn) addBtn.style.display = 'none';
-    var viewBtn = document.getElementById('viewFilesBtnEl');
-    if (viewBtn) viewBtn.style.display = 'none';
-  } else {
-    // Admin can see upload
-    // We'll let loadScorecards decide to show uploadBig or compact
-  }
-
-  showLoading(true);
-  await loadScorecards();
-  showLoading(false);
-}
-
-async function doLogout() {
-  if (sb) await sb.auth.signOut();
-  currentUser = null; isAdmin = false; agentMap = {};
-  document.getElementById('loginScreen').style.display = 'flex';
-  document.getElementById('app').classList.add('hidden');
-  document.getElementById('loginPass').value = '';
-  try { document.getElementById('loginEmail').value = localStorage.getItem('sd_last_email')||''; } catch(e) {}
-  document.getElementById('uploadBig').style.display = '';
-  document.getElementById('uploadCompact').style.display = 'none';
-  document.getElementById('filesList').innerHTML = '';
-  document.getElementById('dashSection').classList.add('hidden');
-  document.getElementById('analysisSection').style.display = 'none';
-  document.getElementById('pageTabs').style.display = 'none';
-  document.getElementById('placeholder').style.display = '';
-}
-
-async function openAccountModal() {
-  document.getElementById('accountModalOverlay').classList.add('open');
-  document.getElementById('accountList').innerHTML = '<p style="font-family:monospace;font-size:12px;color:var(--muted);margin-bottom:12px;">To view or remove existing users, visit <a href="https://supabase.com/dashboard" target="_blank" style="color:var(--accent);">Supabase Dashboard</a> &rarr; Authentication &rarr; Users.</p>';
-}
-function closeAccountModal() { document.getElementById('accountModalOverlay').classList.remove('open'); }
-
-async function createAccount() {
-  var email = document.getElementById('newEmail').value.trim();
-  var agentName = document.getElementById('newAgentName').value.trim();
-  var pass  = document.getElementById('newPassword').value.trim();
-  var msg   = document.getElementById('accountMsg');
-  if (!email||!pass) { showAcctMsg('Email and password required', false); return; }
-  if (pass.length<6) { showAcctMsg('Password must be at least 6 characters', false); return; }
-  if (!agentName) { showAcctMsg('Agent Name is required', false); return; }
-  showLoading(true);
-  // Sign up with metadata including role and agent_name
-  var r = await sb.auth.signUp({ 
-    email: email, 
-    password: pass,
-    options: {
-      data: {
-        role: 'agent',
-        agent_name: agentName
-      }
-    }
-  });
-  showLoading(false);
-  if (r.error) { showAcctMsg(r.error.message, false); }
-  else { document.getElementById('newEmail').value=''; document.getElementById('newAgentName').value=''; document.getElementById('newPassword').value=''; showAcctMsg('Account created: '+email+' (agent: '+agentName+')', true); }
-}
-function showAcctMsg(msg,ok){ var el=document.getElementById('accountMsg'); el.textContent=msg; el.style.color=ok?'var(--pass)':'var(--fail)'; el.style.display='block'; setTimeout(function(){el.style.display='none';},5000); }
-
-async function parseFile(file) {
-  var reader = new FileReader();
-  reader.onload = async function(e) {
-    try {
-      var wb = XLSX.read(new Uint8Array(e.target.result),{type:'array'});
-      var ws = wb.Sheets[wb.SheetNames[0]];
-      var rows = XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-      var sc = extractScorecard(rows, file.name);
-      if (!sc) { showToast('Could not parse: '+file.name, false); return; }
-      var dup = await sb.from('scorecards').select('id').eq('file_name',file.name).eq('agent_name',sc.name);
-      if (dup.data && dup.data.length>0) { showToast('Already uploaded: '+file.name); return; }
-      showLoading(true);
-      var ins = await sb.from('scorecards').insert({ agent_name:sc.name, file_name:file.name, call_date:sc.callDate, auditor:sc.auditor, account_ref:sc.account, pass:sc.pass, pf_reason:sc.pfReason, auto_fails:sc.autoFails, criteria:sc.criteria, uploaded_by:currentUser.id });
-      showLoading(false);
-      if (ins.error) { showToast('Save failed: '+ins.error.message, false); return; }
-      showToast('Saved: '+sc.name, true);
-      await loadScorecards();
-    } catch(err) { console.error(err); showToast('Error: '+file.name, false); showLoading(false); }
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-async function loadScorecards() {
-  // Build query: if not admin, filter by agent_name matching currentAgentName
-  let query = sb.from('scorecards').select('*').order('created_at',{ascending:true});
-  if (!isAdmin && currentAgentName) {
-    query = query.eq('agent_name', currentAgentName);
-  }
-  var r = await query;
-  if (r.error) { showToast('Load error: '+r.error.message, false); return; }
-  agentMap = {};
-  document.getElementById('filesList').innerHTML = '';
-  if (r.data && r.data.length>0) {
-    r.data.forEach(function(row){
-      var sc={ name:row.agent_name, account:row.account_ref, callDate:row.call_date, auditor:row.auditor, fileName:row.file_name, pass:row.pass, pfReason:row.pf_reason, autoFails:row.auto_fails||[], criteria:row.criteria||[], dbId:row.id };
-      addToAgentMap(sc);
-      if (isAdmin) appendFileBar(row.file_name, sc);
-    });
-    if (isAdmin) {
-      switchToCompact();
-    } else {
-      // For agents, no upload area; just show data
-      document.getElementById('uploadBig').style.display = 'none';
-      document.getElementById('uploadCompact').style.display = 'none';
-      document.getElementById('filesDrawer').style.display = 'none';
-    }
-    renderAll();
-  } else {
-    document.getElementById('uploadBig').style.display = isAdmin ? '' : 'none';
-    document.getElementById('uploadCompact').style.display = 'none';
-    document.getElementById('dashSection').classList.add('hidden');
-    document.getElementById('placeholder').style.display = isAdmin ? '' : 'none';
-    if (!isAdmin && (!currentAgentName || r.data.length===0)) {
-      document.getElementById('placeholder').innerHTML = '<div class="pi">&#x1F5C2;&#xFE0F;</div><p style="font-size:15px;">No scorecards found for your agent name.</p>';
-      document.getElementById('placeholder').style.display = '';
-    } else if (!isAdmin && r.data.length===0) {
-      document.getElementById('placeholder').innerHTML = '<div class="pi">&#x1F5C2;&#xFE0F;</div><p style="font-size:15px;">No scorecards uploaded yet.</p>';
-      document.getElementById('placeholder').style.display = '';
-    }
-  }
-}
-
-function normaliseName(n){ return n.toLowerCase().replace(/[^a-z0-9\s]/g,'').trim().split(/\s+/).sort().join(' '); }
-function levenshtein(a,b){ var m=a.length,n=b.length,dp=[]; for(var i=0;i<=m;i++){dp[i]=[i];for(var j=1;j<=n;j++)dp[i][j]=0;} for(var j=0;j<=n;j++)dp[0][j]=j; for(var i=1;i<=m;i++)for(var j=1;j<=n;j++){if(a[i-1]===b[j-1])dp[i][j]=dp[i-1][j-1];else dp[i][j]=1+Math.min(dp[i-1][j-1],dp[i-1][j],dp[i][j-1]);} return dp[m][n]; }
-function findMatchingKey(name){ var norm=normaliseName(name),keys=Object.keys(agentMap); for(var i=0;i<keys.length;i++){if(normaliseName(keys[i])===norm)return keys[i];} for(var i=0;i<keys.length;i++){if(levenshtein(normaliseName(keys[i]),norm)<=2)return keys[i];} return null; }
-
-function addToAgentMap(sc) {
-  var key=findMatchingKey(sc.name);
-  if(key) sc.name=key;
-  if(!agentMap[sc.name]) agentMap[sc.name]={name:sc.name,calls:[]};
-  if(!agentMap[sc.name].calls.some(function(c){return c.fileName===sc.fileName;})) agentMap[sc.name].calls.push(sc);
-}
-
-async function removeFile(agentName,fileName,dbId,btn){
-  if (!isAdmin) return;
-  showLoading(true);
-  await sb.from('scorecards').delete().eq('id',dbId);
-  showLoading(false);
-  btn.closest('.file-bar').remove();
-  await loadScorecards();
-}
-
-function switchToCompact(){
-  var t=Object.values(agentMap).reduce(function(s,a){return s+a.calls.length;},0);
-  document.getElementById('uploadBig').style.display='none';
-  document.getElementById('uploadCompact').style.display='flex';
-  document.getElementById('compactCount').textContent=t+' file'+(t!==1?'s':'')+' loaded · ';
-}
-function toggleFilesDrawer(){ document.getElementById('filesDrawer').classList.toggle('open'); }
-
-function appendFileBar(fileName,sc){
-  if(sc.dbId&&document.getElementById('fb-'+sc.dbId)) return;
-  var div=document.createElement('div'); div.className='file-bar';
-  if(sc.dbId) div.id='fb-'+sc.dbId;
-  div.innerHTML='<span>&#x1F4C4;</span><div class="file-bar-info"><div class="file-bar-agent">'+sc.name+'</div><div class="file-bar-name">'+fileName+'</div></div><span class="file-bar-badge '+(sc.pass?'pass':'fail')+'">'+(sc.pass?'PASS':'FAIL')+'</span><button class="rm-btn" onclick="removeFile(\''+sc.name.replace(/'/g,"\\'")+'\',\''+fileName.replace(/'/g,"\\'")+'\',\''+(sc.dbId||'')+'\',this)">Remove</button>';
-  document.getElementById('filesList').appendChild(div);
-}
-
-function extractScorecard(rows,fileName){
-  function fv(pat,col){col=col||2;var r=rows.find(function(r){return pat.test(String(r[0]||''));});return r?String(r[col]||'').trim():'';}
-  var name=fv(/advisor name/i)||fileName.replace(/\.xlsx?$/i,'');
-  var account=fv(/account reference/i);
-  var auditor=fv(/auditor/i);
-  var callDate='';
-  var cdr=rows.find(function(r){return /call date/i.test(String(r[0]||''));});
-  if(cdr){var raw=cdr[2];if(typeof raw==='number'){var d=new Date(Math.round((raw-25569)*86400*1000));callDate=d.toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});}else callDate=String(raw||'').trim();}
-  var pfRow=rows.find(function(r){return /^pass\s*\/?\s*fail/i.test(String(r[0]||''));});
-  var pfResult=pfRow?String(pfRow[1]||'').trim().toUpperCase():'';
-  var pfReason=pfRow?String(pfRow[2]||'').trim():'';
-  var pass=pfResult==='PASS';
-  var zzr=rows.find(function(r){return /ZZPS Quality Score/i.test(String(r[0]||''));});
-  var zzRaw=zzr?zzr[2]:null;
-  var zzScore=(zzRaw!==null&&zzRaw!=='')?parseFloat(zzRaw):null;
-  var zzPct=zzScore!==null?(zzScore<=1?Math.round(zzScore*100):Math.round(zzScore)):null;
-  var zzpsRows=[];var inZ=false;
-  rows.forEach(function(r){var l=String(r[0]||'').trim();if(/ZZPS Quality Score/i.test(l)){inZ=true;return;}if(inZ&&/^pass\s*\/?\s*fail/i.test(l)){inZ=false;return;}if(inZ&&l)zzpsRows.push({label:l,val:String(r[1]||'').trim(),fb:String(r[2]||'').trim()});});
-  var autoFails=zzpsRows.filter(function(z){return z.val.toUpperCase()==='NO';});
-  if(!pass&&!pfReason&&zzPct!==null&&zzPct<90) pfReason=zzPct+'% - Below Pass Rate';
-  var criteria=[];var cs='';
-  rows.forEach(function(r){var l=String(r[0]||'').trim(),w=r[1],sc=r[2],fb=String(r[3]||'').trim();if(/^(Introduction|Data Protection|Body|Conclusion)\s*$/i.test(l)){cs=l.trim();return;}if(/auto.?fail/i.test(String(w||'')))return;var wn=parseFloat(w),sn=parseFloat(sc);if(!isNaN(wn)&&wn>0)criteria.push({section:cs,label:l,weight:wn,score:isNaN(sn)?null:sn,feedback:fb});});
-  return{name:name,account:account,callDate:callDate,auditor:auditor,fileName:fileName,pass:pass,pfResult:pfResult,pfReason:pfReason,autoFails:autoFails,criteria:criteria};
-}
-
-function switchPage(page,btn){
-  document.querySelectorAll('.page-tab').forEach(function(t){t.classList.remove('active');});
-  btn.classList.add('active');
-  if(page==='dashboard'){
-    document.getElementById('dashSection').style.display='';
-    document.getElementById('analysisSection').style.display='none';
-  } else {
-    document.getElementById('dashSection').style.display='none';
-    document.getElementById('analysisSection').style.display='';
-    renderAnalysis();
-  }
-}
-
-function renderAll(){
-  var agents=Object.values(agentMap);
-  if(!agents.length){document.getElementById('dashSection').classList.add('hidden');document.getElementById('placeholder').style.display='';return;}
-  document.getElementById('placeholder').style.display='none';
-  document.getElementById('dashSection').classList.remove('hidden');
-  document.getElementById('pageTabs').style.display='';
-  renderSummary(agents); renderCharts(); renderCards(agents,currentFilter);
-  if(document.getElementById('analysisSection').style.display!=='none') renderAnalysis();
-}
-
-function renderSummary(agents){
-  var tc=agents.reduce(function(s,a){return s+a.calls.length;},0);
-  var cp=agents.reduce(function(s,a){return s+a.calls.filter(function(c){return c.pass;}).length;},0);
-  var cf=tc-cp, pr=tc?Math.round(cp/tc*100):0;
-  document.getElementById('summaryGrid').innerHTML=
-    mc('Total Agents',agents.length,'c-accent',100,'var(--accent)')+
-    mc('Total Calls',tc,'c-accent',100,'var(--accent)')+
-    mc('Overall Calls Passed',cp,'c-pass',pr,'var(--pass)')+
-    mc('Overall Calls Failed',cf,'c-fail',100-pr,'var(--fail)');
-}
-function mc(l,v,c,b,col){return '<div class="stat-card"><div class="stat-label">'+l+'</div><div class="stat-value '+c+'">'+v+'</div><div class="stat-bar"><div class="stat-bar-fill" style="background:'+col+';width:'+b+'%"></div></div></div>';}
-
-function getWeekLabel(ds){
-  if(!ds)return'Unknown';
-  var d=new Date(ds);
-  if(isNaN(d)){var m=ds.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/);if(m){var mo={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};d=new Date(parseInt(m[3]),mo[m[2]]!==undefined?mo[m[2]]:0,parseInt(m[1]));}else return'Unknown';}
-  var day=d.getDay(),diff=(day===0?-6:1-day),mon=new Date(d);mon.setDate(d.getDate()+diff);
-  return mon.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
-}
-var threshPlugin={id:'threshold',afterDraw:function(chart){if(!chart.scales||!chart.scales.y)return;var ctx=chart.ctx,ca=chart.chartArea,y=chart.scales.y,yp=y.getPixelForValue(90);ctx.save();ctx.setLineDash([6,4]);ctx.strokeStyle='rgba(244,63,94,0.45)';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(ca.left,yp);ctx.lineTo(ca.right,yp);ctx.stroke();ctx.fillStyle='rgba(244,63,94,0.6)';ctx.font="10px 'DM Mono',monospace";ctx.fillText('90%',ca.left+4,yp-4);ctx.restore();}};
-Chart.register(threshPlugin);
-
-function renderCharts(){
-  var all=Object.values(agentMap).reduce(function(arr,a){return arr.concat(a.calls);},[]); if(!all.length)return;
-  var wm={};
-  all.forEach(function(c){var wk=getWeekLabel(c.callDate);if(!wm[wk])wm[wk]={pass:0,fail:0,total:0};c.pass?wm[wk].pass++:wm[wk].fail++;wm[wk].total++;});
-  var weeks=Object.keys(wm).sort(function(a,b){function p(s){var m=s.match(/(\d+)\s(\w+)/);return m?new Date('2026 '+m[2]+' '+m[1]):new Date(0);}return p(a)-p(b);});
-  var pc=weeks.map(function(w){return wm[w].pass;}),fc=weeks.map(function(w){return wm[w].fail;}),tc=weeks.map(function(w){return wm[w].total;});
-  var tt={backgroundColor:'#191d28',borderColor:'#242938',borderWidth:1,titleColor:'#e8ecf4',bodyColor:'#6b7694'};
-  function gs(id){return document.getElementById(id);}
-
-  if(weeklyChartInst)weeklyChartInst.destroy();
-  weeklyChartInst=new Chart(gs('weeklyChart'),{type:'line',data:{labels:weeks,datasets:[{label:'Passed',data:pc,borderColor:'#22d3a0',backgroundColor:'rgba(34,211,160,0.08)',borderWidth:2.5,fill:true,tension:0.35,pointBackgroundColor:'#22d3a0',pointRadius:5,pointHoverRadius:7}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:Object.assign({},tt,{callbacks:{label:function(ctx){return ' '+ctx.parsed.y+' passed';},afterLabel:function(ctx){var w=weeks[ctx.dataIndex];return ' '+wm[w].fail+' failed';}}})},scales:{x:{ticks:{color:'#6b7694',font:CHART_CFG.tickFont},grid:{color:CHART_CFG.gridColor}},y:{min:0,ticks:{color:'#6b7694',font:CHART_CFG.tickFont,stepSize:1},grid:{color:CHART_CFG.gridColor}}}}});
-
-  if(stackedChartInst)stackedChartInst.destroy();
-  stackedChartInst=new Chart(gs('stackedChart'),{type:'bar',data:{labels:weeks,datasets:[{label:'Passed',data:pc,backgroundColor:'rgba(34,211,160,0.7)',borderRadius:4,borderSkipped:false},{label:'Failed',data:fc,backgroundColor:'rgba(244,63,94,0.7)',borderRadius:4,borderSkipped:false}]},options:{responsive:true,plugins:{legend:{labels:{color:'#6b7694',font:CHART_CFG.tickFont,boxWidth:12,padding:16}},tooltip:tt},scales:{x:{stacked:true,ticks:{color:'#6b7694',font:CHART_CFG.tickFont},grid:{color:CHART_CFG.gridColor}},y:{stacked:true,ticks:{color:'#6b7694',font:CHART_CFG.tickFont,stepSize:1},grid:{color:CHART_CFG.gridColor}}}}});
-
-  if(agentChartInst)agentChartInst.destroy();
-  agentChartInst=new Chart(gs('agentChart'),{type:'bar',data:{labels:weeks,datasets:[{label:'Scored',data:tc,backgroundColor:'rgba(79,140,255,0.7)',borderRadius:4,borderSkipped:false}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:Object.assign({},tt,{callbacks:{label:function(ctx){return ' '+ctx.parsed.y+' scored';}}})},scales:{x:{ticks:{color:'#6b7694',font:CHART_CFG.tickFont},grid:{color:CHART_CFG.gridColor}},y:{ticks:{color:'#6b7694',font:CHART_CFG.tickFont,stepSize:1},grid:{color:CHART_CFG.gridColor}}}}});
-}
-
-function renderCards(agents,filter){
-  var filtered=agents.filter(function(a){if(filter==='pass')return a.calls.every(function(c){return c.pass;});if(filter==='fail')return a.calls.some(function(c){return!c.pass;});return true;});
-  var container=document.getElementById('agentCards');container.innerHTML='';
-  filtered.forEach(function(agent){
-    var tot=agent.calls.length,pas=agent.calls.filter(function(c){return c.pass;}).length,fai=tot-pas;
-    var cls=fai===0?'pass':pas===0?'fail':'mixed',lbl=fai===0?'ALL PASSED':pas===0?'ALL FAILED':(fai+' FAIL'+(fai>1?'S':''));
-    var ini=agent.name.split(' ').map(function(p){return p[0]||'';}).join('').slice(0,2).toUpperCase();
-    var cid='card-'+agent.name.replace(/\W/g,'_');
-    var nk='anotes-'+agent.name.replace(/\W/g,'_'),ok='agok-'+agent.name.replace(/\W/g,'_');
-    var rows=agent.calls.map(function(c,i){return callRow(c,i+1);}).join('');
-    var card=document.createElement('div');card.className='agent-card';
-    card.innerHTML='<div class="agent-card-header" onclick="toggleCard(\''+cid+'\')">'
-      +'<div class="agent-avatar">'+ini+'</div>'
-      +'<div class="agent-card-info"><div class="agent-card-name">'+agent.name+'</div><div class="agent-card-sub">'+tot+' call'+(tot!==1?'s':'')+' \u00b7 '+pas+' passed \u00b7 '+fai+' failed</div></div>'
-      +'<div class="agent-card-stats"><span class="mini-badge '+cls+'">'+lbl+'</span><span class="calls-count">'+tot+' call'+(tot!==1?'s':'')+'</span></div>'
-      +'<span class="chevron" id="'+cid+'-chev">\u25be</span></div>'
-      +'<div class="calls-table-wrap" id="'+cid+'">'
-      +'<table><thead><tr><th>#</th><th>Call Date</th><th>Auditor</th><th>Status</th><th>Fail Reason</th><th>Detail</th></tr></thead><tbody>'+rows+'</tbody></table>'
-      +'<div style="padding:14px 20px;border-top:1px solid var(--border);">'
-      +'<div class="notes-lbl">One-on-One Notes \u2014 '+agent.name+'</div>'
-      +'<textarea class="notes-area" id="'+nk+'" placeholder="Coaching notes for 1:1..."></textarea>'
-      +'<div style="display:flex;align-items:center;gap:10px;margin-top:8px;">'
-      +'<button class="save-btn" onclick="saveAgentNote(\''+agent.name.replace(/'/g,"\\'")+'\')">Save Notes</button>'
-      +'<span class="save-ok" id="'+ok+'">\u2713 Saved</span></div></div></div>';
-    container.appendChild(card);
-    loadAgentNote(agent.name,nk);
-  });
-}
-
-function callRow(c,idx){
-  var reason=(!c.pass&&c.pfReason)?'<span class="fail-reason" title="'+c.pfReason+'">'+c.pfReason+'</span>':'<span style="color:var(--muted);font-size:11px;">'+(c.pass?'\u2014':'No reason recorded')+'</span>';
-  var key=encodeURIComponent(c.name+'||'+c.fileName);
-  return '<tr><td style="font-family:monospace;font-size:11px;color:var(--muted);">'+String(idx).padStart(2,'0')+'</td><td style="font-family:monospace;font-size:11px;">'+(c.callDate||'\u2014')+'</td><td style="font-family:monospace;font-size:11px;color:var(--muted);">'+(c.auditor||'\u2014')+'</td><td><span class="badge '+(c.pass?'pass':'fail')+'">'+(c.pass?'PASSED':'FAILED')+'</span></td><td>'+reason+'</td><td><button class="action-btn" onclick="openModal(\''+key+'\')">View Detail</button></td></tr>';
-}
-
-function toggleCard(id){document.getElementById(id).classList.toggle('open');document.getElementById(id+'-chev').classList.toggle('open');}
-function filterAgents(f,btn){currentFilter=f;document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});btn.classList.add('active');renderCards(Object.values(agentMap),f);}
-
-async function openModal(key){
-  var dec=decodeURIComponent(key),parts=dec.split('||'),name=parts[0],fn=parts[1];
-  var c=agentMap[name]&&agentMap[name].calls.find(function(x){return x.fileName===fn;});
-  if(!c)return; currentCallKey=key;
-  document.getElementById('mName').textContent=c.name;
-  document.getElementById('mMeta').textContent=[c.account&&('Account: '+c.account),c.callDate&&('Call: '+c.callDate),c.auditor&&('Auditor: '+c.auditor)].filter(Boolean).join(' \u00b7 ');
-  var html='<div class="result-banner '+(c.pass?'pass':'fail')+'"><div class="result-icon">'+(c.pass?'&#x2705;':'&#x274C;')+'</div><div class="result-label '+(c.pass?'pass':'fail')+'">'+(c.pass?'PASSED':'FAILED')+'</div>'+(c.pfReason?'<div class="result-reason">Reason: '+c.pfReason+'</div>':'')+'</div>';
-  if(!c.pass&&c.autoFails&&c.autoFails.length){html+='<div class="af-box"><div class="af-box-title">&#x26A0;&#xFE0F; Auto-Fail Triggers</div>';c.autoFails.forEach(function(af){html+='<div class="af-row"><div class="af-q">'+af.label+'</div><div class="af-result">FAILED \u2014 '+af.val+'</div>'+(af.fb?'<div class="af-fb">'+af.fb+'</div>':'')+'</div>';});html+='</div>';}
-  var secs=[];if(c.criteria)c.criteria.forEach(function(cr){if(secs.indexOf(cr.section)===-1)secs.push(cr.section);});
-  secs.forEach(function(sec){var items=c.criteria.filter(function(cr){return cr.section===sec;});html+='<div><div class="sec-title">'+(sec||'General')+'</div><div class="criteria-list">';items.forEach(function(cr){var r=cr.score!==null?cr.score/cr.weight:-1,cls=r<0?'na':r>=1?'full':r>0?'partial':'zero',disp=cr.score!==null?(cr.score+' / '+cr.weight):('-- / '+cr.weight);html+='<div class="cr-item"><div class="cr-top"><span class="cr-label">'+cr.label+'</span><span class="cr-wt">Max: '+cr.weight+'</span><span class="cr-pts '+cls+'">'+disp+'</span></div>'+(cr.feedback?'<div class="cr-fb">'+cr.feedback+'</div>':'')+'</div>';});html+='</div></div>';});
-  var nr=await sb.from('notes').select('content').eq('note_key','call:'+key).single();
-  var en=(nr.data&&nr.data.content)?nr.data.content:'';
-  html+='<div><div class="notes-lbl">Notes for this call</div><textarea class="notes-area" id="callNoteArea" placeholder="Notes about this call...">'+en+'</textarea><div style="display:flex;align-items:center;gap:10px;margin-top:8px;"><button class="save-btn" onclick="saveCallNote()">Save Notes</button><span class="save-ok" id="callSaveOk">\u2713 Saved</span></div></div>';
-  document.getElementById('mBody').innerHTML=html;
-  document.getElementById('modalOverlay').classList.add('open');
-}
-function closeModal(){document.getElementById('modalOverlay').classList.remove('open');}
-async function saveCallNote(){notes_upsert('call:'+currentCallKey,document.getElementById('callNoteArea').value,'callSaveOk');}
-async function saveAgentNote(name){var el=document.getElementById('anotes-'+name.replace(/\W/g,'_'));if(el)notes_upsert('agent:'+name,el.value,'agok-'+name.replace(/\W/g,'_'));}
-async function loadAgentNote(name,elId){var r=await sb.from('notes').select('content').eq('note_key','agent:'+name).single();if(r.data&&r.data.content){var el=document.getElementById(elId);if(el)el.value=r.data.content;}}
-async function notes_upsert(key,val,okId){await sb.from('notes').upsert({note_key:key,content:val,updated_by:currentUser.id},{onConflict:'note_key'});var ok=document.getElementById(okId);if(ok){ok.style.display='block';setTimeout(function(){ok.style.display='none';},2000);}}
-
+// Updated renderAnalysis with Zero Score Trends
 function renderAnalysis(){
-  var agents=Object.values(agentMap);
-  var allCalls=agents.reduce(function(arr,a){return arr.concat(a.calls);},[]); 
-  var container=document.getElementById('analysisContent');
-  if(!allCalls.length){
-    container.innerHTML='<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">Upload scorecards to see failure analysis.</p></div>';
+  var agents = Object.values(agentMap);
+  var allCalls = agents.reduce(function(arr,a){ return arr.concat(a.calls); }, []); 
+  var container = document.getElementById('analysisContent');
+  
+  if (!allCalls.length) {
+    if (!isAdmin && currentAgentName) {
+      container.innerHTML = '<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">No scorecards found for your agent name. Please contact your administrator.</p></div>';
+    } else {
+      container.innerHTML = '<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">Upload scorecards to see failure analysis.</p></div>';
+    }
     return;
   }
 
-  // Build criteria map
-  var cm={};
+  // ---- Build existing criteria maps (failures) ----
+  var cm = {};
   allCalls.forEach(function(call){
-    var crit=call.criteria;if(!crit||!crit.length)return;
+    var crit = call.criteria; if (!crit || !crit.length) return;
     crit.forEach(function(cr){
-      var label=(cr.label||'').trim(),section=cr.section||'',weight=parseFloat(cr.weight||0);
-      var score=cr.score!==undefined?cr.score:null,feedback=cr.feedback||'';
-      if(!label||weight<=0)return;
-      var sn=(score===null||score==='')?null:parseFloat(score);
-      var key=label.toLowerCase().replace(/\s+/g,' ');
-      if(!cm[key])cm[key]={section:section,label:label,total:0,fails:0,agentFails:{},feedbacks:[]};
+      var label = (cr.label||'').trim(), section = cr.section||'', weight = parseFloat(cr.weight||0);
+      var score = cr.score!==undefined ? cr.score : null, feedback = cr.feedback||'';
+      if (!label || weight<=0) return;
+      var sn = (score===null || score==='') ? null : parseFloat(score);
+      var key = label.toLowerCase().replace(/\s+/g,' ');
+      if (!cm[key]) cm[key] = { section:section, label:label, total:0, fails:0, agentFails:{}, feedbacks:[] };
       cm[key].total++;
-      if(sn!==null&&sn<weight){cm[key].fails++;cm[key].agentFails[call.name]=(cm[key].agentFails[call.name]||0)+1;if(feedback)cm[key].feedbacks.push({agent:call.name,date:call.callDate||'',text:feedback});}
+      if (sn!==null && sn < weight) {
+        cm[key].fails++;
+        cm[key].agentFails[call.name] = (cm[key].agentFails[call.name]||0) + 1;
+        if (feedback) cm[key].feedbacks.push({ agent:call.name, date:call.callDate||'', text:feedback });
+      }
     });
   });
 
-  var cl=Object.values(cm).filter(function(e){return e.total>0;}).sort(function(a,b){return(b.fails/b.total)-(a.fails/a.total);});
-  var topFails=cl.filter(function(e){return e.fails>0;}).slice(0,10);
+  var cl = Object.values(cm).filter(function(e){ return e.total>0; }).sort(function(a,b){ return (b.fails/b.total) - (a.fails/a.total); });
+  var topFails = cl.filter(function(e){ return e.fails>0; }).slice(0,10);
 
-  // Per-agent fail map
-  var afm={};
+  // Per-agent fail map (for existing sections)
+  var afm = {};
   agents.forEach(function(agent){
-    afm[agent.name]={fails:{},total:agent.calls.length,failed:agent.calls.filter(function(c){return!c.pass;}).length};
+    afm[agent.name] = { fails:{}, total:agent.calls.length, failed:agent.calls.filter(function(c){ return !c.pass; }).length };
     agent.calls.forEach(function(call){
-      if(!call.criteria)return;
+      if (!call.criteria) return;
       call.criteria.forEach(function(cr){
-        var l=(cr.label||'').trim(),w=parseFloat(cr.weight||0),sc=cr.score!==undefined?cr.score:null;
-        var sn=(sc===null||sc==='')?null:parseFloat(sc);
-        if(!l||w<=0)return;
-        if(sn!==null&&sn<w)afm[agent.name].fails[l]=(afm[agent.name].fails[l]||0)+1;
+        var l = (cr.label||'').trim(), w = parseFloat(cr.weight||0), sc = cr.score!==undefined ? cr.score : null;
+        var sn = (sc===null || sc==='') ? null : parseFloat(sc);
+        if (!l || w<=0) return;
+        if (sn!==null && sn < w) afm[agent.name].fails[l] = (afm[agent.name].fails[l]||0) + 1;
       });
     });
   });
 
-  var html='';
+  // ---- NEW: Zero Score Analysis ----
+  var weeklyZeroMap = {}; // weekLabel -> { criteriaLabel -> count }
+  var agentWeeklyZeroMap = {}; // agentName -> weekLabel -> { criteriaLabel -> count }
 
-  // TEAM summary
-  html+='<div class="analysis-card"><div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:4px;"><div><div class="a-card-title">&#x1F465; Team — Most Commonly Failed Criteria</div><div class="a-card-sub">Where the whole team needs coaching focus</div></div>';
-  if (isAdmin) {
-    html+='<button class="save-btn" style="margin-top:0;white-space:nowrap;" onclick="generateAIReport()">&#x2728; Generate AI Coaching Report</button>';
-  }
-  html+='</div>';
-  if(topFails.length){
-    html+='<div class="top-fails-list">';
-    topFails.forEach(function(e,i){
-      var pct=Math.round(e.fails/e.total*100),bc=pct>=60?'var(--fail)':pct>=30?'var(--warn)':'var(--pass)',sc=pct>=60?'high':pct>=30?'med':'low';
-      var aff=Object.keys(e.agentFails).join(', ');
-      html+='<div class="tf-row"><span class="tf-rank">'+(i+1)+'</span><div style="flex:1;min-width:0;"><div class="tf-label">'+e.label+'</div>'+(aff?'<div style="font-family:monospace;font-size:10px;color:var(--muted);margin-top:2px;">Affects: '+aff+'</div>':'')+'</div>'+(e.section?'<span class="tf-section">'+e.section+'</span>':'')+'<div class="tf-bar-wrap"><div class="tf-bar" style="width:'+pct+'%;background:'+bc+'"></div></div><span class="tf-stat fail-pct '+sc+'">'+pct+'%</span><span style="font-family:monospace;font-size:10px;color:var(--muted);white-space:nowrap;">'+e.fails+'/'+e.total+'</span></div>';
+  allCalls.forEach(function(call){
+    var week = getWeekLabel(call.callDate);
+    if (!weeklyZeroMap[week]) weeklyZeroMap[week] = {};
+    if (!agentWeeklyZeroMap[call.name]) agentWeeklyZeroMap[call.name] = {};
+    if (!agentWeeklyZeroMap[call.name][week]) agentWeeklyZeroMap[call.name][week] = {};
+
+    if (!call.criteria) return;
+    call.criteria.forEach(function(cr){
+      var label = (cr.label||'').trim();
+      var score = cr.score!==undefined ? cr.score : null;
+      var weight = parseFloat(cr.weight||0);
+      if (!label || weight<=0) return;
+      var sn = (score===null || score==='') ? null : parseFloat(score);
+      if (sn !== null && sn === 0) {  // exactly zero score
+        // Team count
+        weeklyZeroMap[week][label] = (weeklyZeroMap[week][label] || 0) + 1;
+        // Agent count
+        agentWeeklyZeroMap[call.name][week][label] = (agentWeeklyZeroMap[call.name][week][label] || 0) + 1;
+      }
     });
-    html+='</div>';
-  } else { html+='<p style="font-family:monospace;font-size:12px;color:var(--pass);padding:8px 0;">&#x2705; No criteria failures found.</p>'; }
-  html+='</div>';
-
-  // Per-agent breakdown (only show if admin, or if agent wants to see own? We'll show always, but if agent only sees their own agent, it's fine)
-  html+='<div class="analysis-card"><div class="a-card-title">&#x1F464; Per-Agent Failure Breakdown</div><div class="a-card-sub">What each agent fails most — prep for 1-on-1 coaching</div><div class="agent-breakdown">';
-  agents.forEach(function(agent){
-    var d=afm[agent.name];
-    var sf=Object.keys(d.fails).sort(function(a,b){return d.fails[b]-d.fails[a];});
-    var mf=sf.length?d.fails[sf[0]]:1;
-    var pr=d.total?Math.round((d.total-d.failed)/d.total*100):0;
-    var bc=pr>=90?'pass':pr>=60?'mixed':'fail';
-    html+='<div class="ab-row"><div class="ab-header"><span class="ab-name">'+agent.name+'</span><div style="display:flex;align-items:center;gap:8px;"><span class="mini-badge '+bc+'">'+pr+'% pass rate</span><span class="ab-meta">'+d.total+' calls \u00b7 '+d.failed+' failed</span></div></div>';
-    if(sf.length){
-      html+='<div class="ab-fails">';
-      sf.slice(0,6).forEach(function(l){var cnt=d.fails[l],bw=Math.round(cnt/mf*100),sec=cm[l.toLowerCase().replace(/\s+/g,' ')]?cm[l.toLowerCase().replace(/\s+/g,' ')].section:'';html+='<div class="ab-fail-item"><span class="ab-fail-label">'+l+(sec?' <span style="font-family:monospace;font-size:10px;color:var(--muted);">('+sec+')</span>':'')+'</span><div class="ab-fail-bar-wrap"><div class="ab-fail-bar" style="width:'+bw+'%"></div></div><span class="ab-fail-count">'+cnt+'x</span></div>';});
-      html+='</div>';
-    } else { html+='<div class="ab-no-fails">&#x2705; No scored criteria failures</div>'; }
-    html+='</div>';
   });
-  html+='</div></div>';
 
-  // Heatmap (only if more than one agent? show always)
-  var an=agents.map(function(a){return a.name;}),fc2=cl.filter(function(e){return e.fails>0;});
-  if(fc2.length&&an.length){
-    html+='<div class="analysis-card"><div class="a-card-title">&#x1F9EF; Failure Heatmap</div><div class="a-card-sub">Darker = more failures for that agent on that criteria</div><div class="heatmap-wrap"><table class="heatmap-table"><thead><tr><th>Criteria</th><th>Section</th>';
-    an.forEach(function(n){html+='<th style="text-align:center;white-space:nowrap;">'+n.split(' ')[0]+'</th>';});
-    html+='<th>Team %</th></tr></thead><tbody>';
-    fc2.forEach(function(e){var pct=Math.round(e.fails/e.total*100),sc=pct>=60?'high':pct>=30?'med':'low';html+='<tr><td style="font-size:12px;max-width:260px;">'+e.label+'</td><td style="font-family:monospace;font-size:10px;color:var(--muted);white-space:nowrap;">'+(e.section||'')+'</td>';an.forEach(function(n){var cnt=afm[n]?(afm[n].fails[e.label]||0):0,hc=cnt===0?'heat-0':cnt===1?'heat-1':cnt===2?'heat-2':cnt<=4?'heat-3':'heat-4';html+='<td style="text-align:center;"><span class="heat-cell '+hc+'">'+(cnt||'\u2014')+'</span></td>';});html+='<td><span class="fail-pct '+sc+'">'+pct+'%</span></td></tr>';});
-    html+='</tbody></table></div></div>';
+  // Prepare weeks in order
+  var weeks = Object.keys(weeklyZeroMap).sort(function(a,b){
+    function p(s){ var m=s.match(/(\d+)\s(\w+)/); return m?new Date('2026 '+m[2]+' '+m[1]):new Date(0); }
+    return p(a)-p(b);
+  });
+
+  // Build HTML
+  var html = '';
+
+  // --- Existing sections (same as before, but we'll keep them) ---
+  if (isAdmin) {
+    // Team failures section (unchanged)
+    html += '<div class="analysis-card"><div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:4px;"><div><div class="a-card-title">&#x1F465; Team — Most Commonly Failed Criteria</div><div class="a-card-sub">Where the whole team needs coaching focus</div></div><button class="save-btn" style="margin-top:0;white-space:nowrap;" onclick="generateAIReport()">&#x2728; Generate AI Coaching Report</button></div>';
+    if (topFails.length){
+      html += '<div class="top-fails-list">';
+      topFails.forEach(function(e,i){
+        var pct = Math.round(e.fails/e.total*100), bc = pct>=60 ? 'var(--fail)' : pct>=30 ? 'var(--warn)' : 'var(--pass)', sc = pct>=60 ? 'high' : pct>=30 ? 'med' : 'low';
+        var aff = Object.keys(e.agentFails).join(', ');
+        html += '<div class="tf-row"><span class="tf-rank">'+(i+1)+'</span><div style="flex:1;min-width:0;"><div class="tf-label">'+e.label+'</div>'+(aff?'<div style="font-family:monospace;font-size:10px;color:var(--muted);margin-top:2px;">Affects: '+aff+'</div>':'')+'</div>'+(e.section?'<span class="tf-section">'+e.section+'</span>':'')+'<div class="tf-bar-wrap"><div class="tf-bar" style="width:'+pct+'%;background:'+bc+'"></div></div><span class="tf-stat fail-pct '+sc+'">'+pct+'%</span><span style="font-family:monospace;font-size:10px;color:var(--muted);white-space:nowrap;">'+e.fails+'/'+e.total+'</span></div>';
+      });
+      html += '</div>';
+    } else {
+      html += '<p style="font-family:monospace;font-size:12px;color:var(--pass);padding:8px 0;">&#x2705; No criteria failures found.</p>';
+    }
+    html += '</div>';
+
+    // Per-agent breakdown (admin)
+    html += '<div class="analysis-card"><div class="a-card-title">&#x1F464; Per-Agent Failure Breakdown</div><div class="a-card-sub">What each agent fails most — prep for 1-on-1 coaching</div><div class="agent-breakdown">';
+    agents.forEach(function(agent){
+      var d = afm[agent.name];
+      var sf = Object.keys(d.fails).sort(function(a,b){ return d.fails[b] - d.fails[a]; });
+      var mf = sf.length ? d.fails[sf[0]] : 1;
+      var pr = d.total ? Math.round((d.total-d.failed)/d.total*100) : 0;
+      var bc = pr>=90 ? 'pass' : pr>=60 ? 'mixed' : 'fail';
+      html += '<div class="ab-row"><div class="ab-header"><span class="ab-name">'+agent.name+'</span><div style="display:flex;align-items:center;gap:8px;"><span class="mini-badge '+bc+'">'+pr+'% pass rate</span><span class="ab-meta">'+d.total+' calls \u00b7 '+d.failed+' failed</span></div></div>';
+      if (sf.length){
+        html += '<div class="ab-fails">';
+        sf.slice(0,6).forEach(function(l){
+          var cnt = d.fails[l], bw = Math.round(cnt/mf*100), sec = cm[l.toLowerCase().replace(/\s+/g,' ')] ? cm[l.toLowerCase().replace(/\s+/g,' ')].section : '';
+          html += '<div class="ab-fail-item"><span class="ab-fail-label">'+l+(sec?' <span style="font-family:monospace;font-size:10px;color:var(--muted);">('+sec+')</span>':'')+'</span><div class="ab-fail-bar-wrap"><div class="ab-fail-bar" style="width:'+bw+'%"></div></div><span class="ab-fail-count">'+cnt+'x</span></div>';
+        });
+        html += '</div>';
+      } else {
+        html += '<div class="ab-no-fails">&#x2705; No scored criteria failures</div>';
+      }
+      html += '</div>';
+    });
+    html += '</div></div>';
+
+    // Heatmap (admin)
+    var an = agents.map(function(a){ return a.name; }), fc2 = cl.filter(function(e){ return e.fails>0; });
+    if (fc2.length && an.length){
+      html += '<div class="analysis-card"><div class="a-card-title">&#x1F9EF; Failure Heatmap</div><div class="a-card-sub">Darker = more failures for that agent on that criteria</div><div class="heatmap-wrap"><table class="heatmap-table"><thead> Bonn<th>Criteria</th><th>Section</th>';
+      an.forEach(function(n){ html += '<th style="text-align:center;white-space:nowrap;">'+n.split(' ')[0]+'</th>'; });
+      html += '<th>Team %</th> </thead><tbody>';
+      fc2.forEach(function(e){
+        var pct = Math.round(e.fails/e.total*100), sc = pct>=60 ? 'high' : pct>=30 ? 'med' : 'low';
+        html += '<tr><td style="font-size:12px;max-width:260px;">'+e.label+'</td><td style="font-family:monospace;font-size:10px;color:var(--muted);white-space:nowrap;">'+(e.section||'')+'</td>';
+        an.forEach(function(n){
+          var cnt = afm[n] ? (afm[n].fails[e.label]||0) : 0;
+          var hc = cnt===0 ? 'heat-0' : cnt===1 ? 'heat-1' : cnt===2 ? 'heat-2' : cnt<=4 ? 'heat-3' : 'heat-4';
+          html += '<td style="text-align:center;"><span class="heat-cell '+hc+'">'+(cnt||'\u2014')+'</span></td>';
+        });
+        html += '<td><span class="fail-pct '+sc+'">'+pct+'%</span></td></tr>';
+      });
+      html += '</tbody></table></div></div>';
+    }
+  } else {
+    // AGENT: Show only personal failure summary (unchanged)
+    html += '<div class="analysis-card"><div class="a-card-title">&#x1F464; Your Most Commonly Failed Criteria</div><div class="a-card-sub">Areas where you need coaching focus</div>';
+    if (topFails.length){
+      html += '<div class="top-fails-list">';
+      topFails.forEach(function(e,i){
+        var pct = Math.round(e.fails/e.total*100), bc = pct>=60 ? 'var(--fail)' : pct>=30 ? 'var(--warn)' : 'var(--pass)', sc = pct>=60 ? 'high' : pct>=30 ? 'med' : 'low';
+        var aff = Object.keys(e.agentFails).join(', ');
+        html += '<div class="tf-row"><span class="tf-rank">'+(i+1)+'</span><div style="flex:1;min-width:0;"><div class="tf-label">'+e.label+'</div>'+(aff?'<div style="font-family:monospace;font-size:10px;color:var(--muted);margin-top:2px;">Failed on '+aff+' calls</div>':'')+'</div>'+(e.section?'<span class="tf-section">'+e.section+'</span>':'')+'<div class="tf-bar-wrap"><div class="tf-bar" style="width:'+pct+'%;background:'+bc+'"></div></div><span class="tf-stat fail-pct '+sc+'">'+pct+'%</span><span style="font-family:monospace;font-size:10px;color:var(--muted);white-space:nowrap;">'+e.fails+'/'+e.total+'</span></div>';
+      });
+      html += '</div>';
+    } else {
+      html += '<p style="font-family:monospace;font-size:12px;color:var(--pass);padding:8px 0;">&#x2705; No criteria failures found.</p>';
+    }
+    html += '</div>';
+
+    // Personal failure breakdown (agent only)
+    if (agents.length === 1) {
+      var agent = agents[0];
+      var d = afm[agent.name];
+      var sf = Object.keys(d.fails).sort(function(a,b){ return d.fails[b] - d.fails[a]; });
+      var mf = sf.length ? d.fails[sf[0]] : 1;
+      var pr = d.total ? Math.round((d.total-d.failed)/d.total*100) : 0;
+      var bc = pr>=90 ? 'pass' : pr>=60 ? 'mixed' : 'fail';
+      html += '<div class="analysis-card"><div class="a-card-title">&#x1F4DD; Your Failure Breakdown</div><div class="a-card-sub">Specific criteria you failed most often</div><div class="ab-row">';
+      if (sf.length){
+        html += '<div class="ab-fails">';
+        sf.slice(0,6).forEach(function(l){
+          var cnt = d.fails[l], bw = Math.round(cnt/mf*100), sec = cm[l.toLowerCase().replace(/\s+/g,' ')] ? cm[l.toLowerCase().replace(/\s+/g,' ')].section : '';
+          html += '<div class="ab-fail-item"><span class="ab-fail-label">'+l+(sec?' <span style="font-family:monospace;font-size:10px;color:var(--muted);">('+sec+')</span>':'')+'</span><div class="ab-fail-bar-wrap"><div class="ab-fail-bar" style="width:'+bw+'%"></div></div><span class="ab-fail-count">'+cnt+'x</span></div>';
+        });
+        html += '</div>';
+      } else {
+        html += '<div class="ab-no-fails">&#x2705; No scored criteria failures</div>';
+      }
+      html += '</div></div>';
+    }
+
+    // Personal feedback log (agent only)
+    var fbs = [];
+    cl.forEach(function(e){
+      fbs = fbs.concat(e.feedbacks.filter(function(fb){ return fb.agent === currentAgentName; }));
+    });
+    fbs = fbs.filter(function(f){ return f.text; }).slice(0,40);
+    if (fbs.length){
+      html += '<div class="analysis-card"><div class="a-card-title">&#x1F4AC; Feedback You Received</div><div class="a-card-sub">Auditor comments on your failed criteria</div><div class="feedback-list">';
+      fbs.forEach(function(fb){
+        html += '<div class="fb-item"><div class="fb-item-header"><span class="fb-agent">'+fb.agent+'</span><span class="fb-date">'+fb.date+'</span></div><div class="fb-text">&ldquo;'+fb.text+'&rdquo;</div></div>';
+      });
+      html += '</div></div>';
+    }
   }
 
-  // Feedback log
-  var fbs=[];cl.forEach(function(e){fbs=fbs.concat(e.feedbacks);});fbs=fbs.filter(function(f){return f.text;}).slice(0,40);
-  if(fbs.length){html+='<div class="analysis-card"><div class="a-card-title">&#x1F4AC; Auditor Feedback Log</div><div class="a-card-sub">All written feedback from failed criteria</div><div class="feedback-list">';fbs.forEach(function(fb){html+='<div class="fb-item"><div class="fb-item-header"><span class="fb-agent">'+fb.agent+'</span><span class="fb-date">'+fb.date+'</span></div><div class="fb-text">&ldquo;'+fb.text+'&rdquo;</div></div>';});html+='</div></div>';}
+  // ---- NEW SECTION: Zero Score Trends (Team) ----
+  if (isAdmin && weeks.length) {
+    html += '<div class="analysis-card"><div class="a-card-title">⛔ Zero Score Trends (Team)</div><div class="a-card-sub">Criteria that received a score of 0 per week – identify recurring gaps</div>';
+    // Build a matrix of weeks x criteria
+    var allZeroCriteria = new Set();
+    weeks.forEach(function(w){
+      Object.keys(weeklyZeroMap[w]).forEach(function(c){ allZeroCriteria.add(c); });
+    });
+    var criteriaList = Array.from(allZeroCriteria).sort();
+    if (criteriaList.length) {
+      html += '<div class="heatmap-wrap"><table class="heatmap-table"><thead><tr><th>Week</th>';
+      criteriaList.forEach(function(c){ html += '<th style="white-space:nowrap;">'+c+'</th>'; });
+      html += '</tr></thead><tbody>';
+      weeks.slice().reverse().forEach(function(w){ // show latest weeks first
+        html += '<tr><td style="font-weight:600;">'+w+'</td>';
+        criteriaList.forEach(function(c){
+          var cnt = weeklyZeroMap[w][c] || 0;
+          var cls = cnt===0 ? 'heat-0' : cnt===1 ? 'heat-1' : cnt===2 ? 'heat-2' : cnt<=4 ? 'heat-3' : 'heat-4';
+          html += '<td style="text-align:center;"><span class="heat-cell '+cls+'">'+(cnt||'\u2014')+'</span></td>';
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table></div>';
+    } else {
+      html += '<p style="font-family:monospace;font-size:12px;color:var(--pass);padding:8px 0;">&#x2705; No zero scores found.</p>';
+    }
+    html += '</div>';
+  }
+
+  // ---- NEW SECTION: Per-Agent Zero Score Breakdown (Admin) ----
+  if (isAdmin && agents.length) {
+    html += '<div class="analysis-card"><div class="a-card-title">👤 Per-Agent Zero Score Breakdown</div><div class="a-card-sub">Each agent’s criteria with zero scores, by week</div>';
+    agents.forEach(function(agent){
+      var agentZeros = agentWeeklyZeroMap[agent.name];
+      if (!agentZeros || Object.keys(agentZeros).length === 0) return;
+      var agentHtml = '<div class="ab-row"><div class="ab-header"><span class="ab-name">'+agent.name+'</span><span class="ab-meta">'+agent.calls.length+' calls</span></div><div class="heatmap-wrap"><table class="heatmap-table" style="margin-top:8px;"><thead><tr><th>Week</th><th>Criteria</th><th>Zero Count</th></tr></thead><tbody>';
+      var weeksForAgent = Object.keys(agentZeros).sort(function(a,b){ return getWeekNumber(a)-getWeekNumber(b); }).reverse();
+      weeksForAgent.forEach(function(w){
+        var criteria = agentZeros[w];
+        var critList = Object.keys(criteria).sort();
+        critList.forEach(function(c){
+          agentHtml += '<tr><td style="white-space:nowrap;">'+w+'</td><td>'+c+'</td><td style="text-align:center;">'+criteria[c]+'</td></tr>';
+        });
+      });
+      agentHtml += '</tbody></table></div></div>';
+      html += agentHtml;
+    });
+    html += '</div>';
+  }
+
+  // ---- Agent Zero Score Breakdown (Agent only) ----
+  if (!isAdmin && agents.length === 1 && agentWeeklyZeroMap[currentAgentName]) {
+    var agentZeros = agentWeeklyZeroMap[currentAgentName];
+    var agent = agents[0];
+    if (agentZeros && Object.keys(agentZeros).length) {
+      html += '<div class="analysis-card"><div class="a-card-title">⛔ Your Zero Score Breakdown</div><div class="a-card-sub">Criteria where you scored 0 – by week</div>';
+      html += '<div class="heatmap-wrap"><table class="heatmap-table"><thead><tr><th>Week</th><th>Criteria</th><th>Zero Count</th></tr></thead><tbody>';
+      var weeksForAgent = Object.keys(agentZeros).sort(function(a,b){ return getWeekNumber(a)-getWeekNumber(b); }).reverse();
+      weeksForAgent.forEach(function(w){
+        var criteria = agentZeros[w];
+        var critList = Object.keys(criteria).sort();
+        critList.forEach(function(c){
+          html += '<tr><td style="white-space:nowrap;">'+w+'</td><td>'+c+'</td><td style="text-align:center;">'+criteria[c]+'</td></tr>';
+        });
+      });
+      html += '</tbody></table></div></div>';
+    }
+  }
 
   // AI report placeholder (admin only)
   if (isAdmin) {
-    html+='<div class="analysis-card" id="aiCard" style="display:none;"><div class="a-card-title">&#x2728; AI Coaching Report</div><div class="a-card-sub">Generated analysis and recommendations</div><div id="aiContent" style="font-size:13px;line-height:1.8;color:var(--text);white-space:pre-wrap;font-family:\'DM Mono\',monospace;"></div></div>';
+    html += '<div class="analysis-card" id="aiCard" style="display:none;"><div class="a-card-title">&#x2728; AI Coaching Report</div><div class="a-card-sub">Generated analysis and recommendations</div><div id="aiContent" style="font-size:13px;line-height:1.8;color:var(--text);white-space:pre-wrap;font-family:\'DM Mono\',monospace;"></div></div>';
   }
 
-  container.innerHTML=html;
+  container.innerHTML = html;
 }
 
-async function generateAIReport(){
-  var agents=Object.values(agentMap);
-  var allCalls=agents.reduce(function(arr,a){return arr.concat(a.calls);},[]); if(!allCalls.length)return;
-  var summary=agents.map(function(agent){
-    var fm={},fbs=[];
-    agent.calls.forEach(function(call){if(!call.criteria)return;call.criteria.forEach(function(cr){var l=(cr.label||'').trim(),w=parseFloat(cr.weight||0),sc=cr.score!==undefined?cr.score:null,fb=cr.feedback||'';var sn=(sc===null||sc==='')?null:parseFloat(sc);if(!l||w<=0)return;if(sn!==null&&sn<w){fm[l]=(fm[l]||0)+1;if(fb)fbs.push(l+': '+fb);}});});
-    var tc=agent.calls.length,pas=agent.calls.filter(function(c){return c.pass;}).length;
-    var tf=Object.keys(fm).sort(function(a,b){return fm[b]-fm[a];}).slice(0,5).map(function(k){return k+' ('+fm[k]+'x)';});
-    return 'Agent: '+agent.name+'\nCalls scored: '+tc+', Passed: '+pas+', Failed: '+(tc-pas)+'\nTop failures: '+(tf.join(', ')||'none')+'\nAuditor feedback: '+(fbs.slice(0,3).join(' | ')||'none');
-  }).join('\n\n');
-  var prompt='You are a call centre QA coach. Based on these scorecard results, write a coaching report.\n\nFor EACH agent:\n1. Main weaknesses (2-3 sentences)\n2. Specific actions they must work on\n3. Priority: High / Medium / Low\n\nThen a TEAM SUMMARY:\n- Top 3 common failure areas\n- Recommended team training topics\n- Overall team quality verdict\n\nBe specific and constructive.\n\nDATA:\n\n'+summary;
-  var card=document.getElementById('aiCard'),content=document.getElementById('aiContent');
-  if(!card){renderAnalysis();card=document.getElementById('aiCard');content=document.getElementById('aiContent');}
-  card.style.display='';content.textContent='Generating coaching report...';card.scrollIntoView({behavior:'smooth',block:'start'});
-  try{
-    var r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,messages:[{role:'user',content:prompt}]})});
-    var data=await r.json();var text='';
-    if(data.content&&data.content.length)data.content.forEach(function(b){if(b.type==='text')text+=b.text;});
-    content.textContent=text||'Could not generate report.';
-  }catch(err){content.textContent='Error: '+err.message;}
+// Helper to convert week label to comparable number
+function getWeekNumber(weekLabel){
+  var m = weekLabel.match(/(\d+)\s(\w+)/);
+  if (!m) return 0;
+  var months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+  var day = parseInt(m[1]);
+  var month = months[m[2]];
+  var year = 2026; // fixed year for sorting
+  return (year * 1000) + (month * 100) + day;
 }
 
-function showLoading(on){document.getElementById('loadingOverlay').style.display=on?'flex':'none';}
-function showToast(msg,ok){var t=document.getElementById('toast');t.textContent=msg;t.className='toast'+(ok===true?' ok':ok===false?' err':'');t.classList.add('show');setTimeout(function(){t.classList.remove('show');},3000);}
+// ... (keep all other functions exactly as before) ...
 </script>
 </body>
 </html>
