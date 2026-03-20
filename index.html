@@ -6,7 +6,8 @@
 <title>ScoreDesk – QA Platform</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js" 
+        onerror="alert('Supabase SDK failed to load. Please check your internet connection or use a different CDN.')"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap');
 :root{
@@ -281,15 +282,15 @@ tr:hover td{background:rgba(79,140,255,.03);}
     <div class="login-field">
       <label>Password</label>
       <div class="pass-wrap">
-        <input class="login-input" type="password" id="loginPass" placeholder="Password" autocomplete="current-password" id="loginPassInput">
-        <span class="pass-toggle" id="passToggle" >&#x1F441;</span>
+        <input class="login-input" type="password" id="loginPass" placeholder="Password" autocomplete="current-password">
+        <span class="pass-toggle" id="passToggle">&#x1F441;</span>
       </div>
     </div>
     <div class="remember-row">
       <input type="checkbox" id="rememberMe">
       <label for="rememberMe">Remember me</label>
     </div>
-    <button class="login-btn" id="loginBtn" >Sign In</button>
+    <button class="login-btn" id="loginBtn">Sign In</button>
     <div class="login-error" id="loginError"></div>
     <div class="login-status" id="loginStatus" style="display:none;"></div>
   </div>
@@ -305,7 +306,7 @@ tr:hover td{background:rgba(79,140,255,.03);}
     <div class="hdr-right">
       <span class="hdr-month" id="hdrMonth"></span>
       <span class="hdr-user" id="hdrUser"></span>
-      <button class="hdr-btn admin" id="manageAccountsBtn" style="display:none" id="manageBtnEl">Manage Accounts</button>
+      <button class="hdr-btn admin" id="manageAccountsBtn" style="display:none">Manage Accounts</button>
       <button class="hdr-btn" id="logoutBtnEl">Sign Out</button>
     </div>
   </div>
@@ -381,7 +382,7 @@ tr:hover td{background:rgba(79,140,255,.03);}
 </div>
 
 <!-- CALL DETAIL MODAL -->
-<div class="modal-overlay" id="modalOverlay" id="callModalOverlay">
+<div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <div class="modal-top"><div><div class="modal-agent" id="mName"></div><div class="modal-meta" id="mMeta"></div></div><button class="modal-close" id="closeCallModalBtn">&#x2715;</button></div>
     <div class="modal-body" id="mBody"></div>
@@ -389,7 +390,7 @@ tr:hover td{background:rgba(79,140,255,.03);}
 </div>
 
 <!-- ACCOUNT MODAL -->
-<div class="modal-overlay" id="accountModalOverlay" id="acctModalOverlay">
+<div class="modal-overlay" id="accountModalOverlay">
   <div class="modal" style="max-width:500px;">
     <div class="modal-top"><div><div class="modal-agent">Manage Accounts</div><div class="modal-meta">Create logins for quality agents</div></div><button class="modal-close" id="closeAcctModalBtn">&#x2715;</button></div>
     <div class="modal-body">
@@ -408,23 +409,11 @@ tr:hover td{background:rgba(79,140,255,.03);}
 <div class="toast" id="toast"></div>
 
 <script>
+// Supabase configuration
 var SUPABASE_URL = 'https://ltuuvonhqpkasxmnrtzv.supabase.co';
 var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0dXV2b25ocXBrYXN4bW5ydHp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTQ4NDksImV4cCI6MjA4OTQ5MDg0OX0.yWWiptHI2s3UX2fvN5nynFxD07uVLuP7YVd6w7DQJKQ';
 
-// Init Supabase synchronously — CDN script is already loaded above this
 var sb = null;
-(function() {
-  try {
-    if (typeof window.supabase === 'undefined') throw new Error('Supabase SDK not loaded');
-    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-      auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: false }
-    });
-    console.log('Supabase ready:', !!sb);
-  } catch(e) {
-    console.error('Supabase init failed:', e);
-  }
-}());
-
 var agentMap = {};
 var currentFilter = 'all';
 var currentCallKey = null;
@@ -433,11 +422,29 @@ var isAdmin = false;
 var weeklyChartInst = null, stackedChartInst = null, agentChartInst = null;
 var CHART_CFG = { gridColor:'rgba(255,255,255,0.06)', tickFont:{ family:'DM Mono, monospace', size:11 } };
 
-// ── WIRE ALL EVENTS after DOM is ready ──
-document.addEventListener('DOMContentLoaded', function() {
+// Initialize Supabase after window loads
+window.addEventListener('load', function() {
+  try {
+    if (typeof window.supabase === 'undefined') {
+      throw new Error('Supabase SDK not loaded. Check your internet connection.');
+    }
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: false }
+    });
+    console.log('Supabase client ready');
+    // After SDK is ready, restore session
+    restoreSession();
+  } catch (e) {
+    console.error('Supabase init failed:', e);
+    document.getElementById('loginError').textContent = 'Failed to initialize authentication. Please refresh the page.';
+    document.getElementById('loginError').style.display = 'block';
+  }
+});
 
-  // Login
-  var loginPassEl = document.getElementById('loginPass') || document.getElementById('loginPassInput');
+// Event listeners after DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+  // Login UI
+  var loginPassEl = document.getElementById('loginPass');
   if (loginPassEl) loginPassEl.addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
 
   var pwEye = document.getElementById('passToggle');
@@ -447,10 +454,10 @@ document.addEventListener('DOMContentLoaded', function() {
   if (loginBtnEl) loginBtnEl.addEventListener('click', doLogin);
 
   // Header
-  var logoutEl = document.getElementById('logoutBtnEl') || document.getElementById('logoutBtn');
+  var logoutEl = document.getElementById('logoutBtnEl');
   if (logoutEl) logoutEl.addEventListener('click', doLogout);
 
-  var manageEl = document.getElementById('manageBtnEl') || document.getElementById('manageAccountsBtn');
+  var manageEl = document.getElementById('manageAccountsBtn');
   if (manageEl) manageEl.addEventListener('click', openAccountModal);
 
   // Page tabs
@@ -462,16 +469,16 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // Upload
-  var chooseBtnEl = document.getElementById('chooseBtnEl') || document.querySelector('.upload-btn');
+  var chooseBtnEl = document.getElementById('chooseBtnEl');
   if (chooseBtnEl) chooseBtnEl.addEventListener('click', function(e){ e.stopPropagation(); document.getElementById('fileInputBig').click(); });
 
-  var viewFilesEl = document.getElementById('viewFilesBtnEl') || document.querySelector('.view-files-btn');
+  var viewFilesEl = document.getElementById('viewFilesBtnEl');
   if (viewFilesEl) viewFilesEl.addEventListener('click', function(e){ e.stopPropagation(); toggleFilesDrawer(); });
 
-  var addMoreEl = document.getElementById('addMoreBtnEl') || document.querySelector('.add-more-btn');
+  var addMoreEl = document.getElementById('addMoreBtnEl');
   if (addMoreEl) addMoreEl.addEventListener('click', function(e){ e.stopPropagation(); document.getElementById('fileInputCompact').click(); });
 
-  var closeDrawerEl = document.getElementById('closeDrawerBtnEl') || document.querySelector('.drawer-close');
+  var closeDrawerEl = document.getElementById('closeDrawerBtnEl');
   if (closeDrawerEl) closeDrawerEl.addEventListener('click', toggleFilesDrawer);
 
   // File inputs
@@ -498,22 +505,22 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // Modals
-  var callOv = document.getElementById('callModalOverlay') || document.getElementById('modalOverlay');
+  var callOv = document.getElementById('modalOverlay');
   if (callOv) callOv.addEventListener('click', function(e){ if(e.target===this) closeModal(); });
 
-  var closeCallBtn = document.getElementById('closeCallModalBtn') || document.querySelector('#modalOverlay .modal-close');
+  var closeCallBtn = document.getElementById('closeCallModalBtn');
   if (closeCallBtn) closeCallBtn.addEventListener('click', closeModal);
 
-  var acctOv = document.getElementById('acctModalOverlay') || document.getElementById('accountModalOverlay');
+  var acctOv = document.getElementById('accountModalOverlay');
   if (acctOv) acctOv.addEventListener('click', function(e){ if(e.target===this) closeAccountModal(); });
 
-  var closeAcctBtn = document.getElementById('closeAcctModalBtn') || document.querySelector('#accountModalOverlay .modal-close');
+  var closeAcctBtn = document.getElementById('closeAcctModalBtn');
   if (closeAcctBtn) closeAcctBtn.addEventListener('click', closeAccountModal);
 
-  var createAcctEl = document.getElementById('createAcctBtnEl') || document.querySelector('#accountModalOverlay .save-btn');
+  var createAcctEl = document.getElementById('createAcctBtnEl');
   if (createAcctEl) createAcctEl.addEventListener('click', createAccount);
 
-  // Restore session
+  // Restore saved email
   try {
     var saved = localStorage.getItem('sd_last_email');
     if (saved) {
@@ -521,16 +528,11 @@ document.addEventListener('DOMContentLoaded', function() {
       if (emailEl) emailEl.value = saved;
       var remEl = document.getElementById('rememberMe');
       if (remEl) remEl.checked = true;
-      setTimeout(function(){ var p=document.getElementById('loginPass'); if(p) p.focus(); }, 150);
     }
   } catch(e) {}
-
-  restoreSession();
 });
 
-
-
-// ── PASSWORD TOGGLE ──
+// Helper functions
 function togglePass() {
   var input = document.getElementById('loginPass');
   var icon  = document.getElementById('passToggle');
@@ -542,8 +544,6 @@ function togglePass() {
     icon.innerHTML = '&#x1F441;';
   }
 }
-
-// ── LOGIN — wired via DOMContentLoaded above ──
 
 async function restoreSession() {
   if (!sb) return;
@@ -567,19 +567,9 @@ async function doLogin() {
   if (!email) { showLoginError('Please enter your email address.'); return; }
   if (!pass)  { showLoginError('Please enter your password.'); return; }
 
-  // Make sure sb is ready
   if (!sb) {
-    setStatus('Connecting to server...');
-    try {
-      sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-        auth: { autoRefreshToken:true, persistSession:true, detectSessionInUrl:false }
-      });
-    } catch(e2) {}
-    if (!sb) {
-      showLoginError('Cannot connect to server. Please check your internet connection and refresh.');
-      setStatus('');
-      return;
-    }
+    showLoginError('Authentication service not ready. Please wait or refresh the page.');
+    return;
   }
 
   btn.disabled = true;
@@ -592,11 +582,10 @@ async function doLogin() {
     if (result.error) {
       var msg = result.error.message || 'Login failed';
       var code = result.error.status || '';
-      // Map to friendly messages
       if (code === 400 || /invalid|credentials|password|not found/i.test(msg)) {
         msg = 'Incorrect email or password. Please try again.';
       } else if (/confirm/i.test(msg)) {
-        msg = 'Email not confirmed. Go to Supabase Dashboard → Authentication → Users → confirm your account, or turn off email confirmation in Auth settings.';
+        msg = 'Email not confirmed. Please check your inbox or contact admin.';
       } else if (/network|fetch/i.test(msg)) {
         msg = 'Network error. Please check your connection.';
       }
@@ -678,7 +667,6 @@ async function doLogout() {
   document.getElementById('placeholder').style.display = '';
 }
 
-// ── ACCOUNT MANAGEMENT ──
 async function openAccountModal() {
   document.getElementById('accountModalOverlay').classList.add('open');
   document.getElementById('accountList').innerHTML = '<p style="font-family:monospace;font-size:12px;color:var(--muted);margin-bottom:12px;">To view or remove existing users, visit <a href="https://supabase.com/dashboard" target="_blank" style="color:var(--accent);">Supabase Dashboard</a> &rarr; Authentication &rarr; Users.</p>';
@@ -698,8 +686,6 @@ async function createAccount() {
   else { document.getElementById('newEmail').value=''; document.getElementById('newPassword').value=''; showAcctMsg('Account created: '+email, true); }
 }
 function showAcctMsg(msg,ok){ var el=document.getElementById('accountMsg'); el.textContent=msg; el.style.color=ok?'var(--pass)':'var(--fail)'; el.style.display='block'; setTimeout(function(){el.style.display='none';},5000); }
-
-// ── FILE HANDLING — wired via DOMContentLoaded above ──
 
 async function parseFile(file) {
   var reader = new FileReader();
@@ -779,7 +765,6 @@ function appendFileBar(fileName,sc){
   document.getElementById('filesList').appendChild(div);
 }
 
-// ── EXTRACT SCORECARD ──
 function extractScorecard(rows,fileName){
   function fv(pat,col){col=col||2;var r=rows.find(function(r){return pat.test(String(r[0]||''));});return r?String(r[col]||'').trim():'';}
   var name=fv(/advisor name/i)||fileName.replace(/\.xlsx?$/i,'');
@@ -805,7 +790,6 @@ function extractScorecard(rows,fileName){
   return{name:name,account:account,callDate:callDate,auditor:auditor,fileName:fileName,pass:pass,pfResult:pfResult,pfReason:pfReason,autoFails:autoFails,criteria:criteria};
 }
 
-// ── PAGE SWITCHING ──
 function switchPage(page,btn){
   document.querySelectorAll('.page-tab').forEach(function(t){t.classList.remove('active');});
   btn.classList.add('active');
@@ -819,7 +803,6 @@ function switchPage(page,btn){
   }
 }
 
-// ── RENDER ──
 function renderAll(){
   var agents=Object.values(agentMap);
   if(!agents.length){document.getElementById('dashSection').classList.add('hidden');document.getElementById('placeholder').style.display='';return;}
@@ -842,7 +825,6 @@ function renderSummary(agents){
 }
 function mc(l,v,c,b,col){return '<div class="stat-card"><div class="stat-label">'+l+'</div><div class="stat-value '+c+'">'+v+'</div><div class="stat-bar"><div class="stat-bar-fill" style="background:'+col+';width:'+b+'%"></div></div></div>';}
 
-// ── CHARTS ──
 function getWeekLabel(ds){
   if(!ds)return'Unknown';
   var d=new Date(ds);
@@ -872,7 +854,6 @@ function renderCharts(){
   agentChartInst=new Chart(gs('agentChart'),{type:'bar',data:{labels:weeks,datasets:[{label:'Scored',data:tc,backgroundColor:'rgba(79,140,255,0.7)',borderRadius:4,borderSkipped:false}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:Object.assign({},tt,{callbacks:{label:function(ctx){return ' '+ctx.parsed.y+' scored';}}})},scales:{x:{ticks:{color:'#6b7694',font:CHART_CFG.tickFont},grid:{color:CHART_CFG.gridColor}},y:{ticks:{color:'#6b7694',font:CHART_CFG.tickFont,stepSize:1},grid:{color:CHART_CFG.gridColor}}}}});
 }
 
-// ── AGENT CARDS ──
 function renderCards(agents,filter){
   var filtered=agents.filter(function(a){if(filter==='pass')return a.calls.every(function(c){return c.pass;});if(filter==='fail')return a.calls.some(function(c){return!c.pass;});return true;});
   var container=document.getElementById('agentCards');container.innerHTML='';
@@ -911,7 +892,6 @@ function callRow(c,idx){
 function toggleCard(id){document.getElementById(id).classList.toggle('open');document.getElementById(id+'-chev').classList.toggle('open');}
 function filterAgents(f,btn){currentFilter=f;document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});btn.classList.add('active');renderCards(Object.values(agentMap),f);}
 
-// ── MODAL ──
 async function openModal(key){
   var dec=decodeURIComponent(key),parts=dec.split('||'),name=parts[0],fn=parts[1];
   var c=agentMap[name]&&agentMap[name].calls.find(function(x){return x.fileName===fn;});
@@ -934,27 +914,11 @@ async function saveAgentNote(name){var el=document.getElementById('anotes-'+name
 async function loadAgentNote(name,elId){var r=await sb.from('notes').select('content').eq('note_key','agent:'+name).single();if(r.data&&r.data.content){var el=document.getElementById(elId);if(el)el.value=r.data.content;}}
 async function notes_upsert(key,val,okId){await sb.from('notes').upsert({note_key:key,content:val,updated_by:currentUser.id},{onConflict:'note_key'});var ok=document.getElementById(okId);if(ok){ok.style.display='block';setTimeout(function(){ok.style.display='none';},2000);}}
 
-// ── FAILURE ANALYSIS ──
 function renderAnalysis(){
   var agents=Object.values(agentMap);
   var allCalls=agents.reduce(function(arr,a){return arr.concat(a.calls);},[]); 
   var container=document.getElementById('analysisContent');
   if(!allCalls.length){container.innerHTML='<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">Upload scorecards to see failure analysis.</p></div>';return;}
-
-  // ── DEBUG: show exactly what data we have ──
-  var debugLines=[];
-  debugLines.push('Total agents: '+agents.length);
-  debugLines.push('Total calls: '+allCalls.length);
-  allCalls.forEach(function(call,i){
-    var crit=call.criteria;
-    debugLines.push('Call '+i+' — '+call.name+' | pass:'+call.pass+' | criteria count:'+(crit?crit.length:0));
-    if(crit&&crit.length){
-      var sample=crit[0];
-      debugLines.push('  First criteria keys: '+Object.keys(sample).join(', '));
-      debugLines.push('  First criteria: label="'+(sample.label||sample.Label||'?')+'" score='+(sample.score!==undefined?sample.score:sample.Score)+' weight='+(sample.weight||sample.Weight));
-    }
-  });
-  container.innerHTML='<div class="analysis-card" id="debugCard"><div class="a-card-title">&#x1F50D; Debug Info</div><pre style="font-family:monospace;font-size:11px;color:var(--muted);white-space:pre-wrap;line-height:1.6;">'+debugLines.join('\n')+'</pre><button class="save-btn" style="margin-top:12px;" onclick="document.getElementById('debugCard').style.display='none'">Hide Debug</button></div>';
 
   // Build criteria map
   var cm={};
@@ -1065,7 +1029,6 @@ async function generateAIReport(){
   }catch(err){content.textContent='Error: '+err.message;}
 }
 
-// ── UTILS ──
 function showLoading(on){document.getElementById('loadingOverlay').style.display=on?'flex':'none';}
 function showToast(msg,ok){var t=document.getElementById('toast');t.textContent=msg;t.className='toast'+(ok===true?' ok':ok===false?' err':'');t.classList.add('show');setTimeout(function(){t.classList.remove('show');},3000);}
 </script>
