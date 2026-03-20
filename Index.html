@@ -8,7 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
 <style>
-/* --- Keep all CSS from the previous version exactly --- */
+/* === All CSS from the previous version (unchanged) === */
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap');
 :root{
   --bg:#0b0d13;--surface:#12151e;--surface2:#191d28;--surface3:#1f2335;
@@ -410,9 +410,11 @@ tr:hover td{background:rgba(79,140,255,.03);}
 <div class="toast" id="toast"></div>
 
 <script>
-// Supabase configuration (REPLACE WITH YOUR OWN)
-var SUPABASE_URL = 'https://yourproject.supabase.co';
-var SUPABASE_KEY = 'your-anon-key-here';
+// ============================================================
+// SUPABASE CONFIGURATION – REPLACE WITH YOUR OWN CREDENTIALS
+// ============================================================
+var SUPABASE_URL = 'https://uygnkczbbctypleijmls.supabase.co';
+var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5Z25rY3piYmN0eXBsZWlqbWxzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5OTgxNTAsImV4cCI6MjA4OTU3NDE1MH0.CeXH9krVW8YMpkhn6Pw1ThlHKx6r_4_RgybhKBor55k';
 
 var sb = null;
 var agentMap = {};
@@ -424,11 +426,720 @@ var currentAgentName = null;
 var weeklyChartInst = null, stackedChartInst = null, agentChartInst = null;
 var CHART_CFG = { gridColor:'rgba(255,255,255,0.06)', tickFont:{ family:'DM Mono, monospace', size:11 } };
 
-// Helper functions (unchanged from earlier working version)
-// ... (we'll insert them here but to keep this message short, I'll include the essential ones)
-// For brevity, I'll assume you have the full set of functions from the previous correct version.
-// Actually, to ensure completeness, I'll provide the full script in the final answer.
-// Given the length, I'll provide a separate final message with the complete HTML.
+// ---------- Helper functions ----------
+function showLoading(on) {
+  document.getElementById('loadingOverlay').style.display = on ? 'flex' : 'none';
+}
+function showToast(msg, ok) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (ok === true ? ' ok' : ok === false ? ' err' : '');
+  t.classList.add('show');
+  setTimeout(function() { t.classList.remove('show'); }, 3000);
+}
+
+// ---------- Login ----------
+window.addEventListener('load', function() {
+  try {
+    if (typeof window.supabase === 'undefined') throw new Error('Supabase SDK not loaded');
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: false }
+    });
+    console.log('Supabase client ready');
+    restoreSession();
+  } catch (e) {
+    console.error('Supabase init failed:', e);
+    document.getElementById('loginError').textContent = 'Failed to initialize authentication. Please refresh the page.';
+    document.getElementById('loginError').style.display = 'block';
+  }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('loginPass').addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
+  document.getElementById('passToggle').addEventListener('click', function() {
+    var input = document.getElementById('loginPass'), icon = this;
+    if (input.type === 'password') { input.type = 'text'; icon.innerHTML = '&#x1F648;'; }
+    else { input.type = 'password'; icon.innerHTML = '&#x1F441;'; }
+  });
+  document.getElementById('loginBtn').addEventListener('click', doLogin);
+  document.getElementById('logoutBtnEl').addEventListener('click', doLogout);
+  document.getElementById('manageAccountsBtn').addEventListener('click', openAccountModal);
+
+  document.querySelectorAll('.page-tab').forEach(btn => {
+    btn.addEventListener('click', function() {
+      var page = this.getAttribute('data-page') || (this.textContent.includes('Dashboard') ? 'dashboard' : 'analysis');
+      switchPage(page, this);
+    });
+  });
+
+  document.getElementById('chooseBtnEl').addEventListener('click', e => { e.stopPropagation(); document.getElementById('fileInputBig').click(); });
+  document.getElementById('viewFilesBtnEl').addEventListener('click', e => { e.stopPropagation(); toggleFilesDrawer(); });
+  document.getElementById('addMoreBtnEl').addEventListener('click', e => { e.stopPropagation(); document.getElementById('fileInputCompact').click(); });
+  document.getElementById('closeDrawerBtnEl').addEventListener('click', toggleFilesDrawer);
+
+  document.getElementById('fileInputBig').addEventListener('change', e => { Array.from(e.target.files).forEach(parseFile); e.target.value = ''; });
+  document.getElementById('fileInputCompact').addEventListener('change', e => { Array.from(e.target.files).forEach(parseFile); e.target.value = ''; });
+
+  var ub = document.getElementById('uploadBig');
+  ub.addEventListener('dragover', e => { e.preventDefault(); ub.classList.add('drag-over'); });
+  ub.addEventListener('dragleave', () => { ub.classList.remove('drag-over'); });
+  ub.addEventListener('drop', e => { e.preventDefault(); ub.classList.remove('drag-over'); Array.from(e.dataTransfer.files).forEach(parseFile); });
+
+  document.querySelectorAll('.filter-tabs .tab').forEach(btn => {
+    btn.addEventListener('click', function() {
+      var f = this.getAttribute('data-filter') || 'all';
+      filterAgents(f, this);
+    });
+  });
+
+  document.getElementById('modalOverlay').addEventListener('click', e => { if(e.target===this) closeModal(); });
+  document.getElementById('closeCallModalBtn').addEventListener('click', closeModal);
+  document.getElementById('accountModalOverlay').addEventListener('click', e => { if(e.target===this) closeAccountModal(); });
+  document.getElementById('closeAcctModalBtn').addEventListener('click', closeAccountModal);
+  document.getElementById('createAcctBtnEl').addEventListener('click', createAccount);
+
+  try {
+    var saved = localStorage.getItem('sd_last_email');
+    if (saved) document.getElementById('loginEmail').value = saved;
+    var rem = document.getElementById('rememberMe');
+    if (rem && saved) rem.checked = true;
+  } catch(e) {}
+});
+
+async function restoreSession() {
+  if (!sb) return;
+  try {
+    var r = await sb.auth.getSession();
+    if (r.data && r.data.session && r.data.session.user) {
+      currentUser = r.data.session.user;
+      await onLogin();
+    }
+  } catch(e) { console.error('Session restore:', e); }
+}
+
+async function doLogin() {
+  var email = document.getElementById('loginEmail').value.trim();
+  var pass = document.getElementById('loginPass').value;
+  var btn = document.getElementById('loginBtn');
+
+  function hideError() { document.getElementById('loginError').style.display = 'none'; }
+  function showError(msg) { var el = document.getElementById('loginError'); el.textContent = msg; el.style.display = 'block'; }
+  function setStatus(msg) { var el = document.getElementById('loginStatus'); if (!msg) { el.style.display = 'none'; el.textContent = ''; return; } el.textContent = msg; el.style.display = 'block'; }
+
+  hideError(); setStatus('');
+  if (!email) { showError('Please enter your email address.'); return; }
+  if (!pass)  { showError('Please enter your password.'); return; }
+  if (!sb) { showError('Authentication service not ready. Please wait or refresh.'); return; }
+
+  btn.disabled = true; btn.textContent = 'Signing in...'; setStatus('Checking credentials...');
+
+  try {
+    var result = await sb.auth.signInWithPassword({ email, password: pass });
+    if (result.error) {
+      var msg = result.error.message;
+      if (/invalid|credentials|password|not found/i.test(msg)) msg = 'Incorrect email or password. Please try again.';
+      else if (/confirm/i.test(msg)) msg = 'Email not confirmed. Please check your inbox or contact admin.';
+      else if (/network|fetch/i.test(msg)) msg = 'Network error. Please check your connection.';
+      showError(msg); setStatus('');
+      btn.disabled = false; btn.textContent = 'Sign In';
+      return;
+    }
+    if (!result.data || !result.data.user) { showError('Login failed — no user returned.'); setStatus(''); btn.disabled = false; btn.textContent = 'Sign In'; return; }
+
+    setStatus('Login successful! Loading...');
+    currentUser = result.data.user;
+    try { localStorage.setItem('sd_last_email', email); } catch(e) {}
+    await onLogin();
+  } catch(err) {
+    showError('Login error: ' + (err.message || 'Unknown error.'));
+    setStatus('');
+    btn.disabled = false; btn.textContent = 'Sign In';
+  }
+}
+
+async function onLogin() {
+  var meta = currentUser.user_metadata || {};
+  isAdmin = (currentUser.email === 'admin@scoredesk.com') || (meta.role === 'admin');
+  currentAgentName = meta.agent_name || null;
+
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('hdrUser').textContent = currentUser.email;
+  var mo = new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+  document.getElementById('hdrMonth').textContent = mo;
+  document.getElementById('compactMonth').textContent = mo;
+  document.getElementById('manageAccountsBtn').style.display = isAdmin ? '' : 'none';
+
+  if (!isAdmin) {
+    document.getElementById('uploadBig').style.display = 'none';
+    document.getElementById('uploadCompact').style.display = 'none';
+    var addBtn = document.getElementById('addMoreBtnEl');
+    if (addBtn) addBtn.style.display = 'none';
+    var viewBtn = document.getElementById('viewFilesBtnEl');
+    if (viewBtn) viewBtn.style.display = 'none';
+  }
+
+  showLoading(true);
+  await loadScorecards();
+  showLoading(false);
+}
+
+async function doLogout() {
+  if (sb) await sb.auth.signOut();
+  currentUser = null; isAdmin = false; agentMap = {};
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('loginPass').value = '';
+  try { document.getElementById('loginEmail').value = localStorage.getItem('sd_last_email')||''; } catch(e) {}
+  document.getElementById('uploadBig').style.display = '';
+  document.getElementById('uploadCompact').style.display = 'none';
+  document.getElementById('filesList').innerHTML = '';
+  document.getElementById('dashSection').classList.add('hidden');
+  document.getElementById('analysisSection').style.display = 'none';
+  document.getElementById('pageTabs').style.display = 'none';
+  document.getElementById('placeholder').style.display = '';
+}
+
+// ---------- Account management ----------
+function openAccountModal() {
+  document.getElementById('accountModalOverlay').classList.add('open');
+  document.getElementById('accountList').innerHTML = '<p style="font-family:monospace;font-size:12px;color:var(--muted);margin-bottom:12px;">To view or remove existing users, visit <a href="https://supabase.com/dashboard" target="_blank" style="color:var(--accent);">Supabase Dashboard</a> &rarr; Authentication &rarr; Users.</p>';
+}
+function closeAccountModal() { document.getElementById('accountModalOverlay').classList.remove('open'); }
+
+async function createAccount() {
+  var email = document.getElementById('newEmail').value.trim();
+  var agentName = document.getElementById('newAgentName').value.trim();
+  var pass  = document.getElementById('newPassword').value.trim();
+  var msg   = document.getElementById('accountMsg');
+  if (!email||!pass) { showAcctMsg('Email and password required', false); return; }
+  if (pass.length<6) { showAcctMsg('Password must be at least 6 characters', false); return; }
+  if (!agentName) { showAcctMsg('Agent Name is required', false); return; }
+  showLoading(true);
+  var r = await sb.auth.signUp({
+    email, password: pass,
+    options: { data: { role: 'agent', agent_name: agentName } }
+  });
+  showLoading(false);
+  if (r.error) { showAcctMsg(r.error.message, false); }
+  else { document.getElementById('newEmail').value=''; document.getElementById('newAgentName').value=''; document.getElementById('newPassword').value=''; showAcctMsg('Account created: '+email+' (agent: '+agentName+')', true); }
+}
+function showAcctMsg(msg,ok){ var el=document.getElementById('accountMsg'); el.textContent=msg; el.style.color=ok?'var(--pass)':'var(--fail)'; el.style.display='block'; setTimeout(function(){el.style.display='none';},5000); }
+
+// ---------- Scorecard handling ----------
+async function loadScorecards() {
+  let query = sb.from('scorecards').select('*').order('created_at',{ascending:true});
+  if (!isAdmin && currentAgentName) {
+    query = query.eq('agent_name', currentAgentName);
+  }
+  var r = await query;
+  if (r.error) { showToast('Load error: '+r.error.message, false); return; }
+  agentMap = {};
+  document.getElementById('filesList').innerHTML = '';
+  if (r.data && r.data.length>0) {
+    r.data.forEach(function(row){
+      var sc={ name:row.agent_name, account:row.account_ref, callDate:row.call_date, auditor:row.auditor, fileName:row.file_name, pass:row.pass, pfReason:row.pf_reason, autoFails:row.auto_fails||[], criteria:row.criteria||[], dbId:row.id };
+      addToAgentMap(sc);
+      if (isAdmin) appendFileBar(row.file_name, sc);
+    });
+    if (isAdmin) {
+      switchToCompact();
+    } else {
+      document.getElementById('uploadBig').style.display = 'none';
+      document.getElementById('uploadCompact').style.display = 'none';
+      document.getElementById('filesDrawer').style.display = 'none';
+    }
+    renderAll();
+  } else {
+    document.getElementById('uploadBig').style.display = isAdmin ? '' : 'none';
+    document.getElementById('uploadCompact').style.display = 'none';
+    document.getElementById('dashSection').classList.add('hidden');
+    document.getElementById('placeholder').style.display = isAdmin ? '' : 'none';
+    if (!isAdmin && (!currentAgentName || r.data.length===0)) {
+      document.getElementById('placeholder').innerHTML = '<div class="pi">&#x1F5C2;&#xFE0F;</div><p style="font-size:15px;">No scorecards found for your agent name. Please contact your administrator.</p>';
+      document.getElementById('placeholder').style.display = '';
+    } else if (!isAdmin && r.data.length===0) {
+      document.getElementById('placeholder').innerHTML = '<div class="pi">&#x1F5C2;&#xFE0F;</div><p style="font-size:15px;">No scorecards uploaded yet.</p>';
+      document.getElementById('placeholder').style.display = '';
+    }
+  }
+}
+
+function normaliseName(n){ return n.toLowerCase().replace(/[^a-z0-9\s]/g,'').trim().split(/\s+/).sort().join(' '); }
+function levenshtein(a,b){ var m=a.length,n=b.length,dp=[]; for(var i=0;i<=m;i++){dp[i]=[i];for(var j=1;j<=n;j++)dp[i][j]=0;} for(var j=0;j<=n;j++)dp[0][j]=j; for(var i=1;i<=m;i++)for(var j=1;j<=n;j++){if(a[i-1]===b[j-1])dp[i][j]=dp[i-1][j-1];else dp[i][j]=1+Math.min(dp[i-1][j-1],dp[i-1][j],dp[i][j-1]);} return dp[m][n]; }
+function findMatchingKey(name){ var norm=normaliseName(name),keys=Object.keys(agentMap); for(var i=0;i<keys.length;i++){if(normaliseName(keys[i])===norm)return keys[i];} for(var i=0;i<keys.length;i++){if(levenshtein(normaliseName(keys[i]),norm)<=2)return keys[i];} return null; }
+
+function addToAgentMap(sc) {
+  var key=findMatchingKey(sc.name);
+  if(key) sc.name=key;
+  if(!agentMap[sc.name]) agentMap[sc.name]={name:sc.name,calls:[]};
+  if(!agentMap[sc.name].calls.some(c=>c.fileName===sc.fileName)) agentMap[sc.name].calls.push(sc);
+}
+
+async function removeFile(agentName,fileName,dbId,btn){
+  if (!isAdmin) return;
+  showLoading(true);
+  await sb.from('scorecards').delete().eq('id',dbId);
+  showLoading(false);
+  btn.closest('.file-bar').remove();
+  await loadScorecards();
+}
+
+function switchToCompact(){
+  var t=Object.values(agentMap).reduce((s,a)=>s+a.calls.length,0);
+  document.getElementById('uploadBig').style.display='none';
+  document.getElementById('uploadCompact').style.display='flex';
+  document.getElementById('compactCount').textContent=t+' file'+(t!==1?'s':'')+' loaded · ';
+}
+function toggleFilesDrawer(){ document.getElementById('filesDrawer').classList.toggle('open'); }
+
+function appendFileBar(fileName,sc){
+  if(sc.dbId&&document.getElementById('fb-'+sc.dbId)) return;
+  var div=document.createElement('div'); div.className='file-bar';
+  if(sc.dbId) div.id='fb-'+sc.dbId;
+  div.innerHTML='<span>&#x1F4C4;</span><div class="file-bar-info"><div class="file-bar-agent">'+sc.name+'</div><div class="file-bar-name">'+fileName+'</div></div><span class="file-bar-badge '+(sc.pass?'pass':'fail')+'">'+(sc.pass?'PASS':'FAIL')+'</span><button class="rm-btn" onclick="removeFile(\''+sc.name.replace(/'/g,"\\'")+'\',\''+fileName.replace(/'/g,"\\'")+'\',\''+(sc.dbId||'')+'\',this)">Remove</button>';
+  document.getElementById('filesList').appendChild(div);
+}
+
+async function parseFile(file) {
+  var reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      var wb = XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      var sc = extractScorecard(rows, file.name);
+      if (!sc) { showToast('Could not parse: '+file.name, false); return; }
+      var dup = await sb.from('scorecards').select('id').eq('file_name',file.name).eq('agent_name',sc.name);
+      if (dup.data && dup.data.length>0) { showToast('Already uploaded: '+file.name); return; }
+      showLoading(true);
+      var ins = await sb.from('scorecards').insert({ agent_name:sc.name, file_name:file.name, call_date:sc.callDate, auditor:sc.auditor, account_ref:sc.account, pass:sc.pass, pf_reason:sc.pfReason, auto_fails:sc.autoFails, criteria:sc.criteria, uploaded_by:currentUser.id });
+      showLoading(false);
+      if (ins.error) { showToast('Save failed: '+ins.error.message, false); return; }
+      showToast('Saved: '+sc.name, true);
+      await loadScorecards();
+    } catch(err) { console.error(err); showToast('Error: '+file.name, false); showLoading(false); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function extractScorecard(rows,fileName){
+  function fv(pat,col){col=col||2;var r=rows.find(r=>pat.test(String(r[0]||'')));return r?String(r[col]||'').trim():'';}
+  var name=fv(/advisor name/i)||fileName.replace(/\.xlsx?$/i,'');
+  var account=fv(/account reference/i);
+  var auditor=fv(/auditor/i);
+  var callDate='';
+  var cdr=rows.find(r=>/call date/i.test(String(r[0]||'')));
+  if(cdr){var raw=cdr[2];if(typeof raw==='number'){var d=new Date(Math.round((raw-25569)*86400*1000));callDate=d.toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});}else callDate=String(raw||'').trim();}
+  var pfRow=rows.find(r=>/^pass\s*\/?\s*fail/i.test(String(r[0]||'')));
+  var pfResult=pfRow?String(pfRow[1]||'').trim().toUpperCase():'';
+  var pfReason=pfRow?String(pfRow[2]||'').trim():'';
+  var pass=pfResult==='PASS';
+  var zzr=rows.find(r=>/ZZPS Quality Score/i.test(String(r[0]||'')));
+  var zzRaw=zzr?zzr[2]:null;
+  var zzScore=(zzRaw!==null&&zzRaw!=='')?parseFloat(zzRaw):null;
+  var zzPct=zzScore!==null?(zzScore<=1?Math.round(zzScore*100):Math.round(zzScore)):null;
+  var zzpsRows=[];var inZ=false;
+  rows.forEach(r=>{var l=String(r[0]||'').trim();if(/ZZPS Quality Score/i.test(l)){inZ=true;return;}if(inZ&&/^pass\s*\/?\s*fail/i.test(l)){inZ=false;return;}if(inZ&&l)zzpsRows.push({label:l,val:String(r[1]||'').trim(),fb:String(r[2]||'').trim()});});
+  var autoFails=zzpsRows.filter(z=>z.val.toUpperCase()==='NO');
+  if(!pass&&!pfReason&&zzPct!==null&&zzPct<90) pfReason=zzPct+'% - Below Pass Rate';
+  var criteria=[];var cs='';
+  rows.forEach(r=>{var l=String(r[0]||'').trim(),w=r[1],sc=r[2],fb=String(r[3]||'').trim();if(/^(Introduction|Data Protection|Body|Conclusion)\s*$/i.test(l)){cs=l.trim();return;}if(/auto.?fail/i.test(String(w||'')))return;var wn=parseFloat(w),sn=parseFloat(sc);if(!isNaN(wn)&&wn>0)criteria.push({section:cs,label:l,weight:wn,score:isNaN(sn)?null:sn,feedback:fb});});
+  return{name,account,callDate,auditor,fileName,pass,pfResult,pfReason,autoFails,criteria};
+}
+
+// ---------- Dashboard rendering ----------
+function renderAll(){
+  var agents=Object.values(agentMap);
+  if(!agents.length){document.getElementById('dashSection').classList.add('hidden');document.getElementById('placeholder').style.display='';return;}
+  document.getElementById('placeholder').style.display='none';
+  document.getElementById('dashSection').classList.remove('hidden');
+  document.getElementById('pageTabs').style.display='';
+  renderSummary(agents); renderCharts(); renderCards(agents,currentFilter);
+  if(document.getElementById('analysisSection').style.display!=='none') renderAnalysis();
+}
+
+function renderSummary(agents){
+  var tc=agents.reduce((s,a)=>s+a.calls.length,0);
+  var cp=agents.reduce((s,a)=>s+a.calls.filter(c=>c.pass).length,0);
+  var cf=tc-cp, pr=tc?Math.round(cp/tc*100):0;
+  document.getElementById('summaryGrid').innerHTML=
+    mc('Total Agents',agents.length,'c-accent',100,'var(--accent)')+
+    mc('Total Calls',tc,'c-accent',100,'var(--accent)')+
+    mc('Overall Calls Passed',cp,'c-pass',pr,'var(--pass)')+
+    mc('Overall Calls Failed',cf,'c-fail',100-pr,'var(--fail)');
+}
+function mc(l,v,c,b,col){return '<div class="stat-card"><div class="stat-label">'+l+'</div><div class="stat-value '+c+'">'+v+'</div><div class="stat-bar"><div class="stat-bar-fill" style="background:'+col+';width:'+b+'%"></div></div></div>';}
+
+function getWeekLabel(ds){
+  if(!ds)return'Unknown';
+  var d=new Date(ds);
+  if(isNaN(d)){var m=ds.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/);if(m){var mo={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};d=new Date(parseInt(m[3]),mo[m[2]]!==undefined?mo[m[2]]:0,parseInt(m[1]));}else return'Unknown';}
+  var day=d.getDay(),diff=(day===0?-6:1-day),mon=new Date(d);mon.setDate(d.getDate()+diff);
+  return mon.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+}
+var threshPlugin={id:'threshold',afterDraw:function(chart){if(!chart.scales||!chart.scales.y)return;var ctx=chart.ctx,ca=chart.chartArea,y=chart.scales.y,yp=y.getPixelForValue(90);ctx.save();ctx.setLineDash([6,4]);ctx.strokeStyle='rgba(244,63,94,0.45)';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(ca.left,yp);ctx.lineTo(ca.right,yp);ctx.stroke();ctx.fillStyle='rgba(244,63,94,0.6)';ctx.font="10px 'DM Mono',monospace";ctx.fillText('90%',ca.left+4,yp-4);ctx.restore();}};
+Chart.register(threshPlugin);
+
+function renderCharts(){
+  var all=Object.values(agentMap).reduce((arr,a)=>arr.concat(a.calls),[]); if(!all.length)return;
+  var wm={};
+  all.forEach(c=>{var wk=getWeekLabel(c.callDate);if(!wm[wk])wm[wk]={pass:0,fail:0,total:0};c.pass?wm[wk].pass++:wm[wk].fail++;wm[wk].total++;});
+  var weeks=Object.keys(wm).sort((a,b)=>{function p(s){var m=s.match(/(\d+)\s(\w+)/);return m?new Date('2026 '+m[2]+' '+m[1]):new Date(0);}return p(a)-p(b);});
+  var pc=weeks.map(w=>wm[w].pass),fc=weeks.map(w=>wm[w].fail),tc=weeks.map(w=>wm[w].total);
+  var tt={backgroundColor:'#191d28',borderColor:'#242938',borderWidth:1,titleColor:'#e8ecf4',bodyColor:'#6b7694'};
+  function gs(id){return document.getElementById(id);}
+
+  if(weeklyChartInst)weeklyChartInst.destroy();
+  weeklyChartInst=new Chart(gs('weeklyChart'),{type:'line',data:{labels:weeks,datasets:[{label:'Passed',data:pc,borderColor:'#22d3a0',backgroundColor:'rgba(34,211,160,0.08)',borderWidth:2.5,fill:true,tension:0.35,pointBackgroundColor:'#22d3a0',pointRadius:5,pointHoverRadius:7}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:Object.assign({},tt,{callbacks:{label:ctx=>' '+ctx.parsed.y+' passed',afterLabel:ctx=>' '+wm[weeks[ctx.dataIndex]].fail+' failed'}})},scales:{x:{ticks:{color:'#6b7694',font:CHART_CFG.tickFont},grid:{color:CHART_CFG.gridColor}},y:{min:0,ticks:{color:'#6b7694',font:CHART_CFG.tickFont,stepSize:1},grid:{color:CHART_CFG.gridColor}}}}});
+
+  if(stackedChartInst)stackedChartInst.destroy();
+  stackedChartInst=new Chart(gs('stackedChart'),{type:'bar',data:{labels:weeks,datasets:[{label:'Passed',data:pc,backgroundColor:'rgba(34,211,160,0.7)',borderRadius:4,borderSkipped:false},{label:'Failed',data:fc,backgroundColor:'rgba(244,63,94,0.7)',borderRadius:4,borderSkipped:false}]},options:{responsive:true,plugins:{legend:{labels:{color:'#6b7694',font:CHART_CFG.tickFont,boxWidth:12,padding:16}},tooltip:tt},scales:{x:{stacked:true,ticks:{color:'#6b7694',font:CHART_CFG.tickFont},grid:{color:CHART_CFG.gridColor}},y:{stacked:true,ticks:{color:'#6b7694',font:CHART_CFG.tickFont,stepSize:1},grid:{color:CHART_CFG.gridColor}}}}});
+
+  if(agentChartInst)agentChartInst.destroy();
+  agentChartInst=new Chart(gs('agentChart'),{type:'bar',data:{labels:weeks,datasets:[{label:'Scored',data:tc,backgroundColor:'rgba(79,140,255,0.7)',borderRadius:4,borderSkipped:false}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:Object.assign({},tt,{callbacks:{label:ctx=>' '+ctx.parsed.y+' scored'}})},scales:{x:{ticks:{color:'#6b7694',font:CHART_CFG.tickFont},grid:{color:CHART_CFG.gridColor}},y:{ticks:{color:'#6b7694',font:CHART_CFG.tickFont,stepSize:1},grid:{color:CHART_CFG.gridColor}}}}});
+}
+
+function renderCards(agents,filter){
+  var filtered=agents.filter(a=>{if(filter==='pass')return a.calls.every(c=>c.pass);if(filter==='fail')return a.calls.some(c=>!c.pass);return true;});
+  var container=document.getElementById('agentCards');container.innerHTML='';
+  filtered.forEach(agent=>{
+    var tot=agent.calls.length,pas=agent.calls.filter(c=>c.pass).length,fai=tot-pas;
+    var cls=fai===0?'pass':pas===0?'fail':'mixed',lbl=fai===0?'ALL PASSED':pas===0?'ALL FAILED':(fai+' FAIL'+(fai>1?'S':''));
+    var ini=agent.name.split(' ').map(p=>p[0]||'').join('').slice(0,2).toUpperCase();
+    var cid='card-'+agent.name.replace(/\W/g,'_');
+    var nk='anotes-'+agent.name.replace(/\W/g,'_'),ok='agok-'+agent.name.replace(/\W/g,'_');
+    var rows=agent.calls.map((c,i)=>callRow(c,i+1)).join('');
+    var card=document.createElement('div');card.className='agent-card';
+    card.innerHTML='<div class="agent-card-header" onclick="toggleCard(\''+cid+'\')">'
+      +'<div class="agent-avatar">'+ini+'</div>'
+      +'<div class="agent-card-info"><div class="agent-card-name">'+agent.name+'</div><div class="agent-card-sub">'+tot+' call'+(tot!==1?'s':'')+' \u00b7 '+pas+' passed \u00b7 '+fai+' failed</div></div>'
+      +'<div class="agent-card-stats"><span class="mini-badge '+cls+'">'+lbl+'</span><span class="calls-count">'+tot+' call'+(tot!==1?'s':'')+'</span></div>'
+      +'<span class="chevron" id="'+cid+'-chev">\u25be</span></div>'
+      +'<div class="calls-table-wrap" id="'+cid+'">'
+      +'<table><thead><tr><th>#</th><th>Call Date</th><th>Auditor</th><th>Status</th><th>Fail Reason</th><th>Detail</th></tr></thead><tbody>'+rows+'</tbody></table>'
+      +'<div style="padding:14px 20px;border-top:1px solid var(--border);">'
+      +'<div class="notes-lbl">One-on-One Notes \u2014 '+agent.name+'</div>'
+      +'<textarea class="notes-area" id="'+nk+'" placeholder="Coaching notes for 1:1..."></textarea>'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-top:8px;">'
+      +'<button class="save-btn" onclick="saveAgentNote(\''+agent.name.replace(/'/g,"\\'")+'\')">Save Notes</button>'
+      +'<span class="save-ok" id="'+ok+'">\u2713 Saved</span></div></div></div>';
+    container.appendChild(card);
+    loadAgentNote(agent.name,nk);
+  });
+}
+
+function callRow(c,idx){
+  var reason=(!c.pass&&c.pfReason)?'<span class="fail-reason" title="'+c.pfReason+'">'+c.pfReason+'</span>':'<span style="color:var(--muted);font-size:11px;">'+(c.pass?'\u2014':'No reason recorded')+'</span>';
+  var key=encodeURIComponent(c.name+'||'+c.fileName);
+  return '<tr><td style="font-family:monospace;font-size:11px;color:var(--muted);">'+String(idx).padStart(2,'0')+'</td><td style="font-family:monospace;font-size:11px;">'+(c.callDate||'\u2014')+'</td><td style="font-family:monospace;font-size:11px;color:var(--muted);">'+(c.auditor||'\u2014')+'</td><td><span class="badge '+(c.pass?'pass':'fail')+'">'+(c.pass?'PASSED':'FAILED')+'</span></td><td>'+reason+'</td><td><button class="action-btn" onclick="openModal(\''+key+'\')">View Detail</button></td></tr>';
+}
+
+function toggleCard(id){document.getElementById(id).classList.toggle('open');document.getElementById(id+'-chev').classList.toggle('open');}
+function filterAgents(f,btn){currentFilter=f;document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));btn.classList.add('active');renderCards(Object.values(agentMap),f);}
+
+async function openModal(key){
+  var dec=decodeURIComponent(key),parts=dec.split('||'),name=parts[0],fn=parts[1];
+  var c=agentMap[name]&&agentMap[name].calls.find(x=>x.fileName===fn);
+  if(!c)return; currentCallKey=key;
+  document.getElementById('mName').textContent=c.name;
+  document.getElementById('mMeta').textContent=[c.account&&('Account: '+c.account),c.callDate&&('Call: '+c.callDate),c.auditor&&('Auditor: '+c.auditor)].filter(Boolean).join(' \u00b7 ');
+  var html='<div class="result-banner '+(c.pass?'pass':'fail')+'"><div class="result-icon">'+(c.pass?'&#x2705;':'&#x274C;')+'</div><div class="result-label '+(c.pass?'pass':'fail')+'">'+(c.pass?'PASSED':'FAILED')+'</div>'+(c.pfReason?'<div class="result-reason">Reason: '+c.pfReason+'</div>':'')+'</div>';
+  if(!c.pass&&c.autoFails&&c.autoFails.length){html+='<div class="af-box"><div class="af-box-title">&#x26A0;&#xFE0F; Auto-Fail Triggers</div>';c.autoFails.forEach(af=>{html+='<div class="af-row"><div class="af-q">'+af.label+'</div><div class="af-result">FAILED \u2014 '+af.val+'</div>'+(af.fb?'<div class="af-fb">'+af.fb+'</div>':'')+'</div>';});html+='</div>';}
+  var secs=[];if(c.criteria)c.criteria.forEach(cr=>{if(secs.indexOf(cr.section)===-1)secs.push(cr.section);});
+  secs.forEach(sec=>{var items=c.criteria.filter(cr=>cr.section===sec);html+='<div><div class="sec-title">'+(sec||'General')+'</div><div class="criteria-list">';items.forEach(cr=>{var r=cr.score!==null?cr.score/cr.weight:-1,cls=r<0?'na':r>=1?'full':r>0?'partial':'zero',disp=cr.score!==null?(cr.score+' / '+cr.weight):('-- / '+cr.weight);html+='<div class="cr-item"><div class="cr-top"><span class="cr-label">'+cr.label+'</span><span class="cr-wt">Max: '+cr.weight+'</span><span class="cr-pts '+cls+'">'+disp+'</span></div>'+(cr.feedback?'<div class="cr-fb">'+cr.feedback+'</div>':'')+'</div>';});html+='</div></div>';});
+  var nr=await sb.from('notes').select('content').eq('note_key','call:'+key).single();
+  var en=(nr.data&&nr.data.content)?nr.data.content:'';
+  html+='<div><div class="notes-lbl">Notes for this call</div><textarea class="notes-area" id="callNoteArea" placeholder="Notes about this call...">'+en+'</textarea><div style="display:flex;align-items:center;gap:10px;margin-top:8px;"><button class="save-btn" onclick="saveCallNote()">Save Notes</button><span class="save-ok" id="callSaveOk">\u2713 Saved</span></div></div>';
+  document.getElementById('mBody').innerHTML=html;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal(){document.getElementById('modalOverlay').classList.remove('open');}
+async function saveCallNote(){notes_upsert('call:'+currentCallKey,document.getElementById('callNoteArea').value,'callSaveOk');}
+async function saveAgentNote(name){var el=document.getElementById('anotes-'+name.replace(/\W/g,'_'));if(el)notes_upsert('agent:'+name,el.value,'agok-'+name.replace(/\W/g,'_'));}
+async function loadAgentNote(name,elId){var r=await sb.from('notes').select('content').eq('note_key','agent:'+name).single();if(r.data&&r.data.content){var el=document.getElementById(elId);if(el)el.value=r.data.content;}}
+async function notes_upsert(key,val,okId){await sb.from('notes').upsert({note_key:key,content:val,updated_by:currentUser.id},{onConflict:'note_key'});var ok=document.getElementById(okId);if(ok){ok.style.display='block';setTimeout(()=>{ok.style.display='none';},2000);}}
+
+function switchPage(page,btn){
+  document.querySelectorAll('.page-tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  if(page==='dashboard'){
+    document.getElementById('dashSection').style.display='';
+    document.getElementById('analysisSection').style.display='none';
+  } else {
+    document.getElementById('dashSection').style.display='none';
+    document.getElementById('analysisSection').style.display='';
+    renderAnalysis();
+  }
+}
+
+// ====================== ENHANCED FAILURE ANALYSIS ======================
+function renderAnalysis(){
+  var agents = Object.values(agentMap);
+  var allCalls = agents.reduce((arr,a)=>arr.concat(a.calls), []);
+  var container = document.getElementById('analysisContent');
+
+  if (!allCalls.length) {
+    if (!isAdmin && currentAgentName) {
+      container.innerHTML = '<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">No scorecards found for your agent name. Please contact your administrator.</p></div>';
+    } else {
+      container.innerHTML = '<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">Upload scorecards to see failure analysis.</p></div>';
+    }
+    return;
+  }
+
+  // --- Build failure data (score < weight) and zero-score data (score === 0) ---
+  var cm = {}; // criteria map for failures (score < weight)
+  var zeroMap = {}; // criteria map for zeros (score === 0)
+
+  allCalls.forEach(function(call){
+    var crit = call.criteria;
+    if (!crit || !crit.length) return;
+    crit.forEach(function(cr){
+      var label = (cr.label||'').trim();
+      var section = cr.section||'';
+      var weight = parseFloat(cr.weight||0);
+      var score = cr.score!==undefined ? cr.score : null;
+      if (!label || weight<=0) return;
+      var sn = (score===null || score==='') ? null : parseFloat(score);
+
+      // Track failures (score < weight)
+      var key = label.toLowerCase().replace(/\s+/g,' ');
+      if (!cm[key]) cm[key] = { section, label, total:0, fails:0, agentFails:{}, feedbacks:[] };
+      cm[key].total++;
+      if (sn!==null && sn < weight) {
+        cm[key].fails++;
+        cm[key].agentFails[call.name] = (cm[key].agentFails[call.name]||0) + 1;
+        if (cr.feedback) cm[key].feedbacks.push({ agent:call.name, date:call.callDate||'', text:cr.feedback });
+      }
+
+      // Track zeros (score === 0) – note: weight > 0 already ensured
+      if (sn !== null && sn === 0) {
+        var zkey = label.toLowerCase().replace(/\s+/g,' ');
+        if (!zeroMap[zkey]) zeroMap[zkey] = { section, label, total:0, zeros:0, agentZeros:{} };
+        zeroMap[zkey].total++;
+        zeroMap[zkey].zeros++;
+        zeroMap[zkey].agentZeros[call.name] = (zeroMap[zkey].agentZeros[call.name]||0) + 1;
+      }
+    });
+  });
+
+  var cl = Object.values(cm).filter(e=>e.total>0).sort((a,b)=>(b.fails/b.total)-(a.fails/a.total));
+  var topFails = cl.filter(e=>e.fails>0).slice(0,10);
+  var zeroList = Object.values(zeroMap).filter(e=>e.zeros>0).sort((a,b)=>b.zeros - a.zeros).slice(0,10);
+
+  // Per-agent fail map (for failures)
+  var afm = {};
+  agents.forEach(agent=>{
+    afm[agent.name] = { fails:{}, total:agent.calls.length, failed:agent.calls.filter(c=>!c.pass).length };
+    agent.calls.forEach(call=>{
+      if (!call.criteria) return;
+      call.criteria.forEach(cr=>{
+        var l = (cr.label||'').trim(), w = parseFloat(cr.weight||0), sc = cr.score!==undefined ? cr.score : null;
+        var sn = (sc===null || sc==='') ? null : parseFloat(sc);
+        if (!l || w<=0) return;
+        if (sn!==null && sn < w) afm[agent.name].fails[l] = (afm[agent.name].fails[l]||0) + 1;
+      });
+    });
+  });
+
+  // Per-agent zero map
+  var azm = {};
+  agents.forEach(agent=>{
+    azm[agent.name] = { zeros:{}, total:agent.calls.length };
+    agent.calls.forEach(call=>{
+      if (!call.criteria) return;
+      call.criteria.forEach(cr=>{
+        var l = (cr.label||'').trim(), w = parseFloat(cr.weight||0), sc = cr.score!==undefined ? cr.score : null;
+        var sn = (sc===null || sc==='') ? null : parseFloat(sc);
+        if (!l || w<=0) return;
+        if (sn !== null && sn === 0) azm[agent.name].zeros[l] = (azm[agent.name].zeros[l]||0) + 1;
+      });
+    });
+  });
+
+  var html = '';
+
+  if (isAdmin) {
+    // === TEAM FAILURE SECTION ===
+    html += '<div class="analysis-card"><div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:4px;"><div><div class="a-card-title">&#x1F465; Team — Most Commonly Failed Criteria</div><div class="a-card-sub">Where the whole team needs coaching focus</div></div><button class="save-btn" style="margin-top:0;white-space:nowrap;" onclick="generateAIReport()">&#x2728; Generate AI Coaching Report</button></div>';
+    if (topFails.length){
+      html += '<div class="top-fails-list">';
+      topFails.forEach((e,i)=>{
+        var pct = Math.round(e.fails/e.total*100);
+        var bc = pct>=60 ? 'var(--fail)' : pct>=30 ? 'var(--warn)' : 'var(--pass)';
+        var sc = pct>=60 ? 'high' : pct>=30 ? 'med' : 'low';
+        var aff = Object.keys(e.agentFails).join(', ');
+        html += '<div class="tf-row"><span class="tf-rank">'+(i+1)+'</span><div style="flex:1;min-width:0;"><div class="tf-label">'+e.label+'</div>'+(aff?'<div style="font-family:monospace;font-size:10px;color:var(--muted);margin-top:2px;">Affects: '+aff+'</div>':'')+'</div>'+(e.section?'<span class="tf-section">'+e.section+'</span>':'')+'<div class="tf-bar-wrap"><div class="tf-bar" style="width:'+pct+'%;background:'+bc+'"></div></div><span class="tf-stat fail-pct '+sc+'">'+pct+'%</span><span style="font-family:monospace;font-size:10px;color:var(--muted);white-space:nowrap;">'+e.fails+'/'+e.total+'</span></div>';
+      });
+      html += '</div>';
+    } else { html += '<p style="font-family:monospace;font-size:12px;color:var(--pass);padding:8px 0;">&#x2705; No criteria failures found.</p>'; }
+    html += '</div>';
+
+    // === TEAM ZERO SCORE SECTION ===
+    if (zeroList.length) {
+      html += '<div class="analysis-card"><div class="a-card-title">⛔ Team — Most Common Zero‑Score Criteria</div><div class="a-card-sub">Criteria where agents scored exactly 0 (full failure)</div><div class="top-fails-list">';
+      zeroList.forEach((e,i)=>{
+        var pct = Math.round(e.zeros/e.total*100);
+        var bc = pct>=60 ? 'var(--fail)' : pct>=30 ? 'var(--warn)' : 'var(--pass)';
+        var sc = pct>=60 ? 'high' : pct>=30 ? 'med' : 'low';
+        var aff = Object.keys(e.agentZeros).join(', ');
+        html += '<div class="tf-row"><span class="tf-rank">'+(i+1)+'</span><div style="flex:1;min-width:0;"><div class="tf-label">'+e.label+'</div>'+(aff?'<div style="font-family:monospace;font-size:10px;color:var(--muted);margin-top:2px;">Affects: '+aff+'</div>':'')+'</div>'+(e.section?'<span class="tf-section">'+e.section+'</span>':'')+'<div class="tf-bar-wrap"><div class="tf-bar" style="width:'+pct+'%;background:'+bc+'"></div></div><span class="tf-stat fail-pct '+sc+'">'+pct+'%</span><span style="font-family:monospace;font-size:10px;color:var(--muted);white-space:nowrap;">'+e.zeros+'/'+e.total+'</span></div>';
+      });
+      html += '</div></div>';
+    }
+
+    // === PER-AGENT BREAKDOWN (FAILURES + ZEROS) ===
+    html += '<div class="analysis-card"><div class="a-card-title">&#x1F464; Per-Agent Failure & Zero Breakdown</div><div class="a-card-sub">What each agent fails most (score < weight) and where they got 0</div><div class="agent-breakdown">';
+    agents.forEach(agent=>{
+      var d = afm[agent.name];
+      var z = azm[agent.name];
+      var sf = Object.keys(d.fails).sort((a,b)=>d.fails[b]-d.fails[a]);
+      var zf = Object.keys(z.zeros).sort((a,b)=>z.zeros[b]-z.zeros[a]);
+      var mf = sf.length ? d.fails[sf[0]] : 1;
+      var pr = d.total ? Math.round((d.total-d.failed)/d.total*100) : 0;
+      var bc = pr>=90 ? 'pass' : pr>=60 ? 'mixed' : 'fail';
+      html += '<div class="ab-row"><div class="ab-header"><span class="ab-name">'+agent.name+'</span><div style="display:flex;align-items:center;gap:8px;"><span class="mini-badge '+bc+'">'+pr+'% pass rate</span><span class="ab-meta">'+d.total+' calls \u00b7 '+d.failed+' failed</span></div></div>';
+      if (sf.length) {
+        html += '<div style="margin-top:8px;"><div class="notes-lbl" style="margin-bottom:4px;">Failures (score < weight)</div><div class="ab-fails">';
+        sf.slice(0,6).forEach(l=>{
+          var cnt = d.fails[l], bw = Math.round(cnt/mf*100), sec = cm[l.toLowerCase().replace(/\s+/g,' ')] ? cm[l.toLowerCase().replace(/\s+/g,' ')].section : '';
+          html += '<div class="ab-fail-item"><span class="ab-fail-label">'+l+(sec?' <span style="font-family:monospace;font-size:10px;color:var(--muted);">('+sec+')</span>':'')+'</span><div class="ab-fail-bar-wrap"><div class="ab-fail-bar" style="width:'+bw+'%"></div></div><span class="ab-fail-count">'+cnt+'x</span></div>';
+        });
+        html += '</div>';
+      } else { html += '<div class="ab-no-fails">&#x2705; No failures (score < weight)</div>'; }
+      if (zf.length) {
+        html += '<div style="margin-top:12px;"><div class="notes-lbl" style="margin-bottom:4px;">Zero Scores (score = 0)</div><div class="ab-fails">';
+        zf.slice(0,6).forEach(l=>{
+          var cnt = z.zeros[l];
+          var sec = zeroMap[l.toLowerCase().replace(/\s+/g,' ')] ? zeroMap[l.toLowerCase().replace(/\s+/g,' ')].section : '';
+          html += '<div class="ab-fail-item"><span class="ab-fail-label">'+l+(sec?' <span style="font-family:monospace;font-size:10px;color:var(--muted);">('+sec+')</span>':'')+'</span><div class="ab-fail-bar-wrap"><div class="ab-fail-bar" style="background:var(--warn);width:'+Math.min(100, cnt*20)+'%"></div></div><span class="ab-fail-count">'+cnt+'x</span></div>';
+        });
+        html += '</div>';
+      } else { html += '<div class="ab-no-fails" style="margin-top:12px;">&#x2705; No zero scores</div>'; }
+      html += '</div>';
+    });
+    html += '</div></div>';
+
+    // === HEATMAP (FAILURES) ===
+    var an = agents.map(a=>a.name);
+    var fc2 = cl.filter(e=>e.fails>0);
+    if (fc2.length && an.length){
+      html += '<div class="analysis-card"><div class="a-card-title">&#x1F9EF; Failure Heatmap (score < weight)</div><div class="a-card-sub">Darker = more failures for that agent on that criteria</div><div class="heatmap-wrap"><table class="heatmap-table"><thead><tr><th>Criteria</th><th>Section</th>';
+      an.forEach(n=>html+='<th style="text-align:center;white-space:nowrap;">'+n.split(' ')[0]+'</th>');
+      html+='<th>Team %</th></tr></thead><tbody>';
+      fc2.forEach(e=>{
+        var pct = Math.round(e.fails/e.total*100);
+        var sc = pct>=60 ? 'high' : pct>=30 ? 'med' : 'low';
+        html+='<tr><td style="font-size:12px;max-width:260px;">'+e.label+'</td><td style="font-family:monospace;font-size:10px;color:var(--muted);white-space:nowrap;">'+(e.section||'')+'</td>';
+        an.forEach(n=>{
+          var cnt = afm[n] ? (afm[n].fails[e.label]||0) : 0;
+          var hc = cnt===0 ? 'heat-0' : cnt===1 ? 'heat-1' : cnt===2 ? 'heat-2' : cnt<=4 ? 'heat-3' : 'heat-4';
+          html+='<td style="text-align:center;"><span class="heat-cell '+hc+'">'+(cnt||'\u2014')+'</span></td>';
+        });
+        html+='<td><span class="fail-pct '+sc+'">'+pct+'%</span></td></tr>';
+      });
+      html+='</tbody></table></div></div>';
+    }
+
+    // === FEEDBACK LOG ===
+    var fbs = [];
+    cl.forEach(e=>fbs=fbs.concat(e.feedbacks));
+    fbs = fbs.filter(f=>f.text).slice(0,40);
+    if(fbs.length){
+      html+='<div class="analysis-card"><div class="a-card-title">&#x1F4AC; Auditor Feedback Log</div><div class="a-card-sub">All written feedback from failed criteria</div><div class="feedback-list">';
+      fbs.forEach(fb=>{
+        html+='<div class="fb-item"><div class="fb-item-header"><span class="fb-agent">'+fb.agent+'</span><span class="fb-date">'+fb.date+'</span></div><div class="fb-text">&ldquo;'+fb.text+'&rdquo;</div></div>';
+      });
+      html+='</div></div>';
+    }
+
+    // AI report placeholder
+    html += '<div class="analysis-card" id="aiCard" style="display:none;"><div class="a-card-title">&#x2728; AI Coaching Report</div><div class="a-card-sub">Generated analysis and recommendations</div><div id="aiContent" style="font-size:13px;line-height:1.8;color:var(--text);white-space:pre-wrap;font-family:\'DM Mono\',monospace;"></div></div>';
+
+  } else {
+    // === AGENT VIEW ===
+    html += '<div class="analysis-card"><div class="a-card-title">📊 Your Failure & Zero Analysis</div><div class="a-card-sub">Areas where you scored less than maximum or received zero</div>';
+
+    // Failures for this agent
+    var agent = agents[0]; // should be only one
+    var d = afm[agent.name];
+    var z = azm[agent.name];
+    var sf = Object.keys(d.fails).sort((a,b)=>d.fails[b]-d.fails[a]);
+    var zf = Object.keys(z.zeros).sort((a,b)=>z.zeros[b]-z.zeros[a]);
+
+    if (sf.length) {
+      html += '<div style="margin-top:8px;"><div class="notes-lbl">Your Failures (score < weight)</div><div class="ab-fails">';
+      sf.forEach(l=>{
+        var cnt = d.fails[l];
+        var sec = cm[l.toLowerCase().replace(/\s+/g,' ')] ? cm[l.toLowerCase().replace(/\s+/g,' ')].section : '';
+        html += '<div class="ab-fail-item"><span class="ab-fail-label">'+l+(sec?' <span style="font-family:monospace;font-size:10px;color:var(--muted);">('+sec+')</span>':'')+'</span><div class="ab-fail-bar-wrap"><div class="ab-fail-bar" style="width:'+Math.min(100, cnt*20)+'%"></div></div><span class="ab-fail-count">'+cnt+'x</span></div>';
+      });
+      html += '</div>';
+    } else {
+      html += '<div class="ab-no-fails">&#x2705; No failures (score < weight)</div>';
+    }
+
+    if (zf.length) {
+      html += '<div style="margin-top:12px;"><div class="notes-lbl">Your Zero Scores (score = 0)</div><div class="ab-fails">';
+      zf.forEach(l=>{
+        var cnt = z.zeros[l];
+        var sec = zeroMap[l.toLowerCase().replace(/\s+/g,' ')] ? zeroMap[l.toLowerCase().replace(/\s+/g,' ')].section : '';
+        html += '<div class="ab-fail-item"><span class="ab-fail-label">'+l+(sec?' <span style="font-family:monospace;font-size:10px;color:var(--muted);">('+sec+')</span>':'')+'</span><div class="ab-fail-bar-wrap"><div class="ab-fail-bar" style="background:var(--warn);width:'+Math.min(100, cnt*20)+'%"></div></div><span class="ab-fail-count">'+cnt+'x</span></div>';
+      });
+      html += '</div>';
+    } else {
+      html += '<div class="ab-no-fails" style="margin-top:12px;">&#x2705; No zero scores</div>';
+    }
+    html += '</div>';
+
+    // Personal feedback
+    var fbs = [];
+    cl.forEach(e=>fbs=fbs.concat(e.feedbacks.filter(fb=>fb.agent===agent.name)));
+    fbs = fbs.filter(f=>f.text).slice(0,40);
+    if(fbs.length){
+      html+='<div class="analysis-card"><div class="a-card-title">&#x1F4AC; Feedback You Received</div><div class="a-card-sub">Auditor comments on your failed criteria</div><div class="feedback-list">';
+      fbs.forEach(fb=>{
+        html+='<div class="fb-item"><div class="fb-item-header"><span class="fb-agent">'+fb.agent+'</span><span class="fb-date">'+fb.date+'</span></div><div class="fb-text">&ldquo;'+fb.text+'&rdquo;</div></div>';
+      });
+      html+='</div></div>';
+    }
+  }
+
+  container.innerHTML = html;
+}
+
+async function generateAIReport(){
+  // Keep the same AI report function as before (admin only)
+  var agents = Object.values(agentMap);
+  var allCalls = agents.reduce((arr,a)=>arr.concat(a.calls),[]);
+  if(!allCalls.length) return;
+  var summary = agents.map(agent=>{
+    var fm={}, fbs=[];
+    agent.calls.forEach(call=>{
+      if(!call.criteria) return;
+      call.criteria.forEach(cr=>{
+        var l=(cr.label||'').trim(), w=parseFloat(cr.weight||0), sc=cr.score!==undefined?cr.score:null, fb=cr.feedback||'';
+        var sn=(sc===null||sc==='')?null:parseFloat(sc);
+        if(!l||w<=0) return;
+        if(sn!==null && sn<w){ fm[l]=(fm[l]||0)+1; if(fb) fbs.push(l+': '+fb); }
+      });
+    });
+    var tc=agent.calls.length, pas=agent.calls.filter(c=>c.pass).length;
+    var tf=Object.keys(fm).sort((a,b)=>fm[b]-fm[a]).slice(0,5).map(k=>k+' ('+fm[k]+'x)');
+    return 'Agent: '+agent.name+'\nCalls scored: '+tc+', Passed: '+pas+', Failed: '+(tc-pas)+'\nTop failures: '+(tf.join(', ')||'none')+'\nAuditor feedback: '+(fbs.slice(0,3).join(' | ')||'none');
+  }).join('\n\n');
+  var prompt='You are a call centre QA coach. Based on these scorecard results, write a coaching report.\n\nFor EACH agent:\n1. Main weaknesses (2-3 sentences)\n2. Specific actions they must work on\n3. Priority: High / Medium / Low\n\nThen a TEAM SUMMARY:\n- Top 3 common failure areas\n- Recommended team training topics\n- Overall team quality verdict\n\nBe specific and constructive.\n\nDATA:\n\n'+summary;
+  var card=document.getElementById('aiCard'), content=document.getElementById('aiContent');
+  if(!card){ renderAnalysis(); card=document.getElementById('aiCard'); content=document.getElementById('aiContent'); }
+  card.style.display=''; content.textContent='Generating coaching report...'; card.scrollIntoView({behavior:'smooth',block:'start'});
+  try{
+    var r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,messages:[{role:'user',content:prompt}]})});
+    var data=await r.json(); var text='';
+    if(data.content&&data.content.length) data.content.forEach(b=>{if(b.type==='text')text+=b.text;});
+    content.textContent=text||'Could not generate report.';
+  }catch(err){content.textContent='Error: '+err.message;}
+}
 </script>
 </body>
 </html>
