@@ -217,11 +217,9 @@ tr:hover td{background:rgba(79,140,255,.03);}
 .zero-table th, .zero-table td { padding:10px 12px; text-align:left; border-bottom:1px solid var(--border); font-size:12px; }
 .zero-table th { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-transform:uppercase; background:var(--surface2); }
 .agent-zero-section { margin-bottom:24px; }
-.agent-zero-section .section-header { cursor:pointer; padding:12px 16px; background:var(--surface2); border-radius:8px; margin-bottom:8px; transition:background .15s; }
+.agent-zero-section .section-header { cursor:pointer; padding:12px 16px; background:var(--surface2); border-radius:8px; margin-bottom:8px; transition:background .15s; display:flex; align-items:center; gap:8px; }
 .agent-zero-section .section-header:hover { background:var(--surface3); }
-.agent-zero-section .section-header h3 { font-size:14px; font-weight:700; display:flex; align-items:center; gap:10px; }
-.agent-zero-section .section-header .chevron { transition:transform .2s; }
-.agent-zero-section .section-header.open .chevron { transform:rotate(180deg); }
+.agent-zero-section .section-header .chevron { transition:transform .2s; font-size:14px; }
 .agent-zero-section .zero-details { display:none; margin-top:8px; }
 
 /* LOADING */
@@ -237,6 +235,7 @@ tr:hover td{background:rgba(79,140,255,.03);}
 .hidden{display:none!important;}
 #placeholder{text-align:center;padding:80px 20px;color:var(--muted);}
 .pi{font-size:52px;margin-bottom:14px;}
+.debug-info { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px; font-family: monospace; font-size: 11px; color: var(--muted); white-space: pre-wrap; }
 </style>
 </head>
 <body>
@@ -384,7 +383,7 @@ tr:hover td{background:rgba(79,140,255,.03);}
 <div class="toast" id="toast"></div>
 
 <script>
-// Supabase configuration (already using your project)
+// Supabase configuration (your project)
 var SUPABASE_URL = 'https://uygnkczbbctypleijmls.supabase.co';
 var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5Z25rY3piYmN0eXBsZWlqbWxzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5OTgxNTAsImV4cCI6MjA4OTU3NDE1MH0.CeXH9krVW8YMpkhn6Pw1ThlHKx6r_4_RgybhKBor55k';
 
@@ -398,7 +397,7 @@ var currentAgentName = null;
 var weeklyChartInst = null, stackedChartInst = null, agentChartInst = null;
 var CHART_CFG = { gridColor:'rgba(255,255,255,0.06)', tickFont:{ family:'DM Mono, monospace', size:11 } };
 
-// ---------- Helper functions (same as before, but we'll include them) ----------
+// ---------- Helper functions ----------
 function showLoading(on) { document.getElementById('loadingOverlay').style.display = on ? 'flex' : 'none'; }
 function showToast(msg, ok) { var t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast' + (ok === true ? ' ok' : ok === false ? ' err' : ''); t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); }
 
@@ -590,7 +589,7 @@ async function createAccount() {
 }
 function showAcctMsg(msg,ok){ var el=document.getElementById('accountMsg'); el.textContent=msg; el.style.color=ok?'var(--pass)':'var(--fail)'; el.style.display='block'; setTimeout(()=>el.style.display='none',5000); }
 
-// ---------- Scorecard handling (same as before, includes extractScorecard) ----------
+// ---------- Scorecard handling ----------
 async function loadScorecards() {
   let query = sb.from('scorecards').select('*').order('created_at',{ascending:true});
   if (!isAdmin && currentAgentName) {
@@ -712,7 +711,7 @@ function extractScorecard(rows,fileName){
   return{name,account,callDate,auditor,fileName,pass,pfResult,pfReason,autoFails,criteria};
 }
 
-// ---------- Dashboard rendering (unchanged) ----------
+// ---------- Dashboard rendering ----------
 function renderAll(){
   var agents=Object.values(agentMap);
   if(!agents.length){document.getElementById('dashSection').classList.add('hidden');document.getElementById('placeholder').style.display='';return;}
@@ -837,17 +836,28 @@ function switchPage(page,btn){
   }
 }
 
-// ====================== NEW ZERO SCORE ANALYSIS ======================
+// ====================== ZERO SCORE ANALYSIS (with debug) ======================
 function renderZeroAnalysis() {
+  console.log('renderZeroAnalysis called');
   var agents = Object.values(agentMap);
   var allCalls = agents.reduce((arr,a) => arr.concat(a.calls), []);
   var container = document.getElementById('analysisContent');
 
+  // Debug info
+  var debugHtml = '<div class="debug-info">';
+  debugHtml += '<strong>Debug:</strong><br>';
+  debugHtml += 'Total agents: ' + agents.length + '<br>';
+  debugHtml += 'Total calls: ' + allCalls.length + '<br>';
+  debugHtml += 'Admin: ' + isAdmin + '<br>';
+  if (currentAgentName) debugHtml += 'Your agent name: ' + currentAgentName + '<br>';
+  debugHtml += 'First call criteria count: ' + (allCalls[0] && allCalls[0].criteria ? allCalls[0].criteria.length : 0) + '<br>';
+  debugHtml += '</div>';
+
   if (!allCalls.length) {
     if (!isAdmin && currentAgentName) {
-      container.innerHTML = '<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">No scorecards found for your agent name. Please contact your administrator.</p></div>';
+      container.innerHTML = debugHtml + '<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">No scorecards found for your agent name. Please contact your administrator.</p></div>';
     } else {
-      container.innerHTML = '<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">Upload scorecards to see zero‑score analysis.</p></div>';
+      container.innerHTML = debugHtml + '<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">Upload scorecards to see zero‑score analysis.</p></div>';
     }
     return;
   }
@@ -894,8 +904,7 @@ function renderZeroAnalysis() {
     });
   });
 
-  // Build HTML
-  var html = '';
+  var html = debugHtml;
 
   // Team table
   if (zeroList.length) {
@@ -910,7 +919,7 @@ function renderZeroAnalysis() {
     html += '<div class="analysis-card"><div class="a-card-title">📊 Zero Score Report</div><div class="a-card-sub">No zero scores found. Great job!</div></div>';
   }
 
-  // Per-agent tables (collapsible)
+  // Per-agent tables
   if (isAdmin) {
     html += '<div class="analysis-card"><div class="a-card-title">👤 Per-Agent Zero Score Details</div><div class="a-card-sub">Click each agent to see their zero-score criteria</div>';
     agents.forEach(agent => {
@@ -920,7 +929,7 @@ function renderZeroAnalysis() {
       var agentId = 'agent-' + agent.name.replace(/\W/g, '_');
       html += `<div class="agent-zero-section">
         <div class="section-header" onclick="toggleAgentZero('${agentId}')">
-          <h3><span class="chevron">▶</span> ${agent.name}</h3>
+          <span class="chevron">▶</span> ${agent.name}
         </div>
         <div id="${agentId}" class="zero-details">
           <table class="zero-table"><thead><tr><th>Criteria</th><th>Zero Count</th></tr></thead><tbody>`;
