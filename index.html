@@ -836,14 +836,13 @@ function switchPage(page,btn){
   }
 }
 
-// ====================== ZERO SCORE ANALYSIS (with debug) ======================
+// ====================== ZERO SCORE ANALYSIS ======================
 function renderZeroAnalysis() {
   console.log('renderZeroAnalysis called');
   var agents = Object.values(agentMap);
   var allCalls = agents.reduce((arr,a) => arr.concat(a.calls), []);
   var container = document.getElementById('analysisContent');
 
-  // Debug info
   var debugHtml = '<div class="debug-info">';
   debugHtml += '<strong>Debug:</strong><br>';
   debugHtml += 'Total agents: ' + agents.length + '<br>';
@@ -854,15 +853,11 @@ function renderZeroAnalysis() {
   debugHtml += '</div>';
 
   if (!allCalls.length) {
-    if (!isAdmin && currentAgentName) {
-      container.innerHTML = debugHtml + '<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">No scorecards found for your agent name. Please contact your administrator.</p></div>';
-    } else {
-      container.innerHTML = debugHtml + '<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">Upload scorecards to see zero‑score analysis.</p></div>';
-    }
+    container.innerHTML = debugHtml + '<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">Upload scorecards to see zero‑score analysis.</p></div>';
     return;
   }
 
-  // Build zero-score map: criteria -> { section, totalZeros, agents: { agentName: count } }
+  // Build zero-score map
   var zeroMap = {};
   allCalls.forEach(call => {
     if (!call.criteria) return;
@@ -885,7 +880,7 @@ function renderZeroAnalysis() {
   var zeroList = Object.values(zeroMap).filter(e => e.totalZeros > 0);
   zeroList.sort((a,b) => b.totalZeros - a.totalZeros);
 
-  // Build per-agent zero map
+  // Per-agent zero map
   var agentZeroMap = {};
   agents.forEach(agent => {
     agentZeroMap[agent.name] = { zeros: {} };
@@ -919,7 +914,7 @@ function renderZeroAnalysis() {
     html += '<div class="analysis-card"><div class="a-card-title">📊 Zero Score Report</div><div class="a-card-sub">No zero scores found. Great job!</div></div>';
   }
 
-  // Per-agent tables
+  // Per-agent tables (admin only)
   if (isAdmin) {
     html += '<div class="analysis-card"><div class="a-card-title">👤 Per-Agent Zero Score Details</div><div class="a-card-sub">Click each agent to see their zero-score criteria</div>';
     agents.forEach(agent => {
@@ -939,22 +934,20 @@ function renderZeroAnalysis() {
       html += `</tbody></table></div></div>`;
     });
     html += '</div>';
-  } else {
-    // Agent view: only show their own zero scores
-    if (agents.length === 1) {
-      var agent = agents[0];
-      var zeros = agentZeroMap[agent.name].zeros;
-      var zeroEntries = Object.keys(zeros).map(k => ({ label: k, count: zeros[k] })).sort((a,b) => b.count - a.count);
-      if (zeroEntries.length) {
-        html += '<div class="analysis-card"><div class="a-card-title">👤 Your Zero Score Breakdown</div><div class="a-card-sub">Criteria where you scored 0</div>';
-        html += '<table class="zero-table"><thead><tr><th>Criteria</th><th>Zero Count</th></tr></thead><tbody>';
-        zeroEntries.forEach(ze => {
-          html += `<tr><td>${ze.label}</td><td>${ze.count}</td></tr>`;
-        });
-        html += '</tbody></table></div>';
-      } else {
-        html += '<div class="analysis-card"><div class="a-card-title">👤 Your Zero Score Breakdown</div><div class="a-card-sub">No zero scores found. Keep up the good work!</div></div>';
-      }
+  } else if (agents.length === 1) {
+    // Agent view
+    var agent = agents[0];
+    var zeros = agentZeroMap[agent.name].zeros;
+    var zeroEntries = Object.keys(zeros).map(k => ({ label: k, count: zeros[k] })).sort((a,b) => b.count - a.count);
+    if (zeroEntries.length) {
+      html += '<div class="analysis-card"><div class="a-card-title">👤 Your Zero Score Breakdown</div><div class="a-card-sub">Criteria where you scored 0</div>';
+      html += '<table class="zero-table"><thead><tr><th>Criteria</th><th>Zero Count</th></tr></thead><tbody>';
+      zeroEntries.forEach(ze => {
+        html += `<tr><td>${ze.label}</td><td>${ze.count}</td></tr>`;
+      });
+      html += '</tbody></table></div>';
+    } else {
+      html += '<div class="analysis-card"><div class="a-card-title">👤 Your Zero Score Breakdown</div><div class="a-card-sub">No zero scores found. Keep up the good work!</div></div>';
     }
   }
 
