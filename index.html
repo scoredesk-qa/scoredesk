@@ -8,7 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
 <style>
-/* === All CSS from the previous version (unchanged) === */
+/* ========== All CSS from previous version – unchanged ========== */
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap');
 :root{
   --bg:#0b0d13;--surface:#12151e;--surface2:#191d28;--surface3:#1f2335;
@@ -211,44 +211,18 @@ tr:hover td{background:rgba(79,140,255,.03);}
 .analysis-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px 24px;}
 .a-card-title{font-size:14px;font-weight:700;margin-bottom:3px;}
 .a-card-sub{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:18px;}
-.top-fails-list{display:flex;flex-direction:column;gap:8px;}
-.tf-row{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--surface2);border-radius:9px;border:1px solid var(--border);}
-.tf-rank{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:var(--muted);width:24px;flex-shrink:0;}
-.tf-label{font-size:12px;color:var(--text);}
-.tf-section{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);background:var(--surface3);padding:2px 8px;border-radius:4px;white-space:nowrap;}
-.tf-bar-wrap{width:100px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;flex-shrink:0;}
-.tf-bar{height:100%;border-radius:3px;}
-.tf-stat{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;}
-.fail-pct.high{color:var(--fail);}.fail-pct.med{color:var(--warn);}.fail-pct.low{color:var(--pass);}
-.agent-breakdown{display:flex;flex-direction:column;gap:10px;}
-.ab-row{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
-.ab-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;}
-.ab-name{font-size:13px;font-weight:700;}
-.ab-meta{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
-.ab-fails{display:flex;flex-direction:column;gap:5px;}
-.ab-fail-item{display:flex;align-items:center;gap:10px;}
-.ab-fail-label{flex:1;font-size:11px;color:var(--text);}
-.ab-fail-bar-wrap{width:120px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;flex-shrink:0;}
-.ab-fail-bar{height:100%;border-radius:3px;background:var(--fail);}
-.ab-fail-count{font-family:'DM Mono',monospace;font-size:11px;color:var(--fail);width:28px;text-align:right;}
-.ab-no-fails{font-family:'DM Mono',monospace;font-size:11px;color:var(--pass);}
-.heatmap-wrap{overflow-x:auto;}
-.heatmap-table{width:100%;border-collapse:collapse;font-size:12px;}
-.heatmap-table th{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
-.heatmap-table td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:middle;}
-.heatmap-table tr:last-child td{border-bottom:none;}
-.heat-cell{display:inline-flex;align-items:center;justify-content:center;width:36px;height:24px;border-radius:5px;font-family:'DM Mono',monospace;font-size:11px;font-weight:600;}
-.heat-0{background:rgba(34,211,160,.12);color:var(--pass);}
-.heat-1{background:rgba(245,158,11,.15);color:var(--warn);}
-.heat-2{background:rgba(244,63,94,.15);color:var(--fail);}
-.heat-3{background:rgba(244,63,94,.3);color:var(--fail);}
-.heat-4{background:rgba(244,63,94,.5);color:#fff;}
-.feedback-list{display:flex;flex-direction:column;gap:8px;max-height:400px;overflow-y:auto;}
-.fb-item{background:var(--surface2);border-radius:9px;border:1px solid var(--border);padding:12px 14px;}
-.fb-item-header{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
-.fb-agent{font-size:12px;font-weight:700;}
-.fb-date{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-left:auto;}
-.fb-text{font-size:12px;color:var(--text);line-height:1.6;font-style:italic;}
+
+/* New styles for zero analysis tables */
+.zero-table { width:100%; border-collapse:collapse; margin-top:8px; }
+.zero-table th, .zero-table td { padding:10px 12px; text-align:left; border-bottom:1px solid var(--border); font-size:12px; }
+.zero-table th { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-transform:uppercase; background:var(--surface2); }
+.agent-zero-section { margin-bottom:24px; }
+.agent-zero-section .section-header { cursor:pointer; padding:12px 16px; background:var(--surface2); border-radius:8px; margin-bottom:8px; transition:background .15s; }
+.agent-zero-section .section-header:hover { background:var(--surface3); }
+.agent-zero-section .section-header h3 { font-size:14px; font-weight:700; display:flex; align-items:center; gap:10px; }
+.agent-zero-section .section-header .chevron { transition:transform .2s; }
+.agent-zero-section .section-header.open .chevron { transform:rotate(180deg); }
+.agent-zero-section .zero-details { display:none; margin-top:8px; }
 
 /* LOADING */
 #loadingOverlay{position:fixed;inset:0;background:rgba(11,13,19,.8);display:none;align-items:center;justify-content:center;z-index:9998;}
@@ -314,7 +288,7 @@ tr:hover td{background:rgba(79,140,255,.03);}
   <div class="main">
     <div class="page-tabs" id="pageTabs" style="display:none;">
       <button class="page-tab active" data-page="dashboard">&#x1F4CA; Dashboard</button>
-      <button class="page-tab" data-page="analysis">&#x1F50D; Failure Analysis</button>
+      <button class="page-tab" data-page="analysis">&#x1F50D; Zero Score Analysis</button>
     </div>
 
     <div id="uploadBig">
@@ -370,10 +344,10 @@ tr:hover td{background:rgba(79,140,255,.03);}
       <div class="agent-cards" id="agentCards"></div>
     </div>
 
-    <!-- ANALYSIS -->
+    <!-- ZERO SCORE ANALYSIS -->
     <div id="analysisSection">
       <div class="analysis-grid" id="analysisContent">
-        <div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">Upload scorecards to see failure analysis.</p></div>
+        <div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">Upload scorecards to see zero‑score analysis.</p></div>
       </div>
     </div>
 
@@ -410,9 +384,7 @@ tr:hover td{background:rgba(79,140,255,.03);}
 <div class="toast" id="toast"></div>
 
 <script>
-// ============================================================
-// SUPABASE CONFIGURATION – REPLACE WITH YOUR OWN CREDENTIALS
-// ============================================================
+// Supabase configuration (already using your project)
 var SUPABASE_URL = 'https://uygnkczbbctypleijmls.supabase.co';
 var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5Z25rY3piYmN0eXBsZWlqbWxzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5OTgxNTAsImV4cCI6MjA4OTU3NDE1MH0.CeXH9krVW8YMpkhn6Pw1ThlHKx6r_4_RgybhKBor55k';
 
@@ -426,17 +398,9 @@ var currentAgentName = null;
 var weeklyChartInst = null, stackedChartInst = null, agentChartInst = null;
 var CHART_CFG = { gridColor:'rgba(255,255,255,0.06)', tickFont:{ family:'DM Mono, monospace', size:11 } };
 
-// ---------- Helper functions ----------
-function showLoading(on) {
-  document.getElementById('loadingOverlay').style.display = on ? 'flex' : 'none';
-}
-function showToast(msg, ok) {
-  var t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast' + (ok === true ? ' ok' : ok === false ? ' err' : '');
-  t.classList.add('show');
-  setTimeout(function() { t.classList.remove('show'); }, 3000);
-}
+// ---------- Helper functions (same as before, but we'll include them) ----------
+function showLoading(on) { document.getElementById('loadingOverlay').style.display = on ? 'flex' : 'none'; }
+function showToast(msg, ok) { var t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast' + (ok === true ? ' ok' : ok === false ? ' err' : ''); t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); }
 
 // ---------- Login ----------
 window.addEventListener('load', function() {
@@ -455,7 +419,7 @@ window.addEventListener('load', function() {
 });
 
 document.addEventListener('DOMContentLoaded', function() {
-  document.getElementById('loginPass').addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
+  document.getElementById('loginPass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
   document.getElementById('passToggle').addEventListener('click', function() {
     var input = document.getElementById('loginPass'), icon = this;
     if (input.type === 'password') { input.type = 'text'; icon.innerHTML = '&#x1F648;'; }
@@ -624,9 +588,9 @@ async function createAccount() {
   if (r.error) { showAcctMsg(r.error.message, false); }
   else { document.getElementById('newEmail').value=''; document.getElementById('newAgentName').value=''; document.getElementById('newPassword').value=''; showAcctMsg('Account created: '+email+' (agent: '+agentName+')', true); }
 }
-function showAcctMsg(msg,ok){ var el=document.getElementById('accountMsg'); el.textContent=msg; el.style.color=ok?'var(--pass)':'var(--fail)'; el.style.display='block'; setTimeout(function(){el.style.display='none';},5000); }
+function showAcctMsg(msg,ok){ var el=document.getElementById('accountMsg'); el.textContent=msg; el.style.color=ok?'var(--pass)':'var(--fail)'; el.style.display='block'; setTimeout(()=>el.style.display='none',5000); }
 
-// ---------- Scorecard handling ----------
+// ---------- Scorecard handling (same as before, includes extractScorecard) ----------
 async function loadScorecards() {
   let query = sb.from('scorecards').select('*').order('created_at',{ascending:true});
   if (!isAdmin && currentAgentName) {
@@ -748,7 +712,7 @@ function extractScorecard(rows,fileName){
   return{name,account,callDate,auditor,fileName,pass,pfResult,pfReason,autoFails,criteria};
 }
 
-// ---------- Dashboard rendering ----------
+// ---------- Dashboard rendering (unchanged) ----------
 function renderAll(){
   var agents=Object.values(agentMap);
   if(!agents.length){document.getElementById('dashSection').classList.add('hidden');document.getElementById('placeholder').style.display='';return;}
@@ -756,7 +720,7 @@ function renderAll(){
   document.getElementById('dashSection').classList.remove('hidden');
   document.getElementById('pageTabs').style.display='';
   renderSummary(agents); renderCharts(); renderCards(agents,currentFilter);
-  if(document.getElementById('analysisSection').style.display!=='none') renderAnalysis();
+  if(document.getElementById('analysisSection').style.display!=='none') renderZeroAnalysis();
 }
 
 function renderSummary(agents){
@@ -858,7 +822,7 @@ function closeModal(){document.getElementById('modalOverlay').classList.remove('
 async function saveCallNote(){notes_upsert('call:'+currentCallKey,document.getElementById('callNoteArea').value,'callSaveOk');}
 async function saveAgentNote(name){var el=document.getElementById('anotes-'+name.replace(/\W/g,'_'));if(el)notes_upsert('agent:'+name,el.value,'agok-'+name.replace(/\W/g,'_'));}
 async function loadAgentNote(name,elId){var r=await sb.from('notes').select('content').eq('note_key','agent:'+name).single();if(r.data&&r.data.content){var el=document.getElementById(elId);if(el)el.value=r.data.content;}}
-async function notes_upsert(key,val,okId){await sb.from('notes').upsert({note_key:key,content:val,updated_by:currentUser.id},{onConflict:'note_key'});var ok=document.getElementById(okId);if(ok){ok.style.display='block';setTimeout(()=>{ok.style.display='none';},2000);}}
+async function notes_upsert(key,val,okId){await sb.from('notes').upsert({note_key:key,content:val,updated_by:currentUser.id},{onConflict:'note_key'});var ok=document.getElementById(okId);if(ok){ok.style.display='block';setTimeout(()=>ok.style.display='none',2000);}}
 
 function switchPage(page,btn){
   document.querySelectorAll('.page-tab').forEach(t=>t.classList.remove('active'));
@@ -869,276 +833,135 @@ function switchPage(page,btn){
   } else {
     document.getElementById('dashSection').style.display='none';
     document.getElementById('analysisSection').style.display='';
-    renderAnalysis();
+    renderZeroAnalysis();
   }
 }
 
-// ====================== ENHANCED FAILURE ANALYSIS ======================
-function renderAnalysis(){
+// ====================== NEW ZERO SCORE ANALYSIS ======================
+function renderZeroAnalysis() {
   var agents = Object.values(agentMap);
-  var allCalls = agents.reduce((arr,a)=>arr.concat(a.calls), []);
+  var allCalls = agents.reduce((arr,a) => arr.concat(a.calls), []);
   var container = document.getElementById('analysisContent');
 
   if (!allCalls.length) {
     if (!isAdmin && currentAgentName) {
       container.innerHTML = '<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">No scorecards found for your agent name. Please contact your administrator.</p></div>';
     } else {
-      container.innerHTML = '<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">Upload scorecards to see failure analysis.</p></div>';
+      container.innerHTML = '<div class="analysis-card"><p style="color:var(--muted);font-family:monospace;font-size:13px;">Upload scorecards to see zero‑score analysis.</p></div>';
     }
     return;
   }
 
-  // --- Build failure data (score < weight) and zero-score data (score === 0) ---
-  var cm = {}; // criteria map for failures (score < weight)
-  var zeroMap = {}; // criteria map for zeros (score === 0)
-
-  allCalls.forEach(function(call){
-    var crit = call.criteria;
-    if (!crit || !crit.length) return;
-    crit.forEach(function(cr){
-      var label = (cr.label||'').trim();
-      var section = cr.section||'';
-      var weight = parseFloat(cr.weight||0);
-      var score = cr.score!==undefined ? cr.score : null;
-      if (!label || weight<=0) return;
-      var sn = (score===null || score==='') ? null : parseFloat(score);
-
-      // Track failures (score < weight)
-      var key = label.toLowerCase().replace(/\s+/g,' ');
-      if (!cm[key]) cm[key] = { section, label, total:0, fails:0, agentFails:{}, feedbacks:[] };
-      cm[key].total++;
-      if (sn!==null && sn < weight) {
-        cm[key].fails++;
-        cm[key].agentFails[call.name] = (cm[key].agentFails[call.name]||0) + 1;
-        if (cr.feedback) cm[key].feedbacks.push({ agent:call.name, date:call.callDate||'', text:cr.feedback });
-      }
-
-      // Track zeros (score === 0) – note: weight > 0 already ensured
+  // Build zero-score map: criteria -> { section, totalZeros, agents: { agentName: count } }
+  var zeroMap = {};
+  allCalls.forEach(call => {
+    if (!call.criteria) return;
+    call.criteria.forEach(cr => {
+      var label = (cr.label || '').trim();
+      var section = cr.section || '';
+      var weight = parseFloat(cr.weight || 0);
+      var score = cr.score !== undefined ? cr.score : null;
+      if (!label || weight <= 0) return;
+      var sn = (score === null || score === '') ? null : parseFloat(score);
       if (sn !== null && sn === 0) {
-        var zkey = label.toLowerCase().replace(/\s+/g,' ');
-        if (!zeroMap[zkey]) zeroMap[zkey] = { section, label, total:0, zeros:0, agentZeros:{} };
-        zeroMap[zkey].total++;
-        zeroMap[zkey].zeros++;
-        zeroMap[zkey].agentZeros[call.name] = (zeroMap[zkey].agentZeros[call.name]||0) + 1;
+        var key = label.toLowerCase().replace(/\s+/g, ' ');
+        if (!zeroMap[key]) zeroMap[key] = { section, label, totalZeros: 0, agents: {} };
+        zeroMap[key].totalZeros++;
+        zeroMap[key].agents[call.name] = (zeroMap[key].agents[call.name] || 0) + 1;
       }
     });
   });
 
-  var cl = Object.values(cm).filter(e=>e.total>0).sort((a,b)=>(b.fails/b.total)-(a.fails/a.total));
-  var topFails = cl.filter(e=>e.fails>0).slice(0,10);
-  var zeroList = Object.values(zeroMap).filter(e=>e.zeros>0).sort((a,b)=>b.zeros - a.zeros).slice(0,10);
+  var zeroList = Object.values(zeroMap).filter(e => e.totalZeros > 0);
+  zeroList.sort((a,b) => b.totalZeros - a.totalZeros);
 
-  // Per-agent fail map (for failures)
-  var afm = {};
-  agents.forEach(agent=>{
-    afm[agent.name] = { fails:{}, total:agent.calls.length, failed:agent.calls.filter(c=>!c.pass).length };
-    agent.calls.forEach(call=>{
+  // Build per-agent zero map
+  var agentZeroMap = {};
+  agents.forEach(agent => {
+    agentZeroMap[agent.name] = { zeros: {} };
+    agent.calls.forEach(call => {
       if (!call.criteria) return;
-      call.criteria.forEach(cr=>{
-        var l = (cr.label||'').trim(), w = parseFloat(cr.weight||0), sc = cr.score!==undefined ? cr.score : null;
-        var sn = (sc===null || sc==='') ? null : parseFloat(sc);
-        if (!l || w<=0) return;
-        if (sn!==null && sn < w) afm[agent.name].fails[l] = (afm[agent.name].fails[l]||0) + 1;
+      call.criteria.forEach(cr => {
+        var label = (cr.label || '').trim();
+        var weight = parseFloat(cr.weight || 0);
+        var score = cr.score !== undefined ? cr.score : null;
+        if (!label || weight <= 0) return;
+        var sn = (score === null || score === '') ? null : parseFloat(score);
+        if (sn !== null && sn === 0) {
+          agentZeroMap[agent.name].zeros[label] = (agentZeroMap[agent.name].zeros[label] || 0) + 1;
+        }
       });
     });
   });
 
-  // Per-agent zero map
-  var azm = {};
-  agents.forEach(agent=>{
-    azm[agent.name] = { zeros:{}, total:agent.calls.length };
-    agent.calls.forEach(call=>{
-      if (!call.criteria) return;
-      call.criteria.forEach(cr=>{
-        var l = (cr.label||'').trim(), w = parseFloat(cr.weight||0), sc = cr.score!==undefined ? cr.score : null;
-        var sn = (sc===null || sc==='') ? null : parseFloat(sc);
-        if (!l || w<=0) return;
-        if (sn !== null && sn === 0) azm[agent.name].zeros[l] = (azm[agent.name].zeros[l]||0) + 1;
-      });
-    });
-  });
-
+  // Build HTML
   var html = '';
 
-  if (isAdmin) {
-    // === TEAM FAILURE SECTION ===
-    html += '<div class="analysis-card"><div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:4px;"><div><div class="a-card-title">&#x1F465; Team — Most Commonly Failed Criteria</div><div class="a-card-sub">Where the whole team needs coaching focus</div></div><button class="save-btn" style="margin-top:0;white-space:nowrap;" onclick="generateAIReport()">&#x2728; Generate AI Coaching Report</button></div>';
-    if (topFails.length){
-      html += '<div class="top-fails-list">';
-      topFails.forEach((e,i)=>{
-        var pct = Math.round(e.fails/e.total*100);
-        var bc = pct>=60 ? 'var(--fail)' : pct>=30 ? 'var(--warn)' : 'var(--pass)';
-        var sc = pct>=60 ? 'high' : pct>=30 ? 'med' : 'low';
-        var aff = Object.keys(e.agentFails).join(', ');
-        html += '<div class="tf-row"><span class="tf-rank">'+(i+1)+'</span><div style="flex:1;min-width:0;"><div class="tf-label">'+e.label+'</div>'+(aff?'<div style="font-family:monospace;font-size:10px;color:var(--muted);margin-top:2px;">Affects: '+aff+'</div>':'')+'</div>'+(e.section?'<span class="tf-section">'+e.section+'</span>':'')+'<div class="tf-bar-wrap"><div class="tf-bar" style="width:'+pct+'%;background:'+bc+'"></div></div><span class="tf-stat fail-pct '+sc+'">'+pct+'%</span><span style="font-family:monospace;font-size:10px;color:var(--muted);white-space:nowrap;">'+e.fails+'/'+e.total+'</span></div>';
-      });
-      html += '</div>';
-    } else { html += '<p style="font-family:monospace;font-size:12px;color:var(--pass);padding:8px 0;">&#x2705; No criteria failures found.</p>'; }
-    html += '</div>';
-
-    // === TEAM ZERO SCORE SECTION ===
-    if (zeroList.length) {
-      html += '<div class="analysis-card"><div class="a-card-title">⛔ Team — Most Common Zero‑Score Criteria</div><div class="a-card-sub">Criteria where agents scored exactly 0 (full failure)</div><div class="top-fails-list">';
-      zeroList.forEach((e,i)=>{
-        var pct = Math.round(e.zeros/e.total*100);
-        var bc = pct>=60 ? 'var(--fail)' : pct>=30 ? 'var(--warn)' : 'var(--pass)';
-        var sc = pct>=60 ? 'high' : pct>=30 ? 'med' : 'low';
-        var aff = Object.keys(e.agentZeros).join(', ');
-        html += '<div class="tf-row"><span class="tf-rank">'+(i+1)+'</span><div style="flex:1;min-width:0;"><div class="tf-label">'+e.label+'</div>'+(aff?'<div style="font-family:monospace;font-size:10px;color:var(--muted);margin-top:2px;">Affects: '+aff+'</div>':'')+'</div>'+(e.section?'<span class="tf-section">'+e.section+'</span>':'')+'<div class="tf-bar-wrap"><div class="tf-bar" style="width:'+pct+'%;background:'+bc+'"></div></div><span class="tf-stat fail-pct '+sc+'">'+pct+'%</span><span style="font-family:monospace;font-size:10px;color:var(--muted);white-space:nowrap;">'+e.zeros+'/'+e.total+'</span></div>';
-      });
-      html += '</div></div>';
-    }
-
-    // === PER-AGENT BREAKDOWN (FAILURES + ZEROS) ===
-    html += '<div class="analysis-card"><div class="a-card-title">&#x1F464; Per-Agent Failure & Zero Breakdown</div><div class="a-card-sub">What each agent fails most (score < weight) and where they got 0</div><div class="agent-breakdown">';
-    agents.forEach(agent=>{
-      var d = afm[agent.name];
-      var z = azm[agent.name];
-      var sf = Object.keys(d.fails).sort((a,b)=>d.fails[b]-d.fails[a]);
-      var zf = Object.keys(z.zeros).sort((a,b)=>z.zeros[b]-z.zeros[a]);
-      var mf = sf.length ? d.fails[sf[0]] : 1;
-      var pr = d.total ? Math.round((d.total-d.failed)/d.total*100) : 0;
-      var bc = pr>=90 ? 'pass' : pr>=60 ? 'mixed' : 'fail';
-      html += '<div class="ab-row"><div class="ab-header"><span class="ab-name">'+agent.name+'</span><div style="display:flex;align-items:center;gap:8px;"><span class="mini-badge '+bc+'">'+pr+'% pass rate</span><span class="ab-meta">'+d.total+' calls \u00b7 '+d.failed+' failed</span></div></div>';
-      if (sf.length) {
-        html += '<div style="margin-top:8px;"><div class="notes-lbl" style="margin-bottom:4px;">Failures (score < weight)</div><div class="ab-fails">';
-        sf.slice(0,6).forEach(l=>{
-          var cnt = d.fails[l], bw = Math.round(cnt/mf*100), sec = cm[l.toLowerCase().replace(/\s+/g,' ')] ? cm[l.toLowerCase().replace(/\s+/g,' ')].section : '';
-          html += '<div class="ab-fail-item"><span class="ab-fail-label">'+l+(sec?' <span style="font-family:monospace;font-size:10px;color:var(--muted);">('+sec+')</span>':'')+'</span><div class="ab-fail-bar-wrap"><div class="ab-fail-bar" style="width:'+bw+'%"></div></div><span class="ab-fail-count">'+cnt+'x</span></div>';
-        });
-        html += '</div>';
-      } else { html += '<div class="ab-no-fails">&#x2705; No failures (score < weight)</div>'; }
-      if (zf.length) {
-        html += '<div style="margin-top:12px;"><div class="notes-lbl" style="margin-bottom:4px;">Zero Scores (score = 0)</div><div class="ab-fails">';
-        zf.slice(0,6).forEach(l=>{
-          var cnt = z.zeros[l];
-          var sec = zeroMap[l.toLowerCase().replace(/\s+/g,' ')] ? zeroMap[l.toLowerCase().replace(/\s+/g,' ')].section : '';
-          html += '<div class="ab-fail-item"><span class="ab-fail-label">'+l+(sec?' <span style="font-family:monospace;font-size:10px;color:var(--muted);">('+sec+')</span>':'')+'</span><div class="ab-fail-bar-wrap"><div class="ab-fail-bar" style="background:var(--warn);width:'+Math.min(100, cnt*20)+'%"></div></div><span class="ab-fail-count">'+cnt+'x</span></div>';
-        });
-        html += '</div>';
-      } else { html += '<div class="ab-no-fails" style="margin-top:12px;">&#x2705; No zero scores</div>'; }
-      html += '</div>';
+  // Team table
+  if (zeroList.length) {
+    html += '<div class="analysis-card"><div class="a-card-title">📊 Team Zero Score Report</div><div class="a-card-sub">Most common criteria where agents scored 0 (full fail)</div>';
+    html += '<table class="zero-table"><thead><tr><th>#</th><th>Criteria</th><th>Section</th><th>Total Zeros</th><th>Affected Agents</th></tr></thead><tbody>';
+    zeroList.forEach((e, i) => {
+      var affected = Object.keys(e.agents).join(', ');
+      html += `<tr><td>${i+1}</td><td>${e.label}</td><td>${e.section || '—'}</td><td>${e.totalZeros}</td><td>${affected}</td></tr>`;
     });
-    html += '</div></div>';
-
-    // === HEATMAP (FAILURES) ===
-    var an = agents.map(a=>a.name);
-    var fc2 = cl.filter(e=>e.fails>0);
-    if (fc2.length && an.length){
-      html += '<div class="analysis-card"><div class="a-card-title">&#x1F9EF; Failure Heatmap (score < weight)</div><div class="a-card-sub">Darker = more failures for that agent on that criteria</div><div class="heatmap-wrap"><table class="heatmap-table"><thead><tr><th>Criteria</th><th>Section</th>';
-      an.forEach(n=>html+='<th style="text-align:center;white-space:nowrap;">'+n.split(' ')[0]+'</th>');
-      html+='<th>Team %</th></tr></thead><tbody>';
-      fc2.forEach(e=>{
-        var pct = Math.round(e.fails/e.total*100);
-        var sc = pct>=60 ? 'high' : pct>=30 ? 'med' : 'low';
-        html+='<tr><td style="font-size:12px;max-width:260px;">'+e.label+'</td><td style="font-family:monospace;font-size:10px;color:var(--muted);white-space:nowrap;">'+(e.section||'')+'</td>';
-        an.forEach(n=>{
-          var cnt = afm[n] ? (afm[n].fails[e.label]||0) : 0;
-          var hc = cnt===0 ? 'heat-0' : cnt===1 ? 'heat-1' : cnt===2 ? 'heat-2' : cnt<=4 ? 'heat-3' : 'heat-4';
-          html+='<td style="text-align:center;"><span class="heat-cell '+hc+'">'+(cnt||'\u2014')+'</span></td>';
-        });
-        html+='<td><span class="fail-pct '+sc+'">'+pct+'%</span></td></tr>';
-      });
-      html+='</tbody></table></div></div>';
-    }
-
-    // === FEEDBACK LOG ===
-    var fbs = [];
-    cl.forEach(e=>fbs=fbs.concat(e.feedbacks));
-    fbs = fbs.filter(f=>f.text).slice(0,40);
-    if(fbs.length){
-      html+='<div class="analysis-card"><div class="a-card-title">&#x1F4AC; Auditor Feedback Log</div><div class="a-card-sub">All written feedback from failed criteria</div><div class="feedback-list">';
-      fbs.forEach(fb=>{
-        html+='<div class="fb-item"><div class="fb-item-header"><span class="fb-agent">'+fb.agent+'</span><span class="fb-date">'+fb.date+'</span></div><div class="fb-text">&ldquo;'+fb.text+'&rdquo;</div></div>';
-      });
-      html+='</div></div>';
-    }
-
-    // AI report placeholder
-    html += '<div class="analysis-card" id="aiCard" style="display:none;"><div class="a-card-title">&#x2728; AI Coaching Report</div><div class="a-card-sub">Generated analysis and recommendations</div><div id="aiContent" style="font-size:13px;line-height:1.8;color:var(--text);white-space:pre-wrap;font-family:\'DM Mono\',monospace;"></div></div>';
-
+    html += '</tbody></table></div>';
   } else {
-    // === AGENT VIEW ===
-    html += '<div class="analysis-card"><div class="a-card-title">📊 Your Failure & Zero Analysis</div><div class="a-card-sub">Areas where you scored less than maximum or received zero</div>';
+    html += '<div class="analysis-card"><div class="a-card-title">📊 Zero Score Report</div><div class="a-card-sub">No zero scores found. Great job!</div></div>';
+  }
 
-    // Failures for this agent
-    var agent = agents[0]; // should be only one
-    var d = afm[agent.name];
-    var z = azm[agent.name];
-    var sf = Object.keys(d.fails).sort((a,b)=>d.fails[b]-d.fails[a]);
-    var zf = Object.keys(z.zeros).sort((a,b)=>z.zeros[b]-z.zeros[a]);
-
-    if (sf.length) {
-      html += '<div style="margin-top:8px;"><div class="notes-lbl">Your Failures (score < weight)</div><div class="ab-fails">';
-      sf.forEach(l=>{
-        var cnt = d.fails[l];
-        var sec = cm[l.toLowerCase().replace(/\s+/g,' ')] ? cm[l.toLowerCase().replace(/\s+/g,' ')].section : '';
-        html += '<div class="ab-fail-item"><span class="ab-fail-label">'+l+(sec?' <span style="font-family:monospace;font-size:10px;color:var(--muted);">('+sec+')</span>':'')+'</span><div class="ab-fail-bar-wrap"><div class="ab-fail-bar" style="width:'+Math.min(100, cnt*20)+'%"></div></div><span class="ab-fail-count">'+cnt+'x</span></div>';
+  // Per-agent tables (collapsible)
+  if (isAdmin) {
+    html += '<div class="analysis-card"><div class="a-card-title">👤 Per-Agent Zero Score Details</div><div class="a-card-sub">Click each agent to see their zero-score criteria</div>';
+    agents.forEach(agent => {
+      var zeros = agentZeroMap[agent.name].zeros;
+      var zeroEntries = Object.keys(zeros).map(k => ({ label: k, count: zeros[k] })).sort((a,b) => b.count - a.count);
+      if (zeroEntries.length === 0) return;
+      var agentId = 'agent-' + agent.name.replace(/\W/g, '_');
+      html += `<div class="agent-zero-section">
+        <div class="section-header" onclick="toggleAgentZero('${agentId}')">
+          <h3><span class="chevron">▶</span> ${agent.name}</h3>
+        </div>
+        <div id="${agentId}" class="zero-details">
+          <table class="zero-table"><thead><tr><th>Criteria</th><th>Zero Count</th></tr></thead><tbody>`;
+      zeroEntries.forEach(ze => {
+        html += `<tr><td>${ze.label}</td><td>${ze.count}</td></tr>`;
       });
-      html += '</div>';
-    } else {
-      html += '<div class="ab-no-fails">&#x2705; No failures (score < weight)</div>';
-    }
-
-    if (zf.length) {
-      html += '<div style="margin-top:12px;"><div class="notes-lbl">Your Zero Scores (score = 0)</div><div class="ab-fails">';
-      zf.forEach(l=>{
-        var cnt = z.zeros[l];
-        var sec = zeroMap[l.toLowerCase().replace(/\s+/g,' ')] ? zeroMap[l.toLowerCase().replace(/\s+/g,' ')].section : '';
-        html += '<div class="ab-fail-item"><span class="ab-fail-label">'+l+(sec?' <span style="font-family:monospace;font-size:10px;color:var(--muted);">('+sec+')</span>':'')+'</span><div class="ab-fail-bar-wrap"><div class="ab-fail-bar" style="background:var(--warn);width:'+Math.min(100, cnt*20)+'%"></div></div><span class="ab-fail-count">'+cnt+'x</span></div>';
-      });
-      html += '</div>';
-    } else {
-      html += '<div class="ab-no-fails" style="margin-top:12px;">&#x2705; No zero scores</div>';
-    }
+      html += `</tbody></table></div></div>`;
+    });
     html += '</div>';
-
-    // Personal feedback
-    var fbs = [];
-    cl.forEach(e=>fbs=fbs.concat(e.feedbacks.filter(fb=>fb.agent===agent.name)));
-    fbs = fbs.filter(f=>f.text).slice(0,40);
-    if(fbs.length){
-      html+='<div class="analysis-card"><div class="a-card-title">&#x1F4AC; Feedback You Received</div><div class="a-card-sub">Auditor comments on your failed criteria</div><div class="feedback-list">';
-      fbs.forEach(fb=>{
-        html+='<div class="fb-item"><div class="fb-item-header"><span class="fb-agent">'+fb.agent+'</span><span class="fb-date">'+fb.date+'</span></div><div class="fb-text">&ldquo;'+fb.text+'&rdquo;</div></div>';
-      });
-      html+='</div></div>';
+  } else {
+    // Agent view: only show their own zero scores
+    if (agents.length === 1) {
+      var agent = agents[0];
+      var zeros = agentZeroMap[agent.name].zeros;
+      var zeroEntries = Object.keys(zeros).map(k => ({ label: k, count: zeros[k] })).sort((a,b) => b.count - a.count);
+      if (zeroEntries.length) {
+        html += '<div class="analysis-card"><div class="a-card-title">👤 Your Zero Score Breakdown</div><div class="a-card-sub">Criteria where you scored 0</div>';
+        html += '<table class="zero-table"><thead><tr><th>Criteria</th><th>Zero Count</th></tr></thead><tbody>';
+        zeroEntries.forEach(ze => {
+          html += `<tr><td>${ze.label}</td><td>${ze.count}</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+      } else {
+        html += '<div class="analysis-card"><div class="a-card-title">👤 Your Zero Score Breakdown</div><div class="a-card-sub">No zero scores found. Keep up the good work!</div></div>';
+      }
     }
   }
 
   container.innerHTML = html;
 }
 
-async function generateAIReport(){
-  // Keep the same AI report function as before (admin only)
-  var agents = Object.values(agentMap);
-  var allCalls = agents.reduce((arr,a)=>arr.concat(a.calls),[]);
-  if(!allCalls.length) return;
-  var summary = agents.map(agent=>{
-    var fm={}, fbs=[];
-    agent.calls.forEach(call=>{
-      if(!call.criteria) return;
-      call.criteria.forEach(cr=>{
-        var l=(cr.label||'').trim(), w=parseFloat(cr.weight||0), sc=cr.score!==undefined?cr.score:null, fb=cr.feedback||'';
-        var sn=(sc===null||sc==='')?null:parseFloat(sc);
-        if(!l||w<=0) return;
-        if(sn!==null && sn<w){ fm[l]=(fm[l]||0)+1; if(fb) fbs.push(l+': '+fb); }
-      });
-    });
-    var tc=agent.calls.length, pas=agent.calls.filter(c=>c.pass).length;
-    var tf=Object.keys(fm).sort((a,b)=>fm[b]-fm[a]).slice(0,5).map(k=>k+' ('+fm[k]+'x)');
-    return 'Agent: '+agent.name+'\nCalls scored: '+tc+', Passed: '+pas+', Failed: '+(tc-pas)+'\nTop failures: '+(tf.join(', ')||'none')+'\nAuditor feedback: '+(fbs.slice(0,3).join(' | ')||'none');
-  }).join('\n\n');
-  var prompt='You are a call centre QA coach. Based on these scorecard results, write a coaching report.\n\nFor EACH agent:\n1. Main weaknesses (2-3 sentences)\n2. Specific actions they must work on\n3. Priority: High / Medium / Low\n\nThen a TEAM SUMMARY:\n- Top 3 common failure areas\n- Recommended team training topics\n- Overall team quality verdict\n\nBe specific and constructive.\n\nDATA:\n\n'+summary;
-  var card=document.getElementById('aiCard'), content=document.getElementById('aiContent');
-  if(!card){ renderAnalysis(); card=document.getElementById('aiCard'); content=document.getElementById('aiContent'); }
-  card.style.display=''; content.textContent='Generating coaching report...'; card.scrollIntoView({behavior:'smooth',block:'start'});
-  try{
-    var r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,messages:[{role:'user',content:prompt}]})});
-    var data=await r.json(); var text='';
-    if(data.content&&data.content.length) data.content.forEach(b=>{if(b.type==='text')text+=b.text;});
-    content.textContent=text||'Could not generate report.';
-  }catch(err){content.textContent='Error: '+err.message;}
+function toggleAgentZero(id) {
+  var div = document.getElementById(id);
+  var chevron = div.previousElementSibling.querySelector('.chevron');
+  if (div.style.display === 'none' || div.style.display === '') {
+    div.style.display = 'block';
+    chevron.innerHTML = '▼';
+  } else {
+    div.style.display = 'none';
+    chevron.innerHTML = '▶';
+  }
 }
 </script>
 </body>
