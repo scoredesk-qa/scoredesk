@@ -617,21 +617,39 @@ function openAccountModal() {
 function closeAccountModal() { document.getElementById('accountModalOverlay').classList.remove('open'); }
 
 async function createAccount() {
-  var email = document.getElementById('newEmail').value.trim();
-  var agentName = document.getElementById('newAgentName').value.trim();
-  var pass  = document.getElementById('newPassword').value.trim();
-  var msg   = document.getElementById('accountMsg');
-  if (!email||!pass) { showAcctMsg('Email and password required', false); return; }
-  if (pass.length<6) { showAcctMsg('Password must be at least 6 characters', false); return; }
-  if (!agentName) { showAcctMsg('Agent Name is required', false); return; }
+  const email = document.getElementById('newEmail').value.trim();
+  const agentName = document.getElementById('newAgentName').value.trim();
+  const pass = document.getElementById('newPassword').value.trim();
+  const msg = document.getElementById('accountMsg');
+
+  if (!email || !agentName) {
+    showAcctMsg('Email and agent name required', false);
+    return;
+  }
+  if (pass.length < 6) {
+    showAcctMsg('Password must be at least 6 characters', false);
+    return;
+  }
+
   showLoading(true);
-  var r = await sb.auth.signUp({
-    email, password: pass,
-    options: { data: { role: 'agent', agent_name: agentName } }
+  const { error } = await sb.auth.signUp({
+    email,
+    password: pass,
+    options: {
+      data: { role: 'agent', agent_name: agentName }
+    }
   });
   showLoading(false);
-  if (r.error) { showAcctMsg(r.error.message, false); }
-  else { document.getElementById('newEmail').value=''; document.getElementById('newAgentName').value=''; document.getElementById('newPassword').value=''; showAcctMsg('Account created: '+email+' (agent: '+agentName+')', true); }
+
+  if (error) {
+    showAcctMsg(error.message, false);
+  } else {
+    // Clear form on success
+    document.getElementById('newEmail').value = '';
+    document.getElementById('newAgentName').value = '';
+    document.getElementById('newPassword').value = '';
+    showAcctMsg(`Invitation sent to ${email}. They will receive a confirmation email.`, true);
+  }
 }
 function showAcctMsg(msg,ok){ var el=document.getElementById('accountMsg'); el.textContent=msg; el.style.color=ok?'var(--pass)':'var(--fail)'; el.style.display='block'; setTimeout(()=>el.style.display='none',5000); }
 </script>
