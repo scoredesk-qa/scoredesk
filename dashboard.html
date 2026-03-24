@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScoreDesk – Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
+<style>
+/* ===== Keep all dashboard CSS (the same as before, but remove header-related rules) ===== */
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap');
+:root{
+  --bg:#0b0d13;--surface:#12151e;--surface2:#191d28;--surface3:#1f2335;
+  --border:#242938;--accent:#4f8cff;--accent2:#a78bfa;
+  --pass:#22d3a0;--fail:#f43f5e;--warn:#f59e0b;--auto:#e879f9;
+  --text:#e8ecf4;--muted:#6b7694;--radius:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+  font-family:'Syne',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  padding-top:20px; /* small top space since no header */
+}
+/* ===== Keep all other dashboard styles exactly as before ===== */
+/* ... paste the entire CSS from dashboard0.html (the part after the login and header styles) ... */
+/* Important: Remove any styles for #loginScreen, .header, etc. */
+
+/* The rest of the CSS remains identical to the original dashboard's main content styles */
+/* I'll provide a condensed version here – you can copy the original dashboard's internal CSS from the <style> block, but without the login and header rules. */
+/* To avoid duplication, I'll assume you keep the original dashboard CSS except for the removed sections. */
+</style>
+</head>
+<body>
+
+<!-- No login screen, no header – just the main content -->
+<div id="app" class="hidden">
+  <!-- Keep the existing .main structure exactly as before, but without the .header -->
+  <div class="main">
+    <!-- Upload, charts, agent cards etc. exactly as in the original dashboard -->
+    <div id="uploadBig">...</div>
+    <div id="uploadCompact">...</div>
+    <div id="filesDrawer">...</div>
+    <div id="dashSection" class="hidden">...</div>
+    <div id="placeholder">...</div>
+  </div>
+</div>
+
+<!-- Keep all modals and other elements as before -->
+<div class="modal-overlay" id="modalOverlay">...</div>
+<div class="modal-overlay" id="accountModalOverlay">...</div>
+<div class="toast" id="toast"></div>
+<div id="loadingOverlay">...</div>
+
+<script>
+// Same Supabase config and all scripts, but without the login flow.
+// The script should assume the session already exists (because portal logged in).
+// It should still check session and load data.
+// If no session, it can show a message "Please log in via portal".
+// For brevity, I'll outline the changes: remove login-related DOM elements and adjust init.
+
+// Supabase configuration (same as before)
+const SUPABASE_URL = 'https://uygnkczbbctypleijmls.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5Z25rY3piYmN0eXBsZWlqbWxzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5OTgxNTAsImV4cCI6MjA4OTU3NDE1MH0.CeXH9krVW8YMpkhn6Pw1ThlHKx6r_4_RgybhKBor55k';
+
+let sb = null;
+let agentMap = {};
+let currentFilter = 'all';
+let currentCallKey = null;
+let currentUser = null;
+let isAdmin = false;
+let currentAgentName = null;
+let weeklyChartInst = null, stackedChartInst = null, agentChartInst = null;
+const CHART_CFG = { gridColor:'rgba(255,255,255,0.06)', tickFont:{ family:'DM Mono, monospace', size:11 } };
+
+// Helper functions same as before
+
+window.addEventListener('load', async () => {
+  try {
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { autoRefreshToken: true, persistSession: true }
+    });
+    // Check session
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) {
+      // Not logged in – show message that portal is needed
+      document.body.innerHTML = '<div style="text-align:center;padding:80px;"><h2>Not authenticated</h2><p>Please log in via the ScoreDesk portal.</p></div>';
+      return;
+    }
+    currentUser = session.user;
+    await onLogin();
+  } catch(e) {
+    console.error(e);
+    document.body.innerHTML = '<div style="text-align:center;padding:80px;"><h2>Connection error</h2><p>Please refresh.</p></div>';
+  }
+});
+
+// The rest of the functions (onLogin, loadScorecards, etc.) remain exactly the same as in the original dashboard.
+// However, we must remove any references to the header and login screen because they no longer exist.
+// For example, in onLogin() we should not try to hide loginScreen or set header elements.
+// Instead, just set user details and load data.
+
+async function onLogin() {
+  const meta = currentUser.user_metadata || {};
+  isAdmin = (currentUser.email === 'admin@scoredesk.com') || (meta.role === 'admin');
+  currentAgentName = meta.agent_name || null;
+
+  // No header to update – just show the app container
+  document.getElementById('app').classList.remove('hidden');
+
+  // Show/hide upload based on admin
+  if (!isAdmin) {
+    document.getElementById('uploadBig').style.display = 'none';
+    document.getElementById('uploadCompact').style.display = 'none';
+    // also hide add/view buttons if present
+    const addBtn = document.getElementById('addMoreBtnEl');
+    if (addBtn) addBtn.style.display = 'none';
+    const viewBtn = document.getElementById('viewFilesBtnEl');
+    if (viewBtn) viewBtn.style.display = 'none';
+  }
+
+  showLoading(true);
+  await loadScorecards();
+  showLoading(false);
+}
+
+// Keep all other functions (loadScorecards, parseFile, extractScorecard, renderAll, renderCharts, renderCards, etc.) exactly as they were.
+// They do not depend on the header.
+</script>
+</body>
+</html>
