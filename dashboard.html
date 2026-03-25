@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScoreDesk – QA Platform</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
+<style>
+/* ========== All CSS from original dashboard – unchanged ========== */
+/* ... (keep your existing CSS, it's unchanged) ... */
+</style>
+</head>
+<body>
+
+<div id="loadingOverlay" style="display:none;"><div class="spinner"></div></div>
+
+<!-- APP (no login screen, no header) -->
+<div id="app" class="hidden">
+  <div class="main">
+    <!-- Upload sections (admin only – already hidden via JS) -->
+    <div id="uploadBig">...</div>
+    <div id="uploadCompact">...</div>
+    <div id="filesDrawer">...</div>
+
+    <!-- DASHBOARD -->
+    <div id="dashSection" class="hidden">
+      <div class="summary-grid" id="summaryGrid"></div>
+      <div class="charts-section">
+        <!-- ... charts unchanged ... -->
+      </div>
+      <div class="section-header">
+        <div class="section-title">Agents</div>
+        <div class="filter-tabs">
+          <button class="tab active" data-filter="all">All</button>
+          <button class="tab" data-filter="pass">All Passed</button>
+          <button class="tab" data-filter="fail">Has Fails</button>
+        </div>
+      </div>
+      <div class="agent-cards" id="agentCards"></div>
+    </div>
+
+    <div id="placeholder">...</div>
+  </div>
+</div>
+
+<!-- Modals (unchanged) -->
+<div class="modal-overlay" id="modalOverlay">...</div>
+<div class="modal-overlay" id="accountModalOverlay">...</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// Supabase configuration (same as before)
+const SUPABASE_URL = 'https://uygnkczbbctypleijmls.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5Z25rY3piYmN0eXBsZWlqbWxzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5OTgxNTAsImV4cCI6MjA4OTU3NDE1MH0.CeXH9krVW8YMpkhn6Pw1ThlHKx6r_4_RgybhKBor55k';
+
+let sb = null;
+let agentMap = {};
+let currentFilter = 'all';
+let currentCallKey = null;
+let currentUser = null;
+let isAdmin = false;
+let currentAgentName = null;
+let weeklyChartInst = null, stackedChartInst = null, agentChartInst = null;
+const CHART_CFG = { gridColor:'rgba(255,255,255,0.06)', tickFont:{ family:'DM Mono, monospace', size:11 } };
+
+// ---------- Helper functions ----------
+function showLoading(on) { document.getElementById('loadingOverlay').style.display = on ? 'flex' : 'none'; }
+function showToast(msg, ok) { var t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast' + (ok === true ? ' ok' : ok === false ? ' err' : ''); t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); }
+
+// ---------- Initialization ----------
+window.addEventListener('load', async () => {
+  try {
+    if (typeof window.supabase === 'undefined') throw new Error('Supabase SDK not loaded');
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: false }
+    });
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) {
+      document.body.innerHTML = '<div style="text-align:center;padding:80px;"><h2>Not authenticated</h2><p>Please log in via the ScoreDesk portal.</p></div>';
+      return;
+    }
+    currentUser = session.user;
+    await onLogin();
+  } catch (err) {
+    console.error('Dashboard init error:', err);
+    document.body.innerHTML = `<div style="text-align:center;padding:80px;"><h2>Connection error</h2><p>${err.message}</p><button onclick="location.reload()">Retry</button></div>`;
+  }
+});
+
+async function onLogin() {
+  const meta = currentUser.user_metadata || {};
+  isAdmin = (currentUser.email === 'admin@scoredesk.com') || (meta.role === 'admin');
+  currentAgentName = meta.agent_name || null;
+
+  document.getElementById('app').classList.remove('hidden');
+
+  // Hide upload UI for non‑admins
+  if (!isAdmin) {
+    document.getElementById('uploadBig').style.display = 'none';
+    document.getElementById('uploadCompact').style.display = 'none';
+    const addBtn = document.getElementById('addMoreBtnEl');
+    if (addBtn) addBtn.style.display = 'none';
+    const viewBtn = document.getElementById('viewFilesBtnEl');
+    if (viewBtn) viewBtn.style.display = 'none';
+  }
+
+  showLoading(true);
+  await loadScorecards();
+  showLoading(false);
+}
+
+// ========== All original dashboard functions ==========
+// (loadScorecards, parseFile, extractScorecard, renderAll, renderSummary,
+// renderCharts, renderCards, openModal, etc.)
+// We'll only modify renderCards, openModal, and notes_upsert.
+
+async function loadScorecards() { /* ... unchanged ... */ }
+function parseFile(file) { /* ... unchanged ... */ }
+function extractScorecard(rows,fileName) { /* ... unchanged ... */ }
+function renderAll() { /* ... unchanged ... */ }
+function renderSummary(agents) { /* ... unchanged ... */ }
+function renderCharts() { /* ... unchanged ... */ }
+function getWeekLabel(ds) { /* ... unchanged ... */ }
+
+// ---------- Modified renderCards (note section only for admins) ----------
+function renderCards(agents,filter){
+  var filtered=agents.filter(a=>{if(filter==='pass')return a.calls.every(c=>c.pass);if(filter==='fail')return a.calls.some(c=>!c.pass);return true;});
+  var container=document.getElementById('agentCards');container.innerHTML='';
+  filtered.forEach(agent=>{
+    var tot=agent.calls.length,pas=agent.calls.filter(c=>c.pass).length,fai=tot-pas;
+    var cls=fai===0?'pass':pas===0?'fail':'mixed',lbl=fai===0?'ALL PASSED':pas===0?'ALL FAILED':(fai+' FAIL'+(fai>1?'S':''));
+    var ini=agent.name.split(' ').map(p=>p[0]||'').join('').slice(0,2).toUpperCase();
+    var cid='card-'+agent.name.replace(/\W/g,'_');
+    var rows=agent.calls.map((c,i)=>callRow(c,i+1)).join('');
+    var card=document.createElement('div');card.className='agent-card';
+    card.innerHTML='<div class="agent-card-header" onclick="toggleCard(\''+cid+'\')">'
+      +'<div class="agent-avatar">'+ini+'</div>'
+      +'<div class="agent-card-info"><div class="agent-card-name">'+agent.name+'</div><div class="agent-card-sub">'+tot+' call'+(tot!==1?'s':'')+' \u00b7 '+pas+' passed \u00b7 '+fai+' failed</div></div>'
+      +'<div class="agent-card-stats"><span class="mini-badge '+cls+'">'+lbl+'</span><span class="calls-count">'+tot+' call'+(tot!==1?'s':'')+'</span></div>'
+      +'<span class="chevron" id="'+cid+'-chev">\u25be</span></div>'
+      +'<div class="calls-table-wrap" id="'+cid+'">'
+      +'<table><thead><th>#</th><th>Call Date</th><th>Auditor</th><th>Status</th><th>Fail Reason</th><th>Detail</th></thead><tbody>'+rows+'</tbody></table>';
+
+    // Only add notes section if user is admin
+    if (isAdmin) {
+      var nk='anotes-'+agent.name.replace(/\W/g,'_');
+      var ok='agok-'+agent.name.replace(/\W/g,'_');
+      card.innerHTML += '<div style="padding:14px 20px;border-top:1px solid var(--border);">'
+        +'<div class="notes-lbl">One-on-One Notes \u2014 '+agent.name+'</div>'
+        +'<textarea class="notes-area" id="'+nk+'" placeholder="Coaching notes for 1:1..."></textarea>'
+        +'<div style="display:flex;align-items:center;gap:10px;margin-top:8px;">'
+        +'<button class="save-btn" onclick="saveAgentNote(\''+agent.name.replace(/'/g,"\\'")+'\')">Save Notes</button>'
+        +'<span class="save-ok" id="'+ok+'">\u2713 Saved</span></div></div>';
+    }
+    container.appendChild(card);
+    if (isAdmin) loadAgentNote(agent.name,nk);
+  });
+}
+
+function callRow(c,idx){ /* ... unchanged ... */ }
+function toggleCard(id){ /* ... unchanged ... */ }
+function filterAgents(f,btn){ /* ... unchanged ... */ }
+
+// ---------- Modified openModal (note area only for admins) ----------
+async function openModal(key){
+  var dec=decodeURIComponent(key),parts=dec.split('||'),name=parts[0],fn=parts[1];
+  var c=agentMap[name]&&agentMap[name].calls.find(x=>x.fileName===fn);
+  if(!c)return; currentCallKey=key;
+  document.getElementById('mName').textContent=c.name;
+  document.getElementById('mMeta').textContent=[c.account&&('Account: '+c.account),c.callDate&&('Call: '+c.callDate),c.auditor&&('Auditor: '+c.auditor)].filter(Boolean).join(' \u00b7 ');
+  var html='<div class="result-banner '+(c.pass?'pass':'fail')+'"><div class="result-icon">'+(c.pass?'&#x2705;':'&#x274C;')+'</div><div class="result-label '+(c.pass?'pass':'fail')+'">'+(c.pass?'PASSED':'FAILED')+'</div>'+(c.pfReason?'<div class="result-reason">Reason: '+c.pfReason+'</div>':'')+'</div>';
+  if(!c.pass&&c.autoFails&&c.autoFails.length){html+='<div class="af-box"><div class="af-box-title">&#x26A0;&#xFE0F; Auto-Fail Triggers</div>';c.autoFails.forEach(af=>{html+='<div class="af-row"><div class="af-q">'+af.label+'</div><div class="af-result">FAILED \u2014 '+af.val+'</div>'+(af.fb?'<div class="af-fb">'+af.fb+'</div>':'')+'</div>';});html+='</div>';}
+  var secs=[];if(c.criteria)c.criteria.forEach(cr=>{if(secs.indexOf(cr.section)===-1)secs.push(cr.section);});
+  secs.forEach(sec=>{var items=c.criteria.filter(cr=>cr.section===sec);html+='<div><div class="sec-title">'+(sec||'General')+'</div><div class="criteria-list">';items.forEach(cr=>{var r=cr.score!==null?cr.score/cr.weight:-1,cls=r<0?'na':r>=1?'full':r>0?'partial':'zero',disp=cr.score!==null?(cr.score+' / '+cr.weight):('-- / '+cr.weight);html+='<div class="cr-item"><div class="cr-top"><span class="cr-label">'+cr.label+'</span><span class="cr-wt">Max: '+cr.weight+'</span><span class="cr-pts '+cls+'">'+disp+'</span></div>'+(cr.feedback?'<div class="cr-fb">'+cr.feedback+'</div>':'')+'</div>';});html+='</div></div>';});
+
+  // Fetch existing note
+  var nr=await sb.from('notes').select('content').eq('note_key','call:'+key).single();
+  var en=(nr.data&&nr.data.content)?nr.data.content:'';
+
+  // Only add note editing area if user is admin
+  if (isAdmin) {
+    html+='<div><div class="notes-lbl">Notes for this call</div><textarea class="notes-area" id="callNoteArea" placeholder="Notes about this call...">'+en+'</textarea><div style="display:flex;align-items:center;gap:10px;margin-top:8px;"><button class="save-btn" onclick="saveCallNote()">Save Notes</button><span class="save-ok" id="callSaveOk">\u2713 Saved</span></div></div>';
+  } else {
+    // Non‑admin: show notes as read‑only if they exist
+    if (en) {
+      html+='<div><div class="notes-lbl">Notes for this call</div><div style="background:var(--surface2);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;">'+en+'</div></div>';
+    }
+  }
+  document.getElementById('mBody').innerHTML=html;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal(){ /* ... unchanged ... */ }
+async function saveCallNote(){ /* ... unchanged but will use notes_upsert which checks isAdmin */ }
+async function saveAgentNote(name){ /* ... unchanged */ }
+async function loadAgentNote(name,elId){ /* ... unchanged */ }
+
+// ---------- Modified notes_upsert (admin only) ----------
+async function notes_upsert(key,val,okId){
+  if (!isAdmin) return; // only admins can save notes
+  await sb.from('notes').upsert({note_key:key,content:val,updated_by:currentUser.id},{onConflict:'note_key'});
+  var ok=document.getElementById(okId);
+  if(ok){ok.style.display='block';setTimeout(()=>ok.style.display='none',2000);}
+}
+
+// ========== The rest of the original functions remain unchanged ==========
+// ... (all other functions like removeFile, appendFileBar, etc.)
+</script>
+</body>
+</html>
