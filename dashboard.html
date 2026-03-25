@@ -125,35 +125,46 @@ function renderCharts() { /* ... unchanged ... */ }
 function getWeekLabel(ds) { /* ... unchanged ... */ }
 
 // ---------- Modified renderCards (note section only for admins) ----------
-function renderCards(agents,filter){
-  var filtered=agents.filter(a=>{if(filter==='pass')return a.calls.every(c=>c.pass);if(filter==='fail')return a.calls.some(c=>!c.pass);return true;});
-  var container=document.getElementById('agentCards');container.innerHTML='';
-  filtered.forEach(agent=>{
-    var tot=agent.calls.length,pas=agent.calls.filter(c=>c.pass).length,fai=tot-pas;
-    var cls=fai===0?'pass':pas===0?'fail':'mixed',lbl=fai===0?'ALL PASSED':pas===0?'ALL FAILED':(fai+' FAIL'+(fai>1?'S':''));
-    var ini=agent.name.split(' ').map(p=>p[0]||'').join('').slice(0,2).toUpperCase();
-    var cid='card-'+agent.name.replace(/\W/g,'_');
-    var rows=agent.calls.map((c,i)=>callRow(c,i+1)).join('');
-    var card=document.createElement('div');card.className='agent-card';
-    card.innerHTML='<div class="agent-card-header" onclick="toggleCard(\''+cid+'\')">'
-      +'<div class="agent-avatar">'+ini+'</div>'
-      +'<div class="agent-card-info"><div class="agent-card-name">'+agent.name+'</div><div class="agent-card-sub">'+tot+' call'+(tot!==1?'s':'')+' \u00b7 '+pas+' passed \u00b7 '+fai+' failed</div></div>'
-      +'<div class="agent-card-stats"><span class="mini-badge '+cls+'">'+lbl+'</span><span class="calls-count">'+tot+' call'+(tot!==1?'s':'')+'</span></div>'
-      +'<span class="chevron" id="'+cid+'-chev">\u25be</span></div>'
-      +'<div class="calls-table-wrap" id="'+cid+'">'
-      +'<table><thead><th>#</th><th>Call Date</th><th>Auditor</th><th>Status</th><th>Fail Reason</th><th>Detail</th></thead><tbody>'+rows+'</tbody></table>';
+function renderCards(agents, filter) {
+  var filtered = agents.filter(a => {
+    if (filter === 'pass') return a.calls.every(c => c.pass);
+    if (filter === 'fail') return a.calls.some(c => !c.pass);
+    return true;
+  });
+  var container = document.getElementById('agentCards');
+  container.innerHTML = '';
+  filtered.forEach(agent => {
+    var tot = agent.calls.length, pas = agent.calls.filter(c => c.pass).length, fai = tot - pas;
+    var cls = fai === 0 ? 'pass' : pas === 0 ? 'fail' : 'mixed';
+    var lbl = fai === 0 ? 'ALL PASSED' : pas === 0 ? 'ALL FAILED' : (fai + ' FAIL' + (fai > 1 ? 'S' : ''));
+    var ini = agent.name.split(' ').map(p => p[0] || '').join('').slice(0, 2).toUpperCase();
+    var cid = 'card-' + agent.name.replace(/\W/g, '_');
+    var rows = agent.calls.map((c, i) => callRow(c, i + 1)).join('');
+    var card = document.createElement('div');
+    card.className = 'agent-card';
+    card.innerHTML = '<div class="agent-card-header" onclick="toggleCard(\'' + cid + '\')">'
+      + '<div class="agent-avatar">' + ini + '</div>'
+      + '<div class="agent-card-info"><div class="agent-card-name">' + agent.name + '</div><div class="agent-card-sub">' + tot + ' call' + (tot !== 1 ? 's' : '') + ' · ' + pas + ' passed · ' + fai + ' failed</div></div>'
+      + '<div class="agent-card-stats"><span class="mini-badge ' + cls + '">' + lbl + '</span><span class="calls-count">' + tot + ' call' + (tot !== 1 ? 's' : '') + '</span></div>'
+      + '<span class="chevron" id="' + cid + '-chev">▾</span></div>'
+      + '<div class="calls-table-wrap" id="' + cid + '">'
+      + '<table><thead><th>#</th><th>Call Date</th><th>Auditor</th><th>Status</th><th>Fail Reason</th><th>Detail</th></thead><tbody>' + rows + '</tbody></table>';
 
     // Only add notes section if user is admin
     if (isAdmin) {
-      var nk='anotes-'+agent.name.replace(/\W/g,'_');
-      var ok='agok-'+agent.name.replace(/\W/g,'_');
+      var nk = 'anotes-' + agent.name.replace(/\W/g, '_');
+      var ok = 'agok-' + agent.name.replace(/\W/g, '_');
       card.innerHTML += '<div style="padding:14px 20px;border-top:1px solid var(--border);">'
-        +'<div class="notes-lbl">One-on-One Notes \u2014 '+agent.name+'</div>'
-        +'<textarea class="notes-area" id="'+nk+'" placeholder="Coaching notes for 1:1..."></textarea>'
-        +'<div style="display:flex;align-items:center;gap:10px;margin-top:8px;">'
-        +'<button class="save-btn" onclick="saveAgentNote(\''+agent.name.replace(/'/g,"\\'")+'\')">Save Notes</button>'
-        +'<span class="save-ok" id="'+ok+'">\u2713 Saved</span></div></div>';
+        + '<div class="notes-lbl">One-on-One Notes — ' + agent.name + '</div>'
+        + '<textarea class="notes-area" id="' + nk + '" placeholder="Coaching notes for 1:1..."></textarea>'
+        + '<div style="display:flex;align-items:center;gap:10px;margin-top:8px;">'
+        + '<button class="save-btn" onclick="saveAgentNote(\'' + agent.name.replace(/'/g, "\\'") + '\')">Save Notes</button>'
+        + '<span class="save-ok" id="' + ok + '">✓ Saved</span></div></div>';
     }
+    container.appendChild(card);
+    if (isAdmin) loadAgentNote(agent.name, nk);
+  });
+}
     container.appendChild(card);
     if (isAdmin) loadAgentNote(agent.name,nk);
   });
@@ -164,31 +175,46 @@ function toggleCard(id){ /* ... unchanged ... */ }
 function filterAgents(f,btn){ /* ... unchanged ... */ }
 
 // ---------- Modified openModal (note area only for admins) ----------
-async function openModal(key){
-  var dec=decodeURIComponent(key),parts=dec.split('||'),name=parts[0],fn=parts[1];
-  var c=agentMap[name]&&agentMap[name].calls.find(x=>x.fileName===fn);
-  if(!c)return; currentCallKey=key;
-  document.getElementById('mName').textContent=c.name;
-  document.getElementById('mMeta').textContent=[c.account&&('Account: '+c.account),c.callDate&&('Call: '+c.callDate),c.auditor&&('Auditor: '+c.auditor)].filter(Boolean).join(' \u00b7 ');
-  var html='<div class="result-banner '+(c.pass?'pass':'fail')+'"><div class="result-icon">'+(c.pass?'&#x2705;':'&#x274C;')+'</div><div class="result-label '+(c.pass?'pass':'fail')+'">'+(c.pass?'PASSED':'FAILED')+'</div>'+(c.pfReason?'<div class="result-reason">Reason: '+c.pfReason+'</div>':'')+'</div>';
-  if(!c.pass&&c.autoFails&&c.autoFails.length){html+='<div class="af-box"><div class="af-box-title">&#x26A0;&#xFE0F; Auto-Fail Triggers</div>';c.autoFails.forEach(af=>{html+='<div class="af-row"><div class="af-q">'+af.label+'</div><div class="af-result">FAILED \u2014 '+af.val+'</div>'+(af.fb?'<div class="af-fb">'+af.fb+'</div>':'')+'</div>';});html+='</div>';}
-  var secs=[];if(c.criteria)c.criteria.forEach(cr=>{if(secs.indexOf(cr.section)===-1)secs.push(cr.section);});
-  secs.forEach(sec=>{var items=c.criteria.filter(cr=>cr.section===sec);html+='<div><div class="sec-title">'+(sec||'General')+'</div><div class="criteria-list">';items.forEach(cr=>{var r=cr.score!==null?cr.score/cr.weight:-1,cls=r<0?'na':r>=1?'full':r>0?'partial':'zero',disp=cr.score!==null?(cr.score+' / '+cr.weight):('-- / '+cr.weight);html+='<div class="cr-item"><div class="cr-top"><span class="cr-label">'+cr.label+'</span><span class="cr-wt">Max: '+cr.weight+'</span><span class="cr-pts '+cls+'">'+disp+'</span></div>'+(cr.feedback?'<div class="cr-fb">'+cr.feedback+'</div>':'')+'</div>';});html+='</div></div>';});
-
-  // Fetch existing note
-  var nr=await sb.from('notes').select('content').eq('note_key','call:'+key).single();
-  var en=(nr.data&&nr.data.content)?nr.data.content:'';
-
-  // Only add note editing area if user is admin
-  if (isAdmin) {
-    html+='<div><div class="notes-lbl">Notes for this call</div><textarea class="notes-area" id="callNoteArea" placeholder="Notes about this call...">'+en+'</textarea><div style="display:flex;align-items:center;gap:10px;margin-top:8px;"><button class="save-btn" onclick="saveCallNote()">Save Notes</button><span class="save-ok" id="callSaveOk">\u2713 Saved</span></div></div>';
-  } else {
-    // Non‑admin: show notes as read‑only if they exist
-    if (en) {
-      html+='<div><div class="notes-lbl">Notes for this call</div><div style="background:var(--surface2);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;">'+en+'</div></div>';
-    }
+async function openModal(key) {
+  var dec = decodeURIComponent(key), parts = dec.split('||'), name = parts[0], fn = parts[1];
+  var c = agentMap[name] && agentMap[name].calls.find(x => x.fileName === fn);
+  if (!c) return;
+  currentCallKey = key;
+  document.getElementById('mName').textContent = c.name;
+  document.getElementById('mMeta').textContent = [c.account && ('Account: ' + c.account), c.callDate && ('Call: ' + c.callDate), c.auditor && ('Auditor: ' + c.auditor)].filter(Boolean).join(' · ');
+  var html = '<div class="result-banner ' + (c.pass ? 'pass' : 'fail') + '"><div class="result-icon">' + (c.pass ? '✅' : '❌') + '</div><div class="result-label ' + (c.pass ? 'pass' : 'fail') + '">' + (c.pass ? 'PASSED' : 'FAILED') + '</div>' + (c.pfReason ? '<div class="result-reason">Reason: ' + c.pfReason + '</div>' : '') + '</div>';
+  if (!c.pass && c.autoFails && c.autoFails.length) {
+    html += '<div class="af-box"><div class="af-box-title">⚠️ Auto-Fail Triggers</div>';
+    c.autoFails.forEach(af => {
+      html += '<div class="af-row"><div class="af-q">' + af.label + '</div><div class="af-result">FAILED — ' + af.val + '</div>' + (af.fb ? '<div class="af-fb">' + af.fb + '</div>' : '') + '</div>';
+    });
+    html += '</div>';
   }
-  document.getElementById('mBody').innerHTML=html;
+  var secs = [];
+  if (c.criteria) c.criteria.forEach(cr => { if (secs.indexOf(cr.section) === -1) secs.push(cr.section); });
+  secs.forEach(sec => {
+    var items = c.criteria.filter(cr => cr.section === sec);
+    html += '<div><div class="sec-title">' + (sec || 'General') + '</div><div class="criteria-list">';
+    items.forEach(cr => {
+      var r = cr.score !== null ? cr.score / cr.weight : -1, cls = r < 0 ? 'na' : r >= 1 ? 'full' : r > 0 ? 'partial' : 'zero';
+      var disp = cr.score !== null ? (cr.score + ' / ' + cr.weight) : ('-- / ' + cr.weight);
+      html += '<div class="cr-item"><div class="cr-top"><span class="cr-label">' + cr.label + '</span><span class="cr-wt">Max: ' + cr.weight + '</span><span class="cr-pts ' + cls + '">' + disp + '</span></div>' + (cr.feedback ? '<div class="cr-fb">' + cr.feedback + '</div>' : '') + '</div>';
+    });
+    html += '</div></div>';
+  });
+
+  var nr = await sb.from('notes').select('content').eq('note_key', 'call:' + key).single();
+  var en = (nr.data && nr.data.content) ? nr.data.content : '';
+
+  // Only allow editing if admin
+  if (isAdmin) {
+    html += '<div><div class="notes-lbl">Notes for this call</div><textarea class="notes-area" id="callNoteArea" placeholder="Notes about this call...">' + en + '</textarea><div style="display:flex;align-items:center;gap:10px;margin-top:8px;"><button class="save-btn" onclick="saveCallNote()">Save Notes</button><span class="save-ok" id="callSaveOk">✓ Saved</span></div></div>';
+  } else if (en) {
+    // Non‑admin: show existing notes as read‑only
+    html += '<div><div class="notes-lbl">Notes for this call</div><div style="background:var(--surface2);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;">' + en + '</div></div>';
+  }
+
+  document.getElementById('mBody').innerHTML = html;
   document.getElementById('modalOverlay').classList.add('open');
 }
 
@@ -198,11 +224,14 @@ async function saveAgentNote(name){ /* ... unchanged */ }
 async function loadAgentNote(name,elId){ /* ... unchanged */ }
 
 // ---------- Modified notes_upsert (admin only) ----------
-async function notes_upsert(key,val,okId){
+async function notes_upsert(key, val, okId) {
   if (!isAdmin) return; // only admins can save notes
-  await sb.from('notes').upsert({note_key:key,content:val,updated_by:currentUser.id},{onConflict:'note_key'});
-  var ok=document.getElementById(okId);
-  if(ok){ok.style.display='block';setTimeout(()=>ok.style.display='none',2000);}
+  await sb.from('notes').upsert({ note_key: key, content: val, updated_by: currentUser.id }, { onConflict: 'note_key' });
+  var ok = document.getElementById(okId);
+  if (ok) {
+    ok.style.display = 'block';
+    setTimeout(() => ok.style.display = 'none', 2000);
+  }
 }
 
 // ========== The rest of the original functions remain unchanged ==========
