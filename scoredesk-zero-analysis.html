@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScoreDesk – Zero Score Analysis</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ===== All CSS from the previous version – unchanged ===== */
+:root {
+  --bg: #07080f;
+  --surface: #0e1018;
+  --surface2: #13161f;
+  --surface3: #181b26;
+  --border: #1e2233;
+  --border2: #252a3a;
+  --accent: #4f8cff;
+  --accent2: #a78bfa;
+  --accent3: #38bdf8;
+  --pass: #22d3a0;
+  --fail: #f43f5e;
+  --warn: #f59e0b;
+  --text: #e8ecf4;
+  --muted: #5a6285;
+  --muted2: #7b85a8;
+  --radius: 14px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Syne', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(79,140,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79,140,255,0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  z-index: 0;
+}
+body::after {
+  content: '';
+  position: fixed;
+  top: -200px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 800px;
+  height: 500px;
+  background: radial-gradient(ellipse, rgba(79,140,255,0.06) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+#app { position: relative; z-index: 1; min-height: 100vh; }
+.main { max-width: 1260px; margin: 0 auto; padding: 36px 40px; }
+
+.page-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: 32px; padding-bottom: 28px; border-bottom: 1px solid var(--border);
+}
+.page-eyebrow {
+  font-family: 'DM Mono', monospace; font-size: 10px; color: var(--accent);
+  letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px;
+  display: flex; align-items: center; gap: 7px;
+}
+.page-eyebrow::before { content: ''; width: 16px; height: 2px; background: var(--accent); display: inline-block; }
+.page-title { font-size: 30px; font-weight: 800; letter-spacing: -0.8px; margin-bottom: 5px; }
+.page-sub { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted2); }
+.page-actions { display: flex; gap: 10px; align-items: center; }
+.action-btn {
+  display: flex; align-items: center; gap: 7px;
+  background: var(--surface2); border: 1px solid var(--border2);
+  color: var(--text); padding: 10px 20px; border-radius: 10px;
+  font-weight: 700; font-size: 12px; cursor: pointer; transition: all .15s;
+}
+.action-btn:hover { border-color: var(--accent); color: var(--accent); }
+.action-btn.primary {
+  background: linear-gradient(135deg, var(--accent), #6366f1);
+  border: none; color: #fff; box-shadow: 0 4px 16px rgba(79,140,255,0.25);
+}
+.action-btn.primary:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(79,140,255,0.35); }
+
+.upload-status {
+  margin-top: 14px; font-family: 'DM Mono', monospace; font-size: 12px;
+  color: var(--muted2); line-height: 1.7; padding: 12px 16px;
+  background: var(--surface2); border-radius: 10px; border: 1px solid var(--border);
+  display: none;
+}
+.debug-bar {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 18px; margin-bottom: 24px;
+  font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted2);
+}
+.debug-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--pass); flex-shrink: 0;
+  box-shadow: 0 0 8px var(--pass);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+.stat-strip {
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  gap: 14px; margin-bottom: 28px;
+}
+.stat-tile {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 22px 24px;
+  position: relative; overflow: hidden; transition: border-color .2s;
+}
+.stat-tile:hover { border-color: var(--border2); }
+.stat-tile::after {
+  content: attr(data-icon);
+  position: absolute; right: 16px; top: 16px;
+  font-size: 28px; opacity: 0.08;
+}
+.stat-tile-label {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  color: var(--muted); letter-spacing: 1px; text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.stat-tile-value {
+  font-size: 40px; font-weight: 800; line-height: 1; letter-spacing: -2px;
+}
+.stat-tile-value.blue { color: var(--accent); }
+.stat-tile-value.red { color: var(--fail); }
+.stat-tile-value.green { color: var(--pass); }
+.stat-tile-value.purple { color: var(--accent2); }
+.stat-tile-value.warn { color: var(--warn); }
+.stat-tile-sub { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); margin-top: 6px; }
+
+.section-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.section-hdr-left { display: flex; align-items: center; gap: 10px; }
+.section-label { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted2); letter-spacing: 1.2px; text-transform: uppercase; }
+.section-title { font-size: 16px; font-weight: 700; }
+.section-count { font-family: 'DM Mono', monospace; font-size: 11px; background: var(--surface2); border: 1px solid var(--border2); color: var(--muted2); padding: 3px 10px; border-radius: 20px; }
+
+.table-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; overflow-x: auto; margin-bottom: 24px; }
+.zero-table { width: 100%; border-collapse: collapse; min-width: 700px; }
+.zero-table thead { background: var(--surface2); }
+.zero-table th { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; padding: 13px 20px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.zero-table td { padding: 14px 20px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle; white-space: nowrap; }
+.zero-table td.wrap { white-space: normal; }
+.zero-table tr:last-child td { border-bottom: none; }
+.zero-table tbody tr:hover td { background: rgba(79,140,255,.025); }
+
+.rank-badge { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 7px; background: var(--surface3); border: 1px solid var(--border2); font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted2); font-weight: 500; }
+.rank-badge.top1 { background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.3); color: var(--warn); }
+.rank-badge.top2 { background: rgba(148,163,184,.1); border-color: rgba(148,163,184,.2); color: #94a3b8; }
+.rank-badge.top3 { background: rgba(180,120,80,.1); border-color: rgba(180,120,80,.2); color: #b47850; }
+
+.criteria-cell { font-size: 13px; font-weight: 600; }
+.section-cell { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted2); }
+.zero-count-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 26px; padding: 0 10px; background: rgba(244,63,94,.1); border: 1px solid rgba(244,63,94,.25); border-radius: 6px; font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 700; color: var(--fail); }
+.agent-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.agent-chip { font-family: 'DM Mono', monospace; font-size: 10px; background: var(--surface2); border: 1px solid var(--border2); color: var(--muted2); padding: 3px 10px; border-radius: 20px; }
+
+.agent-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 12px; }
+.agent-section-header { display: flex; align-items: center; gap: 14px; padding: 16px 20px; cursor: pointer; transition: background .15s; }
+.agent-section-header:hover { background: var(--surface2); }
+.agent-avatar { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, var(--surface3), var(--surface2)); border: 1px solid var(--border2); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: var(--accent); flex-shrink: 0; }
+.agent-info { flex: 1; }
+.agent-name { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+.agent-meta { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted2); }
+.agent-zero-pill { font-family: 'DM Mono', monospace; font-size: 11px; background: rgba(244,63,94,.08); border: 1px solid rgba(244,63,94,.2); color: var(--fail); padding: 4px 12px; border-radius: 20px; }
+.chevron-btn { width: 28px; height: 28px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); display: flex; align-items: center; justify-content: center; font-size: 12px; transition: all .2s; }
+.agent-section.open .chevron-btn { transform: rotate(180deg); color: var(--accent); border-color: var(--accent); }
+.agent-section-body { display: none; border-top: 1px solid var(--border); }
+.agent-section.open .agent-section-body { display: block; }
+
+.empty-state { text-align: center; padding: 80px 40px; }
+.empty-icon { font-size: 52px; margin-bottom: 16px; opacity: 0.5; }
+.empty-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+.empty-sub { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted2); }
+
+.success-banner { display: flex; align-items: center; gap: 16px; background: rgba(34,211,160,.06); border: 1px solid rgba(34,211,160,.2); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 24px; }
+.success-icon { font-size: 28px; }
+.success-text { font-size: 15px; font-weight: 700; color: var(--pass); margin-bottom: 2px; }
+.success-sub { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted2); }
+
+.toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--surface2); border: 1px solid var(--border2); padding: 12px 24px; border-radius: 10px; font-size: 13px; font-weight: 600; z-index: 9999; transition: transform .3s cubic-bezier(.4,0,.2,1); pointer-events: none; }
+.toast.show { transform: translateX(-50%) translateY(0); }
+.toast.ok { border-color: var(--pass); color: var(--pass); }
+.toast.err { border-color: var(--fail); color: var(--fail); }
+
+#loadingOverlay { position: fixed; inset: 0; background: rgba(7,8,15,.7); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 9998; }
+.spinner { width: 38px; height: 38px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.hidden { display: none !important; }
+
+.af-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border-radius: 20px; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.af-badge.triggered { background: rgba(244,63,94,.12); border: 1px solid rgba(244,63,94,.3); color: var(--fail); }
+.af-trigger-count { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 26px; padding: 0 10px; background: rgba(244,63,94,.1); border: 1px solid rgba(244,63,94,.25); border-radius: 6px; font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 700; color: var(--fail); }
+.source-tag { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 1px; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border2); color: var(--muted); background: var(--surface2); white-space: nowrap; display: inline-block; }
+.feedback-cell { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted2); max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+</head>
+<body>
+
+<div id="loadingOverlay"><div class="spinner"></div></div>
+<div class="toast" id="toast"></div>
+
+<div id="app" class="hidden">
+  <div class="main">
+    <div class="page-header">
+      <div class="page-title-group">
+        <div class="page-eyebrow">Quality Analytics</div>
+        <div class="page-title">Zero Score Analysis</div>
+        <div class="page-sub">Zero scores & auto-fail triggers (NO only)</div>
+      </div>
+      <div class="page-actions">
+        <button class="action-btn" id="refreshBtn">↺ &nbsp;Refresh</button>
+        <div id="uploadTrigger">
+          <button class="action-btn primary" onclick="document.getElementById('fileInputHidden').click()">⬆ &nbsp;Upload Files</button>
+          <input type="file" id="fileInputHidden" accept=".xlsx,.xls" multiple style="display:none">
+        </div>
+      </div>
+    </div>
+
+    <div class="upload-status" id="uploadStatus"></div>
+
+    <div class="debug-bar" id="debugBar" style="display:none;">
+      <div class="debug-dot"></div>
+      <span id="debugText">Connected</span>
+    </div>
+
+    <div class="stat-strip" id="statStrip" style="display:none;">
+      <div class="stat-tile" data-icon="📋">
+        <div class="stat-tile-label">Total Scorecards</div>
+        <div class="stat-tile-value blue" id="statTotal">0</div>
+        <div class="stat-tile-sub">loaded from database</div>
+      </div>
+      <div class="stat-tile" data-icon="🚨">
+        <div class="stat-tile-label">Criteria with Zeros</div>
+        <div class="stat-tile-value red" id="statCriteria">0</div>
+        <div class="stat-tile-sub">zero score criteria</div>
+      </div>
+      <div class="stat-tile" data-icon="👥">
+        <div class="stat-tile-label">Affected Agents</div>
+        <div class="stat-tile-value purple" id="statAgents">0</div>
+        <div class="stat-tile-sub">with at least 1 zero</div>
+      </div>
+      <div class="stat-tile" data-icon="⚠️">
+        <div class="stat-tile-label">Total Zero Events</div>
+        <div class="stat-tile-value red" id="statZeros">0</div>
+        <div class="stat-tile-sub">across all calls</div>
+      </div>
+      <div class="stat-tile" data-icon="🔴">
+        <div class="stat-tile-label">Auto-Fail Triggers</div>
+        <div class="stat-tile-value warn" id="statAutoFails">0</div>
+        <div class="stat-tile-sub">auto-fail events fired</div>
+      </div>
+    </div>
+
+    <div id="analysisContent"></div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://uygnkczbbctypleijmls.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5Z25rY3piYmN0eXBsZWlqbWxzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5OTgxNTAsImV4cCI6MjA4OTU3NDE1MH0.CeXH9krVW8YMpkhn6Pw1ThlHKx6r_4_RgybhKBor55k';
+
+let sb = null, currentUser = null, isAdmin = false, agentName = null, allScorecards = [];
+
+function showLoading(on) { document.getElementById('loadingOverlay').style.display = on ? 'flex' : 'none'; }
+function showToast(msg, ok) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (ok === true ? ' ok' : ok === false ? ' err' : '');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// --- Fuzzy matching helpers (same as dashboard) ---
+function normaliseName(n) {
+  return (n || '').toLowerCase().replace(/[^a-z0-9\s]/g, '').trim().split(/\s+/).sort().join(' ');
+}
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array(m + 1);
+  for (let i = 0; i <= m; i++) {
+    dp[i] = Array(n + 1);
+    dp[i][0] = i;
+  }
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (a[i-1] === b[j-1]) dp[i][j] = dp[i-1][j-1];
+      else dp[i][j] = 1 + Math.min(dp[i-1][j-1], dp[i-1][j], dp[i][j-1]);
+    }
+  }
+  return dp[m][n];
+}
+function findMatchingKeyInList(guess, namesList) {
+  const norm = normaliseName(guess);
+  for (const name of namesList) {
+    const normName = normaliseName(name);
+    if (normName === norm) return name;
+  }
+  for (const name of namesList) {
+    if (levenshtein(normaliseName(name), norm) <= 2) return name;
+  }
+  return null;
+}
+
+// --- Auto‑guess agent name from email ---
+async function guessAndSetAgentName() {
+  const email = currentUser.email;
+  const localPart = email.split('@')[0];
+  // Replace dots, underscores, hyphens with spaces
+  const nameGuess = localPart.replace(/[._-]/g, ' ').trim();
+  const parts = nameGuess.split(/\s+/);
+  const possibleNames = [];
+  if (parts.length === 2) {
+    possibleNames.push(parts.join(' '));
+    possibleNames.push(parts.slice().reverse().join(' '));
+  } else if (parts.length > 2) {
+    possibleNames.push(parts.join(' '));
+  } else {
+    possibleNames.push(nameGuess);
+  }
+
+  // Get all distinct agent names from scorecards
+  const { data, error } = await sb.from('scorecards').select('agent_name');
+  if (error || !data) return null;
+  const existingNames = [...new Set(data.map(r => r.agent_name))];
+
+  for (const guess of possibleNames) {
+    const match = findMatchingKeyInList(guess, existingNames);
+    if (match) {
+      const { error: updateError } = await sb.auth.updateUser({
+        data: { agent_name: match }
+      });
+      if (!updateError) {
+        console.log(`Auto‑set agent name to "${match}" for ${email}`);
+        return match;
+      }
+    }
+  }
+  return null;
+}
+
+window.addEventListener('load', async () => {
+  try {
+    if (typeof window.supabase === 'undefined') throw new Error('Supabase SDK not loaded');
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { autoRefreshToken: true, persistSession: true }
+    });
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) {
+      document.body.innerHTML = '<div style="text-align:center;padding:80px;"><h2>Not authenticated</h2><p>Please log in via the ScoreDesk portal.</p></div>';
+      return;
+    }
+    currentUser = session.user;
+    await onLogin();
+  } catch (e) {
+    console.error('Analysis init error:', e);
+    document.body.innerHTML = `<div style="text-align:center;padding:80px;"><h2>Connection error</h2><p>${e.message}</p><button onclick="location.reload()">Retry</button></div>`;
+  }
+});
+
+async function onLogin() {
+  const meta = currentUser.user_metadata || {};
+  isAdmin = (currentUser.email === 'admin@scoredesk.com') || (meta.role === 'admin');
+  agentName = meta.agent_name || null;
+
+  // If not admin and agent name missing, try to guess it
+  if (!isAdmin && !agentName) {
+    const guessed = await guessAndSetAgentName();
+    if (guessed) agentName = guessed;
+  }
+
+  document.getElementById('app').classList.remove('hidden');
+  if (!isAdmin) {
+    const uploadTrigger = document.getElementById('uploadTrigger');
+    if (uploadTrigger) uploadTrigger.style.display = 'none';
+  }
+
+  showLoading(true);
+  await loadScorecards();
+  showLoading(false);
+  renderAll();
+}
+
+async function loadScorecards() {
+  try {
+    let q = sb.from('scorecards').select('*').order('created_at', { ascending: true });
+    if (!isAdmin && agentName) q = q.eq('agent_name', agentName);
+    const { data, error } = await q;
+    if (error) throw error;
+    allScorecards = data || [];
+    document.getElementById('debugBar').style.display = 'flex';
+    document.getElementById('debugText').textContent =
+      `${allScorecards.length} scorecards loaded · ${isAdmin ? 'Admin' : 'Agent'} view${agentName ? ' · ' + agentName : ''}`;
+  } catch (err) {
+    showToast('Load error: ' + err.message, false);
+  }
+}
+
+async function handleFiles(files) {
+  if (!files.length) return;
+  const statusEl = document.getElementById('uploadStatus');
+  statusEl.style.display = 'block';
+  statusEl.textContent = 'Processing ' + files.length + ' file(s)…';
+  for (const file of files) {
+    try {
+      const data = await parseExcel(file);
+      if (!data) continue;
+      const { error } = await sb.from('scorecards').insert(data);
+      if (error) throw error;
+      statusEl.textContent += '\n✓ Uploaded: ' + file.name;
+    } catch (err) {
+      statusEl.textContent += '\n✗ Error with ' + file.name + ': ' + err.message;
+    }
+  }
+  showToast('Upload complete', true);
+  showLoading(true);
+  await loadScorecards();
+  showLoading(false);
+  renderAll();
+  setTimeout(() => { statusEl.style.display = 'none'; }, 5000);
+}
+
+function parseExcel(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+        let agentNameLocal = '', callDate = '', auditor = '', account = '', pass = true, pfReason = '';
+        const criteria = [], auto_fails = [];
+        let inCriteria = false, inZzps = false, currentSection = '';
+
+        rows.forEach(row => {
+          const first  = (row[0] || '').toString().trim();
+          const col1   = (row[1] || '').toString().trim();
+          const col2   = (row[2] || '').toString().trim();
+
+          if      (/advisor name/i.test(first))           agentNameLocal = col2;
+          else if (/call date/i.test(first))              callDate = col2;
+          else if (/auditor/i.test(first))                auditor = col2;
+          else if (/account reference/i.test(first))      account = col2;
+          else if (/ZZPS Quality Score/i.test(first))     { inZzps = true; }
+          else if (inZzps && first && /auto.?fail/i.test(first)) {
+            const val = col1.toUpperCase();
+            auto_fails.push({ source: 'zzps', section: 'ZZPS Summary', label: first, value: val || 'N/A', feedback: col2, triggered: val === 'NO' });
+          }
+          else if (/^pass\s*\/?\s*fail/i.test(first)) {
+            inZzps = false;
+            pass = col1.toUpperCase() === 'PASS';
+            pfReason = col2;
+          }
+          else if (/^(Introduction|Data Protection|Body|Conclusion)\s*$/i.test(first)) {
+            currentSection = first.trim(); inCriteria = true;
+          }
+          else if (inCriteria && first && col1) {
+            const fb = (row[3] || '').toString().trim();
+            if (/auto.?fail/i.test(col1)) {
+              const val = col2.toUpperCase();
+              auto_fails.push({ source: 'criteria', section: currentSection, label: first, value: val || 'N/A', feedback: fb, triggered: val === 'NO' });
+            } else {
+              const w = parseFloat(col1), s = parseFloat(col2);
+              if (!isNaN(w) && w > 0) criteria.push({ section: currentSection, label: first, weight: w, score: isNaN(s) ? null : s, feedback: fb });
+            }
+          }
+        });
+
+        if (!agentNameLocal) agentNameLocal = file.name.replace(/\.xlsx?$/i, '');
+        resolve({ agent_name: agentNameLocal, file_name: file.name, call_date: callDate, auditor, account_ref: account, pass, pf_reason: pfReason, auto_fails, criteria, uploaded_by: currentUser.id });
+      } catch (err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+// ========== renderAll – only show team data for admins ==========
+function renderAll() {
+  const container = document.getElementById('analysisContent');
+
+  if (!allScorecards.length) {
+    document.getElementById('statStrip').style.display = 'none';
+    container.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">📭</div>
+      <div class="empty-title">No scorecards yet</div>
+      <div class="empty-sub">${isAdmin ? 'Upload Excel scorecards to begin analysis.' : 'No scorecards found for your account.'}</div>
+    </div>`;
+    return;
+  }
+
+  // Normalise agent names
+  function canonicalName(n) {
+    return (n || '').toLowerCase().replace(/[^a-z0-9\s]/g, '').trim().split(/\s+/).sort().join(' ');
+  }
+  const nameDisplay = {};
+  allScorecards.forEach(call => {
+    const k = canonicalName(call.agent_name);
+    if (k && !nameDisplay[k]) nameDisplay[k] = call.agent_name;
+  });
+  function displayName(raw) { return nameDisplay[canonicalName(raw)] || raw; }
+
+  // Zero-score maps
+  const zeroMap = {}, agentZeroMap = {};
+  allScorecards.forEach(call => {
+    const agent = displayName(call.agent_name);
+    (call.criteria || []).forEach(cr => {
+      const label = (cr.label || '').trim();
+      const weight = parseFloat(cr.weight || 0);
+      const sn = (cr.score === null || cr.score === '') ? null : parseFloat(cr.score);
+      if (!label || weight <= 0 || sn !== 0 || sn === null) return;
+      const key = label.toLowerCase().replace(/\s+/g, ' ');
+      if (!zeroMap[key]) zeroMap[key] = { label, section: cr.section || '', totalZeros: 0, agents: {} };
+      zeroMap[key].totalZeros++;
+      zeroMap[key].agents[agent] = (zeroMap[key].agents[agent] || 0) + 1;
+      if (!agentZeroMap[agent]) agentZeroMap[agent] = {};
+      agentZeroMap[agent][label] = (agentZeroMap[agent][label] || 0) + 1;
+    });
+  });
+
+  // Auto-fail maps – only store triggered (NO) events
+  const AF_ALIASES = {
+    'data protection/auto fail if not passed': 'Data Protection',
+    'were three points for data protection confirmed?': 'Data Protection',
+    'has authority, if needed, been appropriately captured or granted to an unauthorised third party? auto fail if not passed': 'Authority for Third Party',
+    'was relevant authority obtained for third party': 'Authority for Third Party',
+    'pci dss compliant? call recording restarted? (auto fail if not)': 'PCI DSS Compliant',
+    'have the notes been added? (autofail if not)': 'Notes Added',
+    'do the notes clearly and accurately reflect the call content? has all data captured been correctly recorded? (auto fail if not)': 'Notes Accurate & Complete',
+  };
+  function canonicalAF(label) {
+    return AF_ALIASES[label.toLowerCase().replace(/\s+/g,' ').trim()] || label;
+  }
+
+  const afMap = {}, agentAfMap = {};
+  allScorecards.forEach(call => {
+    const agent = displayName(call.agent_name);
+    const seenThisCall = new Set();
+    (call.auto_fails || []).forEach(af => {
+      const rawLabel = (af.label || '').trim();
+      if (!rawLabel) return;
+      const label    = canonicalAF(rawLabel);
+      const dedupKey = agent + '||' + label;
+      if (seenThisCall.has(dedupKey)) return;
+      seenThisCall.add(dedupKey);
+      const v        = ((af.value || af.val || '')).toString().toUpperCase().trim();
+      const feedback = (af.feedback || af.fb || '').toString().trim();
+      const source   = af.source || 'zzps';
+      const section  = af.section || 'ZZPS Summary';
+      if (v === 'N/A' || v === '') return;
+      const key      = label.toLowerCase().replace(/\s+/g, ' ');
+      if (v === 'NO') {
+        if (!afMap[key]) afMap[key] = { label, section, source, totalTriggers:0, agents:{} };
+        afMap[key].totalTriggers++;
+        afMap[key].agents[agent] = (afMap[key].agents[agent]||0)+1;
+        if (!agentAfMap[agent]) agentAfMap[agent] = {};
+        if (!agentAfMap[agent][label]) agentAfMap[agent][label] = { triggered:0, section, source, latestFb:'' };
+        agentAfMap[agent][label].triggered++;
+        agentAfMap[agent][label].latestFb = feedback;
+      }
+    });
+  });
+
+  const zeroList      = Object.values(zeroMap).sort((a,b) => b.totalZeros - a.totalZeros);
+  const afList        = Object.values(afMap).sort((a,b) => b.totalTriggers - a.totalTriggers);
+  const totalZeroEvts = zeroList.reduce((s,e) => s + e.totalZeros, 0);
+  const totalAfTrigs  = afList.reduce((s,e) => s + e.totalTriggers, 0);
+  const allAgents     = [...new Set([...Object.keys(agentZeroMap), ...Object.keys(agentAfMap)])];
+
+  if (isAdmin) {
+    document.getElementById('statStrip').style.display = 'grid';
+    document.getElementById('statTotal').textContent     = allScorecards.length;
+    document.getElementById('statCriteria').textContent  = zeroList.length;
+    document.getElementById('statAgents').textContent    = allAgents.length;
+    document.getElementById('statZeros').textContent     = totalZeroEvts;
+    document.getElementById('statAutoFails').textContent = totalAfTrigs;
+  } else {
+    document.getElementById('statStrip').style.display = 'none';
+  }
+
+  let html = '';
+
+  if (isAdmin) {
+    if (!zeroList.length && !afList.length) {
+      html += `<div class="success-banner">
+        <div class="success-icon">✅</div>
+        <div><div class="success-text">No zero scores or auto-fail triggers</div><div class="success-sub">All criteria passed and auto-fail checks succeeded.</div></div>
+      </div>`;
+    } else {
+      // Team rows: auto-fails first, then zero scores
+      const teamRows = [];
+      afList.forEach(e => teamRows.push({
+        label: e.label, section: e.section, count: e.totalTriggers, agents: e.agents,
+        badge: `<span class="af-trigger-count">${e.totalTriggers}</span>`,
+        typeBadge: `<span class="source-tag" style="background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.2);color:var(--warn);white-space:nowrap">Auto-Fail</span>`
+      }));
+      zeroList.forEach(e => teamRows.push({
+        label: e.label, section: e.section, count: e.totalZeros, agents: e.agents,
+        badge: `<span class="zero-count-badge">${e.totalZeros}</span>`,
+        typeBadge: `<span class="source-tag" style="background:rgba(244,63,94,.08);border-color:rgba(244,63,94,.2);color:var(--fail);white-space:nowrap">Zero Score</span>`
+      }));
+
+      html += `<div class="section-hdr">
+        <div class="section-hdr-left">
+          <div><div class="section-label">Team Overview</div><div class="section-title">Zero Score Leaderboard</div></div>
+          <span class="section-count">${teamRows.length} criteria</span>
+        </div>
+      </div>
+      <div class="table-card">
+        <table class="zero-table">
+          <thead>
+             <tr><th>#</th><th>Criteria</th><th>Section</th><th>Type</th><th>Count</th><th>Affected Agents</th></tr>
+          </thead>
+          <tbody>`;
+      teamRows.forEach((e, i) => {
+        const rankCls = i===0?'top1':i===1?'top2':i===2?'top3':'';
+        const chips   = Object.entries(e.agents).sort((a,b)=>b[1]-a[1]).map(([a,c])=>`<span class="agent-chip">${a} (${c})</span>`).join('');
+        html += `<tr>
+          <td><span class="rank-badge ${rankCls}">${i+1}</span></td>
+          <td class="wrap"><div class="criteria-cell">${e.label}</div></td>
+          <td><span class="section-cell">${e.section||'—'}</span></td>
+          <td>${e.typeBadge}</td>
+          <td>${e.badge}</td>
+          <td class="wrap"><div class="agent-chips">${chips}</div></td>
+        </tr>`;
+      });
+      html += `</tbody>
+        </table>
+      </div>`;
+
+      // Per-agent sections (admin only)
+      if (allAgents.length) {
+        const sortedAgents = allAgents.sort((a,b) => {
+          const fa = Object.values(agentZeroMap[a]||{}).reduce((s,v)=>s+v,0) + Object.values(agentAfMap[a]||{}).reduce((s,v)=>s+v.triggered,0);
+          const fb = Object.values(agentZeroMap[b]||{}).reduce((s,v)=>s+v,0) + Object.values(agentAfMap[b]||{}).reduce((s,v)=>s+v.triggered,0);
+          return fb - fa;
+        });
+
+        html += `<div class="section-hdr" style="margin-top:32px;">
+          <div class="section-hdr-left">
+            <div><div class="section-label">Drill Down</div><div class="section-title">Per-Agent Failure Breakdown</div></div>
+            <span class="section-count">${sortedAgents.length} agents</span>
+          </div>
+        </div>`;
+
+        sortedAgents.forEach(agent => {
+          const zeros      = agentZeroMap[agent] || {};
+          const afs        = agentAfMap[agent]   || {};
+          const totalZero  = Object.values(zeros).reduce((s,v)=>s+v,0);
+          const totalTrigs = Object.values(afs).reduce((s,v)=>s+v.triggered,0);
+          const totalFails = totalZero + totalTrigs;
+          if (totalFails === 0) return;
+          const ini        = agent.split(' ').map(p=>p[0]||'').join('').slice(0,2).toUpperCase();
+          const sid        = 'ag-' + agent.replace(/\W/g,'_');
+          const borderStyle = totalFails > 0 ? 'border-color:rgba(244,63,94,0.2)' : '';
+          const metaParts  = [];
+          if (totalZero  > 0) metaParts.push(`${totalZero} zero score${totalZero!==1?'s':''}`);
+          if (totalTrigs > 0) metaParts.push(`${totalTrigs} auto-fail trigger${totalTrigs!==1?'s':''}`);
+          const pillTxt   = totalFails > 0 ? `⚠ ${totalFails} failure${totalFails!==1?'s':''}` : `✅ No failures`;
+          const pillStyle = totalFails > 0
+            ? 'background:rgba(244,63,94,.1);border-color:rgba(244,63,94,.3);color:var(--fail)'
+            : 'background:rgba(34,211,160,.08);border-color:rgba(34,211,160,.2);color:var(--pass)';
+
+          html += `<div class="agent-section" id="${sid}" style="${borderStyle}">
+            <div class="agent-section-header" onclick="toggleAgent('${sid}')">
+              <div class="agent-avatar">${ini}</div>
+              <div class="agent-info">
+                <div class="agent-name">${agent}</div>
+                <div class="agent-meta">${metaParts.join(' · ') || 'No failures'}</div>
+              </div>
+              <span class="agent-zero-pill" style="${pillStyle}">${pillTxt}</span>
+              <div class="chevron-btn">▾</div>
+            </div>
+            <div class="agent-section-body">
+              <table class="zero-table">
+                <thead><tr><th>Criteria</th><th>Section</th><th>Type</th><th>Result / Count</th><th>Feedback</th></tr></thead>
+                <tbody>`;
+
+          // Zero scores
+          Object.entries(zeros).sort((a,b)=>b[1]-a[1]).forEach(([crit, count]) => {
+            const sec = zeroMap[crit.toLowerCase().replace(/\s+/g,' ')]?.section || '—';
+            html += `<tr>
+              <td><div class="criteria-cell">${crit}</div></td>
+              <td><span class="section-cell">${sec}</span></td>
+              <td><span class="source-tag" style="background:rgba(244,63,94,.08);border-color:rgba(244,63,94,.2);color:var(--fail)">Zero Score</span></td>
+              <td><span class="zero-count-badge">${count}</span></td>
+              <td>—</td>
+            </tr>`;
+          });
+
+          // Auto-fail triggers
+          Object.entries(afs).sort((a,b)=>b[1].triggered-a[1].triggered).forEach(([crit, data]) => {
+            html += `<tr>
+              <td><div class="criteria-cell">${crit}</div></td>
+              <td><span class="section-cell">${data.section||'—'}</span></td>
+              <td><span class="source-tag" style="background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.2);color:var(--warn)">Auto-Fail</span></td>
+              <td><span class="af-badge triggered">⛔ NO (${data.triggered}×)</span></td>
+              <td><div class="feedback-cell">${data.latestFb||'—'}</div></td>
+            </tr>`;
+          });
+
+          html += `</tbody>
+              </table>
+            </div>
+          </div>`;
+        });
+      }
+    }
+  } else {
+    // AGENT VIEW: only show the agent's own failures
+    const zeros  = agentZeroMap[agentName] || {};
+    const afs    = agentAfMap[agentName]   || {};
+    if (Object.keys(zeros).length || Object.keys(afs).length) {
+      html += `<div class="section-hdr"><div class="section-hdr-left"><div>
+        <div class="section-label">Your Results</div>
+        <div class="section-title">Your Failure Breakdown</div>
+      </div></div></div>
+      <div class="table-card"><table class="zero-table">
+        <thead><tr><th>Criteria</th><th>Section</th><th>Type</th><th>Result / Count</th><th>Feedback</th></tr></thead>
+        <tbody>`;
+      Object.entries(zeros).sort((a,b)=>b[1]-a[1]).forEach(([crit, count]) => {
+        const sec = zeroMap[crit.toLowerCase().replace(/\s+/g,' ')]?.section || '—';
+        html += `<tr>
+          <td><div class="criteria-cell">${crit}</div></td>
+          <td><span class="section-cell">${sec}</span></td>
+          <td><span class="source-tag" style="background:rgba(244,63,94,.08);border-color:rgba(244,63,94,.2);color:var(--fail)">Zero Score</span></td>
+          <td><span class="zero-count-badge">${count}</span></td>
+          <td>—</td>
+        </tr>`;
+      });
+      Object.entries(afs).sort((a,b)=>b[1].triggered-a[1].triggered).forEach(([crit, data]) => {
+        html += `<tr>
+          <td><div class="criteria-cell">${crit}</div></td>
+          <td><span class="section-cell">${data.section||'—'}</span></td>
+          <td><span class="source-tag" style="background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.2);color:var(--warn)">Auto-Fail</span></td>
+          <td><span class="af-badge triggered">⛔ NO (${data.triggered}×)</span></td>
+          <td><div class="feedback-cell">${data.latestFb||'—'}</div></td>
+        </tr>`;
+      });
+      html += `</tbody>
+      </table></div>`;
+    } else {
+      html += `<div class="success-banner">
+        <div class="success-icon">✅</div>
+        <div><div class="success-text">No failures found for you</div><div class="success-sub">Keep up the good work!</div></div>
+      </div>`;
+    }
+  }
+
+  container.innerHTML = html;
+}
+
+function toggleAgent(id) {
+  document.getElementById(id).classList.toggle('open');
+}
+
+document.getElementById('refreshBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('refreshBtn');
+  btn.textContent = '↺  Refreshing…';
+  showLoading(true);
+  await loadScorecards();
+  showLoading(false);
+  renderAll();
+  btn.textContent = '↺  Refresh';
+  showToast('Analysis refreshed', true);
+});
+document.getElementById('fileInputHidden').addEventListener('change', e => { handleFiles(Array.from(e.target.files)); e.target.value = ''; });
+</script>
+</body>
+</html>
