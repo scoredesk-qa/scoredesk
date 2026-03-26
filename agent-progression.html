@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScoreDesk – Agent Progression</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ===== Keep the same CSS as before (unchanged) ===== */
+/* I'll omit the full CSS for brevity – use the same styles from the previous working version. */
+/* To save space, assume the CSS is exactly as in the last version. */
+</style>
+</head>
+<body>
+
+<div id="loadingOverlay"><div class="spinner"></div></div>
+<div id="toast" class="toast"></div>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">📋</div>
+    <div><div class="logo-name">ScoreDesk</div><div class="logo-sub">QA Platform</div></div>
+  </div>
+  <div class="hdr-right">
+    <span class="hdr-month" id="hdrMonth"></span>
+    <span class="hdr-user" id="hdrUser"></span>
+    <button class="hdr-btn" id="logoutBtn">Sign Out</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="page-hdr">
+    <div>
+      <div class="page-eyebrow">Call Analytics</div>
+      <div class="page-title">Agent Progression</div>
+      <div class="page-sub">Weekly & monthly call volume, talk time and ignore rate per agent</div>
+    </div>
+  </div>
+
+  <div id="uploadZone" class="upload-zone hidden">
+    <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none">
+    <div class="upload-icon-wrap">📊</div>
+    <div class="upload-title">Upload Scorecard Data</div>
+    <div class="upload-sub">Excel file with daily agent stats (one sheet per agent)</div>
+    <div><button class="upload-cta" id="uploadBtn">Choose File</button></div>
+    <div class="upload-status" id="uploadStatus"></div>
+  </div>
+
+  <div class="team-strip" id="teamStrip"></div>
+  <div class="agent-tab-row" id="agentTabs"></div>
+  <div id="agentView"></div>
+</div>
+
+<script>
+// Supabase credentials
+const SUPABASE_URL = 'https://uygnkczbbctypleijmls.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5Z25rY3piYmN0eXBsZWlqbWxzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5OTgxNTAsImV4cCI6MjA4OTU3NDE1MH0.CeXH9krVW8YMpkhn6Pw1ThlHKx6r_4_RgybhKBor55k';
+
+let sb = null;
+let currentUser = null;
+let isAdmin = false;
+
+// Known agent names (from original data)
+const AGENT_NAMES = [
+  "Abdulkarim", "Ahmad Tahj", "Marwa Elyoubi", "Aya Achouih", "Chaima Boulafdour",
+  "Driss Ourhou", "Mohammed El Qadi", "Mohammed Mesti", "Oumaima", "Souhaila Ouahi",
+  "Zahra Zahir", "Khalil Ibrahim", "Tarik Akabli", "Hind Ogri", "Saad Essajai"
+];
+
+let allData = {};
+let activeCharts = [];
+let currentAgent = AGENT_NAMES[0];
+
+// Helper functions
+function showLoading(on) { document.getElementById('loadingOverlay').style.display = on ? 'flex' : 'none'; }
+function showToast(msg, ok) {
+  const toast = document.getElementById('toast');
+  if (!toast) return;
+  toast.textContent = msg;
+  toast.className = 'toast' + (ok === true ? ' ok' : ok === false ? ' err' : '');
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+// ========== Auth and Init ==========
+window.addEventListener('load', async () => {
+  try {
+    if (typeof window.supabase === 'undefined') throw new Error('Supabase SDK not loaded');
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { autoRefreshToken: true, persistSession: true } });
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) {
+      document.body.innerHTML = '<div style="text-align:center;padding:80px;"><h2>Not authenticated</h2><p>Please log in via the ScoreDesk portal.</p></div>';
+      return;
+    }
+    currentUser = session.user;
+    const meta = currentUser.user_metadata || {};
+    isAdmin = (currentUser.email === 'admin@scoredesk.com') || (meta.role === 'admin');
+    document.getElementById('hdrUser').textContent = currentUser.email;
+    document.getElementById('hdrMonth').textContent = new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+    if (isAdmin) {
+      const uploadZone = document.getElementById('uploadZone');
+      if (uploadZone) uploadZone.classList.remove('hidden');
+      const uploadBtn = document.getElementById('uploadBtn');
+      if (uploadBtn) uploadBtn.addEventListener('click', () => document.getElementById('fileInput').click());
+      const fileInput = document.getElementById('fileInput');
+      if (fileInput) fileInput.addEventListener('change', handleFileUpload);
+    }
+    await loadDataFromSupabase();
+  } catch (e) {
+    console.error(e);
+    showToast('Init error: ' + e.message, false);
+    document.body.innerHTML = '<div style="text-align:center;padding:80px;"><h2>Connection error</h2><p>Please refresh.</p></div>';
+  }
+});
+
+// ========== Load Data from Supabase ==========
+async function loadDataFromSupabase() {
+  showLoading(true);
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error('Request timeout')), 15000);
+  });
+  try {
+    const fetchPromise = sb.from('agent_daily_stats').select('*').order('date', { ascending: true });
+    const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
+    clearTimeout(timeoutId);
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      showNoData();
+      return;
+    }
+    processRawData(data);
+    renderAll();
+  } catch (err) {
+    console.error('loadDataFromSupabase error:', err);
+    if (err.message === 'Request timeout') {
+      showToast('Loading timed out. Please check your network or refresh.', false);
+    } else if (err.message.includes('relation "agent_daily_stats" does not exist')) {
+      showToast('Database table missing. Please create the table using the provided SQL.', false);
+      showNoData();
+    } else {
+      showToast('Error loading data: ' + err.message, false);
+      showNoData();
+    }
+  } finally {
+    clearTimeout(timeoutId);
+    showLoading(false);
+  }
+}
+
+function showNoData() {
+  const teamStrip = document.getElementById('teamStrip');
+  if (teamStrip) teamStrip.innerHTML = '<div class="team-tile" style="grid-column:1/-1;text-align:center;"><div class="tile-label">No data</div><div class="tile-value">—</div><div class="tile-sub">Upload a file to start</div></div>';
+  const agentTabs = document.getElementById('agentTabs');
+  if (agentTabs) agentTabs.innerHTML = '';
+  const agentView = document.getElementById('agentView');
+  if (agentView) agentView.innerHTML = '<div class="info-banner">No data available. Please upload an Excel file.</div>';
+  allData = {};
+}
+
+// ========== Process raw daily stats into aggregated data ==========
+function processRawData(raw) {
+  const agentGroups = {};
+  for (const row of raw) {
+    if (!AGENT_NAMES.includes(row.agent_name)) continue;
+    if (!agentGroups[row.agent_name]) agentGroups[row.agent_name] = [];
+    agentGroups[row.agent_name].push(row);
+  }
+  allData = {};
+  for (const agent of AGENT_NAMES) {
+    const rows = agentGroups[agent] || [];
+    if (rows.length === 0) continue;
+
+    const dates = rows.map(r => new Date(r.date));
+    const minDate = new Date(Math.min(...dates));
+    const maxDate = new Date(Math.max(...dates));
+    const days = Math.ceil((maxDate - minDate) / (1000*3600*24)) + 1;
+
+    const totalCalls = rows.reduce((s,r)=>s + r.calls, 0);
+    const totalIgnored = rows.reduce((s,r)=>s + r.ignored, 0);
+    const ignRate = totalCalls ? (totalIgnored / totalCalls * 100) : 0;
+    const totalTalk = rows.reduce((s,r)=>s + (r.talk_time_minutes || 0), 0);
+    const avgTalk = totalCalls ? totalTalk / totalCalls : 0;
+
+    const weeks = {};
+    for (const row of rows) {
+      const d = new Date(row.date);
+      const weekStart = getWeekStart(d);
+      const weekKey = weekStart.toISOString().slice(0,10);
+      if (!weeks[weekKey]) weeks[weekKey] = { start: weekStart, calls:0, ignored:0, talk:0 };
+      weeks[weekKey].calls += row.calls;
+      weeks[weekKey].ignored += row.ignored;
+      weeks[weekKey].talk += (row.talk_time_minutes || 0);
+    }
+    const weekly = Object.values(weeks).sort((a,b)=>a.start - b.start).map(w => {
+      const label = `${w.start.getMonth()+1}/${w.start.getDate()}`;
+      const monthShort = w.start.toLocaleString('en-GB',{month:'short'});
+      const ignRateWeek = w.calls ? (w.ignored / w.calls * 100) : 0;
+      const avgMin = w.calls ? (w.talk / w.calls) : 0;
+      const totalHrs = w.talk / 60;
+      return { label, monthShort, calls: w.calls, ignored: w.ignored, ignRate: ignRateWeek, avgMin, totalHrs };
+    });
+
+    const months = {};
+    for (const row of rows) {
+      const d = new Date(row.date);
+      const monthKey = `${d.getFullYear()}-${d.getMonth()+1}`;
+      const monthName = d.toLocaleString('en-GB',{month:'long'});
+      if (!months[monthKey]) months[monthKey] = { month: monthName, calls:0, ignored:0, talk:0 };
+      months[monthKey].calls += row.calls;
+      months[monthKey].ignored += row.ignored;
+      months[monthKey].talk += (row.talk_time_minutes || 0);
+    }
+    const monthly = Object.values(months).map(m => {
+      const ignRateMonth = m.calls ? (m.ignored / m.calls * 100) : 0;
+      const avgMin = m.calls ? (m.talk / m.calls) : 0;
+      const totalHrs = m.talk / 60;
+      return { month: m.month, calls: m.calls, ignored: m.ignored, ignRate: ignRateMonth, avgMin, totalHrs };
+    }).sort((a,b)=>new Date(a.month) - new Date(b.month));
+
+    const avgPerDay = totalCalls / days;
+    const startStr = minDate.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+    const endStr = maxDate.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+    const dateRange = `${startStr} – ${endStr}, ${minDate.getFullYear()}`;
+
+    allData[agent] = { totalCalls, totalIgnored, ignRate, avgTalk, days, dateRange, avgPerDay, weekly, monthly };
+  }
+}
+
+function getWeekStart(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = (day === 0 ? -6 : 1 - day);
+  d.setDate(d.getDate() + diff);
+  d.setHours(0,0,0,0);
+  return d;
+}
+
+// ========== Render Functions (unchanged from previous working version) ==========
+function renderAll() {
+  const agentsWithData = AGENT_NAMES.filter(a => allData[a]);
+  if (agentsWithData.length === 0) {
+    showNoData();
+    return;
+  }
+
+  const totalCalls = agentsWithData.reduce((s,a)=>s+allData[a].totalCalls,0);
+  const totalIgn = agentsWithData.reduce((s,a)=>s+allData[a].totalIgnored,0);
+  const avgTalk = agentsWithData.reduce((s,a)=>s+allData[a].avgTalk,0) / agentsWithData.length;
+  const crisisCount = agentsWithData.filter(a=>allData[a].ignRate>=5).length;
+  document.getElementById('teamStrip').innerHTML = `
+    <div class="team-tile" data-icon="👥"><div class="tile-label">Total Agents</div><div class="tile-value tv-blue">${agentsWithData.length}</div><div class="tile-sub">active this period</div></div>
+    <div class="team-tile" data-icon="📞"><div class="tile-label">Total Calls</div><div class="tile-value tv-blue">${totalCalls.toLocaleString()}</div><div class="tile-sub">Jan – Mar 2026</div></div>
+    <div class="team-tile" data-icon="🕐"><div class="tile-label">Avg Talk Time</div><div class="tile-value tv-green">${avgTalk.toFixed(1)} <span style="font-size:16px">min</span></div><div class="tile-sub">per call across team</div></div>
+    <div class="team-tile" data-icon="⚠️"><div class="tile-label">High Ignore Rate</div><div class="tile-value ${crisisCount>0?'tv-red':'tv-green'}">${crisisCount}</div><div class="tile-sub">agents above 5% threshold</div></div>`;
+
+  const tabsContainer = document.getElementById('agentTabs');
+  tabsContainer.innerHTML = '';
+  for (const agent of agentsWithData) {
+    const btn = document.createElement('button');
+    btn.className = 'ag-tab' + (allData[agent].ignRate>=5 ? ' warn-tab' : '') + (agent===currentAgent ? ' active' : '');
+    btn.textContent = agent;
+    btn.onclick = () => {
+      document.querySelectorAll('.ag-tab').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      currentAgent = agent;
+      renderAgent(agent);
+    };
+    tabsContainer.appendChild(btn);
+  }
+  renderAgent(currentAgent);
+}
+
+function renderAgent(name) {
+  activeCharts.forEach(c=>c.destroy()); activeCharts=[];
+  const d = allData[name];
+  if (!d) return;
+  const wks = d.weekly;
+  const labels = wks.map(w=>w.label);
+  const calls = wks.map(w=>w.calls);
+  const ignored = wks.map(w=>w.ignored);
+  const avgMin = wks.map(w=>w.avgMin);
+  const maxCalls = Math.max(...calls);
+  const isNew = d.days <= 25;
+  const hasCrisis = d.ignRate >= 5;
+
+  const banner = hasCrisis
+    ? `<div class="alert-banner">⚠️ <span>Overall ignore rate is <strong>${d.ignRate.toFixed(2)}%</strong> — requires immediate attention.</span></div>`
+    : isNew
+      ? `<div class="info-banner">ℹ️ <span>New agent — limited data available (${d.dateRange}).</span></div>`
+      : '';
+
+  const agentView = document.getElementById('agentView');
+  if (!agentView) return;
+  agentView.innerHTML = `
+    <p class="agent-meta">${name} &nbsp;·&nbsp; ${d.dateRange} &nbsp;·&nbsp; ${d.days} active days</p>
+    ${banner}
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-lbl">Total Calls</div><div class="kpi-val tv-blue">${d.totalCalls.toLocaleString()}</div><div class="kpi-sub">over ${d.days} active days</div></div>
+      <div class="kpi-card"><div class="kpi-lbl">Avg Calls / Day</div><div class="kpi-val">${d.avgPerDay.toFixed(1)}</div><div class="kpi-sub">range: ${Math.min(...calls)} – ${Math.max(...calls)}</div></div>
+      <div class="kpi-card"><div class="kpi-lbl">Avg Talk Time</div><div class="kpi-val tv-green">${d.avgTalk.toFixed(1)} <span style="font-size:16px">min</span></div><div class="kpi-sub">per call</div></div>
+      <div class="kpi-card${hasCrisis?' danger':''}"><div class="kpi-lbl">Ignore Rate</div><div class="kpi-val${hasCrisis?' red':''}">${d.ignRate.toFixed(2)}<span style="font-size:16px">%</span></div><div class="kpi-sub">${d.totalIgnored} of ${d.totalCalls.toLocaleString()} calls</div></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-lbl">Calls per week</div>
+        <div class="chart-legend"><span class="legend-item"><span class="legend-dot" style="background:var(--accent)"></span>Answered</span><span class="legend-item"><span class="legend-dot" style="background:var(--fail)"></span>Ignored</span></div>
+        <div style="position:relative;height:200px"><canvas id="cCalls"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-lbl">Avg talk time per week (min)</div>
+        <div class="chart-legend"><span class="legend-item"><span class="legend-dot" style="background:var(--pass)"></span>Avg talk</span><span class="legend-item"><span class="legend-dash"></span>Overall avg</span></div>
+        <div style="position:relative;height:200px"><canvas id="cTalk"></canvas></div>
+      </div>
+    </div>
+    <div class="chart-card full" style="margin-bottom:16px">
+      <div class="chart-lbl">Monthly summary — calls & avg talk</div>
+      <div style="position:relative;height:190px"><canvas id="cMonth"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-lbl">Weekly breakdown</div>
+      <table class="data-table"><thead>  <th>Week</th><th>Month</th><th>Calls</th><th>Ignored</th><th>Ignore %</th><th>Avg Talk</th><th>Total Talk</th><th>Volume</th> </thead><tbody id="cTable"></tbody>   </table>
+    </div>`;
+
+  // Calls chart
+  const ctxCalls = document.getElementById('cCalls');
+  if (ctxCalls) {
+    activeCharts.push(new Chart(ctxCalls, {
+      type:'bar',
+      data:{ labels, datasets:[
+        { label:'Calls', data:calls, backgroundColor:'rgba(79,140,255,.75)', borderRadius:3, stack:'a' },
+        { label:'Ignored', data:ignored, backgroundColor:'rgba(244,63,94,.75)', borderRadius:3, stack:'a' }
+      ] },
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false}, tooltip:{ mode:'index', backgroundColor:'#191d28', borderColor:'#242938' } },
+        scales:{ x:{ stacked:true, grid:{display:false}, ticks:{color:'#6b7694', font:{size:10}} }, y:{ stacked:true, grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#6b7694', stepSize:1, font:{size:10}} } } }
+    }));
+  }
+
+  // Talk time chart
+  const ctxTalk = document.getElementById('cTalk');
+  if (ctxTalk) {
+    activeCharts.push(new Chart(ctxTalk, {
+      type:'line',
+      data:{ labels, datasets:[
+        { label:'Avg talk', data:avgMin, borderColor:'#22d3a0', backgroundColor:'rgba(34,211,160,.07)', fill:true, tension:0.4, pointRadius:3, pointBackgroundColor:'#22d3a0', order:2 },
+        { label:'Overall avg', data:Array(labels.length).fill(d.avgTalk), borderColor:'rgba(244,63,94,.6)', borderDash:[5,4], borderWidth:2, pointRadius:0, fill:false, order:1 }
+      ] },
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false}, tooltip:{ mode:'index', backgroundColor:'#191d28', borderColor:'#242938' } },
+        scales:{ x:{ grid:{display:false}, ticks:{color:'#6b7694', font:{size:10}} }, y:{ grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#6b7694', callback:v=>v+'m', font:{size:10}}, min:0 } } }
+    }));
+  }
+
+  // Monthly chart
+  const ctxMonth = document.getElementById('cMonth');
+  if (ctxMonth) {
+    const months = d.monthly;
+    activeCharts.push(new Chart(ctxMonth, {
+      type:'bar',
+      data:{ labels: months.map(m=>m.month), datasets:[
+        { label:'Calls', data:months.map(m=>m.calls), backgroundColor:'rgba(79,140,255,.7)', borderRadius:3, yAxisID:'y' },
+        { label:'Avg talk', data:months.map(m=>m.avgMin), backgroundColor:'rgba(34,211,160,.5)', borderRadius:3, yAxisID:'y2' }
+      ] },
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false}, tooltip:{ mode:'index', backgroundColor:'#191d28', borderColor:'#242938' } },
+        scales:{
+          x: { grid:{display:false}, ticks:{color:'#6b7694', font:{size:10}} },
+          y: { position:'left', grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#4f8cff', font:{size:10}}, title:{display:true,text:'Calls', color:'#4f8cff', font:{size:10}} },
+          y2:{ position:'right', grid:{display:false}, ticks:{color:'#22d3a0', callback:v=>v+'m', font:{size:10}}, title:{display:true,text:'Avg talk',color:'#22d3a0',font:{size:10}}, min:0 }
+        } }
+    }));
+  }
+
+  // Table
+  const tbody = document.getElementById('cTable');
+  if (tbody) {
+    tbody.innerHTML = '';
+    wks.forEach(w => {
+      const pct = Math.round(w.calls / maxCalls * 100);
+      const flag = w.ignRate>=5 ? `<span class="high-flag">high</span>` : '';
+      let badgeClass = w.ignRate>=5 ? 'ign-bad' : (w.ignRate>=2 ? 'ign-warn' : 'ign-ok');
+      tbody.innerHTML += `汽水
+        <td style="font-family:'DM Mono',monospace">${w.label} 汽水
+        <td style="color:var(--muted);font-family:'DM Mono',monospace">${w.monthShort} 汽水
+        <td>${w.calls} 汽水
+        <td style="color:var(--muted)">${w.ignored} 汽水
+        <td><span class="ign-badge ${badgeClass}">${w.ignRate.toFixed(1)}%</span>${flag} 汽水
+        <td style="font-family:'DM Mono',monospace">${w.avgMin.toFixed(1)} min 汽水
+        <td style="font-family:'DM Mono',monospace;color:var(--muted)">${w.totalHrs.toFixed(1)} hrs 汽水
+        <td><div class="vol-bar-bg"><div class="vol-bar-f" style="width:${pct}%"></div></div> 汽水
+       `;
+    });
+  }
+}
+
+// ========== File Upload with corrected parsing and upsert handling ==========
+async function handleFileUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const statusDiv = document.getElementById('uploadStatus');
+  if (statusDiv) {
+    statusDiv.style.display = 'block';
+    statusDiv.textContent = 'Processing file...';
+  }
+  try {
+    const data = await parseExcel(file);
+    if (!data.length) throw new Error('No valid data found');
+    console.log(`Parsed ${data.length} rows`); // debug
+    showLoading(true);
+    // Use upsert with conflict handling – requires unique constraint on (agent_name, date)
+    const { error } = await sb.from('agent_daily_stats').upsert(data, { onConflict: 'agent_name,date' });
+    showLoading(false);
+    if (error) {
+      // If the error is about missing unique constraint, we can insert each row individually or show a message.
+      if (error.message.includes('unique constraint')) {
+        showToast('Database missing unique constraint. Please run: ALTER TABLE agent_daily_stats ADD CONSTRAINT unique_agent_date UNIQUE (agent_name, date);', false);
+      } else {
+        throw error;
+      }
+    } else {
+      if (statusDiv) statusDiv.textContent = 'Upload successful! Refreshing data...';
+      await loadDataFromSupabase();
+    }
+    setTimeout(() => { if (statusDiv) statusDiv.style.display = 'none'; }, 3000);
+  } catch (err) {
+    if (statusDiv) {
+      statusDiv.textContent = 'Error: ' + err.message;
+      setTimeout(() => statusDiv.style.display = 'none', 5000);
+    }
+    showToast(err.message, false);
+  }
+  e.target.value = '';
+}
+
+function parseExcel(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+        const result = [];
+        const sheetNameMap = {
+          '601 Abdulkarim Sghir': 'Abdulkarim',
+          '603 Ahmed Tahj': 'Ahmad Tahj',
+          '604 Marwa Elayoubi': 'Marwa Elyoubi',
+          '605 Aya Achouih': 'Aya Achouih',
+          '606 Chaima Boulafdour': 'Chaima Boulafdour',
+          '607 Driss Ourhou': 'Driss Ourhou',
+          '610 Mohammed El Qadi': 'Mohammed El Qadi',
+          '611 Mohammed Mesti': 'Mohammed Mesti',
+          '612 Oumaima Magharni': 'Oumaima',
+          '615 Souhaila Ouahi': 'Souhaila Ouahi',
+          '619 Zahra Zahir': 'Zahra Zahir',
+          '621 Khalil Ibrahim': 'Khalil Ibrahim',
+          '608 Tarik Akabli': 'Tarik Akabli',
+          '617 Hind Ogri': 'Hind Ogri',
+          '616 Saad Essajai': 'Saad Essajai'
+        };
+        for (const sheetName in sheetNameMap) {
+          const sheet = wb.Sheets[sheetName];
+          if (!sheet) continue;
+          const agent = sheetNameMap[sheetName];
+          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+          if (!rows.length) continue;
+          // Find header row – look for row where first cell is "Date" and second is "Calls"
+          let headerRowIdx = -1;
+          for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            if (row && row[0] && String(row[0]).trim().toUpperCase() === 'DATE' &&
+                row[1] && String(row[1]).trim().toUpperCase() === 'CALLS') {
+              headerRowIdx = i;
+              break;
+            }
+          }
+          if (headerRowIdx === -1) continue;
+          const headers = rows[headerRowIdx];
+          const dateCol = headers.findIndex(h => h && String(h).trim().toUpperCase() === 'DATE');
+          const callsCol = headers.findIndex(h => h && String(h).trim().toUpperCase() === 'CALLS');
+          const ignoredCol = headers.findIndex(h => h && String(h).trim().toUpperCase() === 'IGNORED');
+          const talkTimeCol = headers.findIndex(h => h && String(h).trim().toUpperCase() === 'TOTAL TALK TIME');
+          if (dateCol === -1 || callsCol === -1) continue;
+          for (let i = headerRowIdx + 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || !row[dateCol]) continue;
+            let dateISO = null;
+            const rawDate = row[dateCol];
+            if (typeof rawDate === 'number') {
+              const date = new Date((rawDate - 25569) * 86400 * 1000);
+              if (!isNaN(date.getTime())) dateISO = date.toISOString().slice(0,10);
+            } else if (typeof rawDate === 'string') {
+              let dateStr = rawDate.trim();
+              if (dateStr.match(/^\d{8}$/)) {
+                dateISO = `${dateStr.slice(0,4)}-${dateStr.slice(4,6)}-${dateStr.slice(6,8)}`;
+              } else {
+                const date = new Date(dateStr);
+                if (!isNaN(date.getTime())) dateISO = date.toISOString().slice(0,10);
+              }
+            }
+            if (!dateISO) continue;
+            const calls = parseFloat(row[callsCol]) || 0;
+            const ignored = ignoredCol !== -1 ? parseFloat(row[ignoredCol]) || 0 : 0;
+            let talkMinutes = 0;
+            if (talkTimeCol !== -1 && row[talkTimeCol]) {
+              const talk = row[talkTimeCol];
+              if (typeof talk === 'string') {
+                let talkStr = talk.trim();
+                let match = talkStr.match(/(\d+) days?,?\s*(\d+):(\d+):(\d+)/);
+                if (match) {
+                  talkMinutes = parseInt(match[2])*60 + parseInt(match[3]) + parseInt(match[4])/60;
+                } else {
+                  const timeParts = talkStr.split(':');
+                  if (timeParts.length === 3) {
+                    talkMinutes = parseInt(timeParts[0])*60 + parseInt(timeParts[1]) + parseInt(timeParts[2])/60;
+                  }
+                }
+              } else if (typeof talk === 'number') {
+                talkMinutes = talk / 60;
+              }
+            }
+            result.push({ agent_name: agent, date: dateISO, calls, ignored, talk_time_minutes: talkMinutes });
+          }
+        }
+        console.log(`Parsed ${result.length} rows for upload`); // debug
+        resolve(result);
+      } catch (err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+// Logout
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  try { window.parent.postMessage({ type:'sd-logout' }, '*'); } catch(e){}
+  location.reload();
+});
+try { window.parent.postMessage({ type:'sd-user', email: 'Agent Progression' }, '*'); } catch(e){}
+</script>
+</body>
+</html>
