@@ -588,7 +588,7 @@ function parseExcel(file) {
         const result = [];
         // Map sheet names to internal agent names
         const sheetNameMap = {
-          '601 Abdulkarim Sghir': 'Abdulkarim',
+          '601 Abdulkarim Sghir': 'Abdulkarim Sghir',
           '603 Ahmed Tahj': 'Ahmad Tahj',
           '604 Marwa Elayoubi': 'Marwa Elyoubi',
           '605 Aya Achouih': 'Aya Achouih',
@@ -596,7 +596,7 @@ function parseExcel(file) {
           '607 Driss Ourhou': 'Driss Ourhou',
           '610 Mohammed El Qadi': 'Mohammed El Qadi',
           '611 Mohammed Mesti': 'Mohammed Mesti',
-          '612 Oumaima Magharni': 'Oumaima',
+          '612 Oumaima Magharni': 'Oumaima Magharni',
           '615 Souhaila Ouahi': 'Souhaila Ouahi',
           '619 Zahra Zahir': 'Zahra Zahir',
           '621 Khalil Ibrahim': 'Khalil Ibrahim',
@@ -610,15 +610,75 @@ function parseExcel(file) {
           const agent = sheetNameMap[sheetName];
           const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
           if (!rows.length) continue;
-          // Find the row that contains the headers: likely row 2 (index 1) has "Date", "Calls", "Ignored", "% Ignored", "Total Talk Time", "Ave Talk Time"
+          // Find the header row: look for row where first cell is "Date" and second cell is "Calls"
           let headerRowIdx = -1;
-          for (let i = 0; i < Math.min(5, rows.length); i++) {
+          for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
-            if (row && row[0] && String(row[0]).toUpperCase() === 'DATE') {
+            if (row && row[0] && String(row[0]).trim().toUpperCase() === 'DATE' &&
+                row[1] && String(row[1]).trim().toUpperCase() === 'CALLS') {
               headerRowIdx = i;
               break;
             }
           }
+          if (headerRowIdx === -1) continue;
+          const headers = rows[headerRowIdx];
+          const dateCol = headers.findIndex(h => h && String(h).trim().toUpperCase() === 'DATE');
+          const callsCol = headers.findIndex(h => h && String(h).trim().toUpperCase() === 'CALLS');
+          const ignoredCol = headers.findIndex(h => h && String(h).trim().toUpperCase() === 'IGNORED');
+          const talkTimeCol = headers.findIndex(h => h && String(h).trim().toUpperCase() === 'TOTAL TALK TIME');
+          if (dateCol === -1 || callsCol === -1) continue;
+          // Parse data rows
+          for (let i = headerRowIdx + 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || !row[dateCol]) continue;
+            // Date can be a number (Excel serial) or string
+            let dateISO = null;
+            const rawDate = row[dateCol];
+            if (typeof rawDate === 'number') {
+              const date = new Date((rawDate - 25569) * 86400 * 1000);
+              if (!isNaN(date.getTime())) dateISO = date.toISOString().slice(0,10);
+            } else if (typeof rawDate === 'string') {
+              // Possibly YYYYMMDD or YYYY-MM-DD
+              let dateStr = rawDate.trim();
+              if (dateStr.match(/^\d{8}$/)) {
+                dateISO = `${dateStr.slice(0,4)}-${dateStr.slice(4,6)}-${dateStr.slice(6,8)}`;
+              } else {
+                const date = new Date(dateStr);
+                if (!isNaN(date.getTime())) dateISO = date.toISOString().slice(0,10);
+              }
+            }
+            if (!dateISO) continue;
+            const calls = parseFloat(row[callsCol]) || 0;
+            const ignored = ignoredCol !== -1 ? parseFloat(row[ignoredCol]) || 0 : 0;
+            let talkMinutes = 0;
+            if (talkTimeCol !== -1 && row[talkTimeCol]) {
+              const talk = row[talkTimeCol];
+              if (typeof talk === 'string') {
+                // Parse "HH:MM:SS" or "DD days, HH:MM:SS"
+                let talkStr = talk.trim();
+                let match = talkStr.match(/(\d+) days?,?\s*(\d+):(\d+):(\d+)/);
+                if (match) {
+                  talkMinutes = parseInt(match[2])*60 + parseInt(match[3]) + parseInt(match[4])/60;
+                } else {
+                  const timeParts = talkStr.split(':');
+                  if (timeParts.length === 3) {
+                    talkMinutes = parseInt(timeParts[0])*60 + parseInt(timeParts[1]) + parseInt(timeParts[2])/60;
+                  }
+                }
+              } else if (typeof talk === 'number') {
+                talkMinutes = talk / 60; // assume it's seconds
+              }
+            }
+            result.push({ agent_name: agent, date: dateISO, calls, ignored, talk_time_minutes: talkMinutes });
+          }
+        }
+        resolve(result);
+      } catch (err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}}
           if (headerRowIdx === -1) continue;
           const headers = rows[headerRowIdx];
           const dateCol = headers.findIndex(h => h && h.toString().toUpperCase() === 'DATE');
