@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScoreDesk – Agent Progression</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0d13;--surface:#12151e;--surface2:#191d28;--surface3:#1f2335;
+  --border:#242938;--border2:#2e3448;
+  --accent:#4f8cff;--accent2:#a78bfa;
+  --pass:#22d3a0;--fail:#f43f5e;--warn:#f59e0b;--auto:#e879f9;
+  --text:#e8ecf4;--muted:#6b7694;--muted2:#8a94b8;--radius:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(79,140,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(79,140,255,.02) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;top:-200px;left:50%;transform:translateX(-50%);width:800px;height:500px;background:radial-gradient(ellipse,rgba(79,140,255,.05) 0%,transparent 70%);pointer-events:none;z-index:0;}
+
+/* ===== HEADER ===== */
+.header{display:flex;align-items:center;justify-content:space-between;padding:0 32px;height:52px;border-bottom:1px solid var(--border);background:rgba(18,21,30,.9);backdrop-filter:blur(16px);position:sticky;top:0;z-index:100;position:relative;}
+.header::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));}
+.logo{display:flex;align-items:center;gap:11px;}
+.logo-icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 3px 12px rgba(79,140,255,.25);}
+.logo-name{font-size:14px;font-weight:800;letter-spacing:-.3px;}
+.logo-sub{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
+.hdr-right{display:flex;align-items:center;gap:10px;}
+.hdr-month{font-family:'DM Mono',monospace;font-size:10px;color:var(--accent);background:rgba(79,140,255,.1);border:1px solid rgba(79,140,255,.2);padding:4px 12px;border-radius:5px;}
+.hdr-user{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
+.hdr-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 13px;border-radius:6px;font-size:11px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:600;transition:all .15s;}
+.hdr-btn:hover{border-color:var(--accent);color:var(--accent);}
+.in-iframe .logo{display:none!important;}
+.in-iframe .header{height:44px;padding:0 20px;}
+.in-iframe .hdr-right{margin-left:auto;}
+
+/* ===== MAIN ===== */
+.main{max-width:1300px;margin:0 auto;padding:28px 28px;position:relative;z-index:1;}
+
+/* PAGE HEADER */
+.page-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px;padding-bottom:24px;border-bottom:1px solid var(--border);}
+.page-eyebrow{font-family:'DM Mono',monospace;font-size:10px;color:var(--accent);letter-spacing:2px;text-transform:uppercase;margin-bottom:7px;display:flex;align-items:center;gap:7px;}
+.page-eyebrow::before{content:'';width:14px;height:2px;background:var(--accent);display:inline-block;}
+.page-title{font-size:26px;font-weight:800;letter-spacing:-.5px;margin-bottom:4px;}
+.page-sub{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted2);}
+
+/* TEAM OVERVIEW STRIP */
+.team-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px;}
+.team-tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;position:relative;overflow:hidden;}
+.team-tile::after{content:attr(data-icon);position:absolute;right:14px;top:12px;font-size:24px;opacity:.08;}
+.tile-label{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px;}
+.tile-value{font-size:34px;font-weight:800;line-height:1;letter-spacing:-1.5px;}
+.tile-sub{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-top:5px;}
+.tv-blue{color:var(--accent);}
+.tv-red{color:var(--fail);}
+.tv-green{color:var(--pass);}
+.tv-warn{color:var(--warn);}
+
+/* AGENT TABS */
+.agent-tab-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:24px;}
+.ag-tab{font-family:'DM Mono',monospace;font-size:11px;padding:6px 14px;border-radius:7px;border:1px solid var(--border2);background:transparent;color:var(--muted2);cursor:pointer;transition:all .15s;font-weight:500;}
+.ag-tab:hover{color:var(--text);border-color:var(--muted);}
+.ag-tab.active{background:rgba(79,140,255,.12);border-color:rgba(79,140,255,.35);color:var(--accent);}
+.ag-tab.warn-tab{border-color:rgba(244,63,94,.3);color:var(--fail);}
+.ag-tab.warn-tab.active{background:rgba(244,63,94,.1);border-color:rgba(244,63,94,.4);color:var(--fail);}
+
+/* AGENT VIEW */
+.agent-meta{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted2);margin-bottom:14px;}
+
+.alert-banner{display:flex;align-items:center;gap:10px;background:rgba(244,63,94,.07);border:1px solid rgba(244,63,94,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-family:'DM Mono',monospace;font-size:12px;color:var(--fail);}
+.info-banner{display:flex;align-items:center;gap:10px;background:rgba(79,140,255,.06);border:1px solid rgba(79,140,255,.2);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-family:'DM Mono',monospace;font-size:12px;color:var(--accent);}
+
+/* KPI TILES */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;}
+.kpi-card.danger{border-color:rgba(244,63,94,.25);background:rgba(244,63,94,.04);}
+.kpi-lbl{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px;}
+.kpi-val{font-size:28px;font-weight:800;letter-spacing:-1px;line-height:1;}
+.kpi-val.red{color:var(--fail);}
+.kpi-sub{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-top:5px;}
+
+/* CHARTS */
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;}
+.chart-card.full{grid-column:1/-1;}
+.chart-lbl{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted2);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;}
+.chart-legend{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px;}
+.legend-item{display:flex;align-items:center;gap:6px;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted2);}
+.legend-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
+.legend-dash{width:18px;height:0;border-top:2px dashed var(--fail);}
+
+/* TABLE */
+.data-table{width:100%;border-collapse:collapse;}
+.data-table th{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.7px;text-transform:uppercase;text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--surface2);}
+.data-table td{padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;vertical-align:middle;}
+.data-table tr:last-child td{border-bottom:none;}
+.data-table tbody tr:hover td{background:rgba(79,140,255,.025);}
+.ign-badge{font-family:'DM Mono',monospace;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;}
+.ign-ok{background:rgba(34,211,160,.1);color:var(--pass);}
+.ign-warn{background:rgba(245,158,11,.1);color:var(--warn);}
+.ign-bad{background:rgba(244,63,94,.1);color:var(--fail);}
+.high-flag{font-size:10px;background:rgba(244,63,94,.1);color:var(--fail);padding:1px 6px;border-radius:4px;margin-left:4px;font-family:'DM Mono',monospace;}
+.vol-bar-bg{background:var(--surface3);border-radius:3px;height:5px;width:56px;display:inline-block;vertical-align:middle;}
+.vol-bar-f{height:5px;border-radius:3px;background:var(--accent);}
+
+/* UTILS */
+#loadingOverlay{position:fixed;inset:0;background:rgba(11,13,19,.75);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:9998;}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.hidden{display:none!important;}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:var(--surface);}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+</style>
+</head>
+<body>
+
+<div id="loadingOverlay"><div class="spinner"></div></div>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">📋</div>
+    <div><div class="logo-name">ScoreDesk</div><div class="logo-sub">QA Platform</div></div>
+  </div>
+  <div class="hdr-right">
+    <span class="hdr-month" id="hdrMonth"></span>
+    <span class="hdr-user" id="hdrUser"></span>
+    <button class="hdr-btn" id="logoutBtn">Sign Out</button>
+  </div>
+</div>
+
+<div class="main">
+  <!-- Page Header -->
+  <div class="page-hdr">
+    <div>
+      <div class="page-eyebrow">Call Analytics</div>
+      <div class="page-title">Agent Progression</div>
+      <div class="page-sub">Weekly & monthly call volume, talk time and ignore rate per agent · Jan – Mar 2026</div>
+    </div>
+  </div>
+
+  <!-- Team Overview -->
+  <div class="team-strip" id="teamStrip"></div>
+
+  <!-- Agent Tabs -->
+  <div class="agent-tab-row" id="agentTabs"></div>
+
+  <!-- Agent Content -->
+  <div id="agentView"></div>
+</div>
+
+<script>
+// Iframe detection
+(function(){if(window.self!==window.top)document.documentElement.classList.add('in-iframe');})();
+window.addEventListener('message',function(e){if(e.data&&e.data.type==='sd-logout'){document.getElementById('logoutBtn').click();}});
+
+// ── DATA ─────────────────────────────────────────────────────────────────────
+const ALL = {"Abdulkarim":{"totalCalls":1858,"totalIgnored":13,"ignRate":0.7,"avgTalk":8.0,"days":52,"dateRange":"Jan 05 – Mar 23, 2026","avgPerDay":35.7,"weekly":[{"label":"W2","monthShort":"Jan","calls":192,"ignored":1,"ignRate":0.5,"avgMin":9.7,"totalHrs":30.6},{"label":"W3","monthShort":"Jan","calls":171,"ignored":0,"ignRate":0.0,"avgMin":9.8,"totalHrs":27.6},{"label":"W4","monthShort":"Jan","calls":197,"ignored":1,"ignRate":0.5,"avgMin":8.2,"totalHrs":26.7},{"label":"W5","monthShort":"Jan","calls":208,"ignored":2,"ignRate":1.0,"avgMin":7.6,"totalHrs":26.1},{"label":"W6","monthShort":"Feb","calls":172,"ignored":4,"ignRate":2.3,"avgMin":9.0,"totalHrs":25.6},{"label":"W7","monthShort":"Feb","calls":184,"ignored":2,"ignRate":1.1,"avgMin":7.3,"totalHrs":22.0},{"label":"W8","monthShort":"Feb","calls":42,"ignored":0,"ignRate":0.0,"avgMin":6.8,"totalHrs":4.8},{"label":"W9","monthShort":"Feb","calls":180,"ignored":2,"ignRate":1.1,"avgMin":7.3,"totalHrs":21.5},{"label":"W10","monthShort":"Mar","calls":165,"ignored":0,"ignRate":0.0,"avgMin":7.6,"totalHrs":20.8},{"label":"W11","monthShort":"Mar","calls":174,"ignored":1,"ignRate":0.6,"avgMin":6.4,"totalHrs":18.5},{"label":"W12","monthShort":"Mar","calls":134,"ignored":0,"ignRate":0.0,"avgMin":7.7,"totalHrs":17.3},{"label":"W13","monthShort":"Mar","calls":39,"ignored":0,"ignRate":0.0,"avgMin":6.5,"totalHrs":4.2}],"monthly":[{"month":"January","calls":768,"ignored":4,"ignRate":0.5,"avgMin":8.8,"totalHrs":111.0},{"month":"February","calls":578,"ignored":8,"ignRate":1.4,"avgMin":7.8,"totalHrs":73.8},{"month":"March","calls":512,"ignored":1,"ignRate":0.2,"avgMin":7.2,"totalHrs":60.8}]},"Ahmad Tahj":{"totalCalls":929,"totalIgnored":6,"ignRate":0.65,"avgTalk":10.5,"days":39,"dateRange":"Jan 05 – Mar 23, 2026","avgPerDay":23.8,"weekly":[{"label":"W2","monthShort":"Jan","calls":89,"ignored":0,"ignRate":0.0,"avgMin":15.1,"totalHrs":21.9},{"label":"W3","monthShort":"Jan","calls":107,"ignored":1,"ignRate":0.9,"avgMin":12.3,"totalHrs":21.6},{"label":"W4","monthShort":"Jan","calls":97,"ignored":0,"ignRate":0.0,"avgMin":9.5,"totalHrs":15.0},{"label":"W5","monthShort":"Jan","calls":56,"ignored":1,"ignRate":1.8,"avgMin":9.5,"totalHrs":8.8},{"label":"W6","monthShort":"Feb","calls":98,"ignored":0,"ignRate":0.0,"avgMin":11.5,"totalHrs":17.9},{"label":"W7","monthShort":"Feb","calls":100,"ignored":1,"ignRate":1.0,"avgMin":8.8,"totalHrs":14.6},{"label":"W8","monthShort":"Feb","calls":45,"ignored":3,"ignRate":6.7,"avgMin":10.0,"totalHrs":7.4},{"label":"W9","monthShort":"Feb","calls":93,"ignored":0,"ignRate":0.0,"avgMin":9.1,"totalHrs":13.9},{"label":"W10","monthShort":"Mar","calls":41,"ignored":0,"ignRate":0.0,"avgMin":10.4,"totalHrs":7.1},{"label":"W11","monthShort":"Mar","calls":102,"ignored":0,"ignRate":0.0,"avgMin":9.7,"totalHrs":16.8},{"label":"W12","monthShort":"Mar","calls":74,"ignored":0,"ignRate":0.0,"avgMin":8.8,"totalHrs":11.3},{"label":"W13","monthShort":"Mar","calls":27,"ignored":0,"ignRate":0.0,"avgMin":8.7,"totalHrs":3.9}],"monthly":[{"month":"January","calls":349,"ignored":2,"ignRate":0.6,"avgMin":12.1,"totalHrs":67.3},{"month":"February","calls":336,"ignored":4,"ignRate":1.2,"avgMin":9.8,"totalHrs":53.8},{"month":"March","calls":244,"ignored":0,"ignRate":0.0,"avgMin":9.4,"totalHrs":39.1}]},"Marwa Elyoubi":{"totalCalls":1894,"totalIgnored":57,"ignRate":3.01,"avgTalk":7.8,"days":56,"dateRange":"Jan 05 – Mar 23, 2026","avgPerDay":33.8,"weekly":[{"label":"W2","monthShort":"Jan","calls":152,"ignored":6,"ignRate":3.9,"avgMin":10.2,"totalHrs":25.8},{"label":"W3","monthShort":"Jan","calls":196,"ignored":6,"ignRate":3.1,"avgMin":7.7,"totalHrs":24.9},{"label":"W4","monthShort":"Jan","calls":233,"ignored":2,"ignRate":0.9,"avgMin":6.2,"totalHrs":23.8},{"label":"W5","monthShort":"Jan","calls":203,"ignored":9,"ignRate":4.4,"avgMin":7.4,"totalHrs":25.0},{"label":"W6","monthShort":"Feb","calls":179,"ignored":20,"ignRate":11.2,"avgMin":7.5,"totalHrs":22.6},{"label":"W7","monthShort":"Feb","calls":150,"ignored":5,"ignRate":3.3,"avgMin":7.7,"totalHrs":19.4},{"label":"W8","monthShort":"Feb","calls":164,"ignored":5,"ignRate":3.0,"avgMin":7.2,"totalHrs":19.5},{"label":"W9","monthShort":"Feb","calls":153,"ignored":1,"ignRate":0.7,"avgMin":7.8,"totalHrs":20.1},{"label":"W10","monthShort":"Mar","calls":165,"ignored":0,"ignRate":0.0,"avgMin":7.4,"totalHrs":19.8},{"label":"W11","monthShort":"Mar","calls":140,"ignored":1,"ignRate":0.7,"avgMin":8.7,"totalHrs":19.7},{"label":"W12","monthShort":"Mar","calls":115,"ignored":2,"ignRate":1.7,"avgMin":8.2,"totalHrs":15.6},{"label":"W13","monthShort":"Mar","calls":44,"ignored":0,"ignRate":0.0,"avgMin":5.8,"totalHrs":4.2}],"monthly":[{"month":"January","calls":784,"ignored":23,"ignRate":2.9,"avgMin":7.9,"totalHrs":99.5},{"month":"February","calls":646,"ignored":31,"ignRate":4.8,"avgMin":7.6,"totalHrs":81.7},{"month":"March","calls":464,"ignored":3,"ignRate":0.6,"avgMin":8.0,"totalHrs":59.4}]},"Aya Achouih":{"totalCalls":1936,"totalIgnored":17,"ignRate":0.88,"avgTalk":7.4,"days":52,"dateRange":"Jan 05 – Mar 23, 2026","avgPerDay":37.2,"weekly":[{"label":"W2","monthShort":"Jan","calls":206,"ignored":1,"ignRate":0.5,"avgMin":8.6,"totalHrs":29.1},{"label":"W3","monthShort":"Jan","calls":208,"ignored":1,"ignRate":0.5,"avgMin":7.4,"totalHrs":25.5},{"label":"W4","monthShort":"Jan","calls":210,"ignored":1,"ignRate":0.5,"avgMin":7.2,"totalHrs":24.9},{"label":"W5","monthShort":"Jan","calls":159,"ignored":5,"ignRate":3.1,"avgMin":8.0,"totalHrs":21.0},{"label":"W6","monthShort":"Feb","calls":158,"ignored":5,"ignRate":3.2,"avgMin":8.3,"totalHrs":21.7},{"label":"W7","monthShort":"Feb","calls":107,"ignored":0,"ignRate":0.0,"avgMin":7.4,"totalHrs":15.8},{"label":"W8","monthShort":"Feb","calls":183,"ignored":1,"ignRate":0.5,"avgMin":7.4,"totalHrs":22.2},{"label":"W9","monthShort":"Feb","calls":190,"ignored":0,"ignRate":0.0,"avgMin":6.7,"totalHrs":21.3},{"label":"W10","monthShort":"Mar","calls":191,"ignored":2,"ignRate":1.0,"avgMin":7.0,"totalHrs":22.2},{"label":"W11","monthShort":"Mar","calls":167,"ignored":0,"ignRate":0.0,"avgMin":6.4,"totalHrs":18.3},{"label":"W12","monthShort":"Mar","calls":119,"ignored":1,"ignRate":0.8,"avgMin":7.0,"totalHrs":13.8},{"label":"W13","monthShort":"Mar","calls":38,"ignored":0,"ignRate":0.0,"avgMin":8.2,"totalHrs":5.2}],"monthly":[{"month":"January","calls":783,"ignored":8,"ignRate":1.0,"avgMin":7.8,"totalHrs":100.4},{"month":"February","calls":638,"ignored":6,"ignRate":0.9,"avgMin":7.4,"totalHrs":81.1},{"month":"March","calls":515,"ignored":3,"ignRate":0.6,"avgMin":6.9,"totalHrs":59.4}]},"Chaima Boulafdour":{"totalCalls":1282,"totalIgnored":17,"ignRate":1.33,"avgTalk":9.9,"days":50,"dateRange":"Jan 05 – Mar 23, 2026","avgPerDay":25.6,"weekly":[{"label":"W2","monthShort":"Jan","calls":104,"ignored":1,"ignRate":1.0,"avgMin":13.5,"totalHrs":23.2},{"label":"W3","monthShort":"Jan","calls":99,"ignored":1,"ignRate":1.0,"avgMin":11.1,"totalHrs":17.8},{"label":"W4","monthShort":"Jan","calls":30,"ignored":0,"ignRate":0.0,"avgMin":9.3,"totalHrs":4.6},{"label":"W5","monthShort":"Jan","calls":69,"ignored":1,"ignRate":1.4,"avgMin":10.5,"totalHrs":12.9},{"label":"W6","monthShort":"Feb","calls":129,"ignored":9,"ignRate":7.0,"avgMin":10.6,"totalHrs":22.6},{"label":"W7","monthShort":"Feb","calls":148,"ignored":2,"ignRate":1.4,"avgMin":9.3,"totalHrs":22.8},{"label":"W8","monthShort":"Feb","calls":130,"ignored":1,"ignRate":0.8,"avgMin":10.4,"totalHrs":21.8},{"label":"W9","monthShort":"Feb","calls":159,"ignored":0,"ignRate":0.0,"avgMin":8.1,"totalHrs":20.8},{"label":"W10","monthShort":"Mar","calls":124,"ignored":1,"ignRate":0.8,"avgMin":10.0,"totalHrs":20.5},{"label":"W11","monthShort":"Mar","calls":126,"ignored":1,"ignRate":0.8,"avgMin":8.4,"totalHrs":17.8},{"label":"W12","monthShort":"Mar","calls":124,"ignored":0,"ignRate":0.0,"avgMin":8.4,"totalHrs":16.8},{"label":"W13","monthShort":"Mar","calls":40,"ignored":0,"ignRate":0.0,"avgMin":6.9,"totalHrs":4.6}],"monthly":[{"month":"January","calls":302,"ignored":3,"ignRate":1.0,"avgMin":11.6,"totalHrs":58.5},{"month":"February","calls":566,"ignored":12,"ignRate":2.1,"avgMin":9.6,"totalHrs":88.0},{"month":"March","calls":414,"ignored":2,"ignRate":0.5,"avgMin":8.8,"totalHrs":59.6}]},"Driss Ourhou":{"totalCalls":1292,"totalIgnored":92,"ignRate":7.12,"avgTalk":8.5,"days":47,"dateRange":"Jan 05 – Mar 23, 2026","avgPerDay":27.5,"weekly":[{"label":"W2","monthShort":"Jan","calls":29,"ignored":1,"ignRate":3.4,"avgMin":9.5,"totalHrs":4.6},{"label":"W3","monthShort":"Jan","calls":140,"ignored":11,"ignRate":7.9,"avgMin":10.3,"totalHrs":23.3},{"label":"W4","monthShort":"Jan","calls":166,"ignored":2,"ignRate":1.2,"avgMin":8.1,"totalHrs":22.1},{"label":"W5","monthShort":"Jan","calls":155,"ignored":3,"ignRate":1.9,"avgMin":8.5,"totalHrs":21.4},{"label":"W6","monthShort":"Feb","calls":140,"ignored":8,"ignRate":5.7,"avgMin":8.9,"totalHrs":20.5},{"label":"W7","monthShort":"Feb","calls":124,"ignored":23,"ignRate":18.5,"avgMin":8.2,"totalHrs":17.1},{"label":"W8","monthShort":"Feb","calls":103,"ignored":23,"ignRate":22.3,"avgMin":10.0,"totalHrs":16.8},{"label":"W9","monthShort":"Feb","calls":64,"ignored":17,"ignRate":26.6,"avgMin":10.2,"totalHrs":10.8},{"label":"W10","monthShort":"Mar","calls":87,"ignored":1,"ignRate":1.1,"avgMin":7.0,"totalHrs":10.1},{"label":"W11","monthShort":"Mar","calls":138,"ignored":3,"ignRate":2.2,"avgMin":6.4,"totalHrs":14.5},{"label":"W12","monthShort":"Mar","calls":110,"ignored":0,"ignRate":0.0,"avgMin":7.4,"totalHrs":13.5},{"label":"W13","monthShort":"Mar","calls":36,"ignored":0,"ignRate":0.0,"avgMin":8.2,"totalHrs":4.9}],"monthly":[{"month":"January","calls":490,"ignored":17,"ignRate":3.5,"avgMin":9.0,"totalHrs":71.4},{"month":"February","calls":431,"ignored":71,"ignRate":16.5,"avgMin":9.2,"totalHrs":65.1},{"month":"March","calls":371,"ignored":4,"ignRate":1.1,"avgMin":6.9,"totalHrs":43.0}]},"Mohammed El Qadi":{"totalCalls":1191,"totalIgnored":9,"ignRate":0.76,"avgTalk":9.5,"days":43,"dateRange":"Jan 05 – Mar 23, 2026","avgPerDay":27.7,"weekly":[{"label":"W2","monthShort":"Jan","calls":113,"ignored":0,"ignRate":0.0,"avgMin":13.1,"totalHrs":24.8},{"label":"W3","monthShort":"Jan","calls":119,"ignored":2,"ignRate":1.7,"avgMin":8.8,"totalHrs":17.2},{"label":"W4","monthShort":"Jan","calls":173,"ignored":1,"ignRate":0.6,"avgMin":8.3,"totalHrs":23.6},{"label":"W5","monthShort":"Jan","calls":48,"ignored":0,"ignRate":0.0,"avgMin":9.9,"totalHrs":7.8},{"label":"W6","monthShort":"Feb","calls":126,"ignored":1,"ignRate":0.8,"avgMin":11.1,"totalHrs":22.8},{"label":"W7","monthShort":"Feb","calls":125,"ignored":0,"ignRate":0.0,"avgMin":9.3,"totalHrs":18.2},{"label":"W8","monthShort":"Feb","calls":85,"ignored":1,"ignRate":1.2,"avgMin":9.3,"totalHrs":13.1},{"label":"W9","monthShort":"Feb","calls":130,"ignored":1,"ignRate":0.8,"avgMin":7.4,"totalHrs":15.5},{"label":"W10","monthShort":"Mar","calls":113,"ignored":1,"ignRate":0.9,"avgMin":8.2,"totalHrs":15.4},{"label":"W11","monthShort":"Mar","calls":57,"ignored":1,"ignRate":1.8,"avgMin":7.2,"totalHrs":6.8},{"label":"W12","monthShort":"Mar","calls":69,"ignored":1,"ignRate":1.4,"avgMin":10.0,"totalHrs":11.5},{"label":"W13","monthShort":"Mar","calls":33,"ignored":0,"ignRate":0.0,"avgMin":9.3,"totalHrs":5.1}],"monthly":[{"month":"January","calls":453,"ignored":3,"ignRate":0.7,"avgMin":10.1,"totalHrs":73.4},{"month":"February","calls":466,"ignored":3,"ignRate":0.6,"avgMin":9.4,"totalHrs":69.7},{"month":"March","calls":272,"ignored":3,"ignRate":1.1,"avgMin":8.6,"totalHrs":38.8}]},"Mohammed Mesti":{"totalCalls":1875,"totalIgnored":137,"ignRate":7.31,"avgTalk":6.8,"days":56,"dateRange":"Jan 05 – Mar 23, 2026","avgPerDay":33.5,"weekly":[{"label":"W2","monthShort":"Jan","calls":165,"ignored":12,"ignRate":7.3,"avgMin":8.1,"totalHrs":21.8},{"label":"W3","monthShort":"Jan","calls":167,"ignored":22,"ignRate":13.2,"avgMin":7.5,"totalHrs":20.8},{"label":"W4","monthShort":"Jan","calls":215,"ignored":9,"ignRate":4.2,"avgMin":6.2,"totalHrs":22.1},{"label":"W5","monthShort":"Jan","calls":180,"ignored":36,"ignRate":20.0,"avgMin":6.9,"totalHrs":20.7},{"label":"W6","monthShort":"Feb","calls":153,"ignored":35,"ignRate":22.9,"avgMin":8.6,"totalHrs":21.8},{"label":"W7","monthShort":"Feb","calls":115,"ignored":10,"ignRate":8.7,"avgMin":7.2,"totalHrs":13.9},{"label":"W8","monthShort":"Feb","calls":158,"ignored":10,"ignRate":6.3,"avgMin":6.2,"totalHrs":16.3},{"label":"W9","monthShort":"Feb","calls":160,"ignored":1,"ignRate":0.6,"avgMin":6.1,"totalHrs":16.1},{"label":"W10","monthShort":"Mar","calls":163,"ignored":0,"ignRate":0.0,"avgMin":6.4,"totalHrs":17.3},{"label":"W11","monthShort":"Mar","calls":170,"ignored":1,"ignRate":0.6,"avgMin":5.8,"totalHrs":16.5},{"label":"W12","monthShort":"Mar","calls":183,"ignored":1,"ignRate":0.5,"avgMin":6.0,"totalHrs":18.2},{"label":"W13","monthShort":"Mar","calls":46,"ignored":0,"ignRate":0.0,"avgMin":6.4,"totalHrs":4.9}],"monthly":[{"month":"January","calls":727,"ignored":79,"ignRate":10.9,"avgMin":7.2,"totalHrs":85.5},{"month":"February","calls":586,"ignored":56,"ignRate":9.6,"avgMin":7.0,"totalHrs":68.2},{"month":"March","calls":562,"ignored":2,"ignRate":0.4,"avgMin":6.1,"totalHrs":56.9}]},"Oumaima":{"totalCalls":1819,"totalIgnored":7,"ignRate":0.38,"avgTalk":7.7,"days":53,"dateRange":"Jan 05 – Mar 23, 2026","avgPerDay":34.3,"weekly":[{"label":"W2","monthShort":"Jan","calls":126,"ignored":1,"ignRate":0.8,"avgMin":10.8,"totalHrs":22.4},{"label":"W3","monthShort":"Jan","calls":149,"ignored":0,"ignRate":0.0,"avgMin":10.6,"totalHrs":26.1},{"label":"W4","monthShort":"Jan","calls":129,"ignored":0,"ignRate":0.0,"avgMin":9.4,"totalHrs":20.2},{"label":"W5","monthShort":"Jan","calls":162,"ignored":0,"ignRate":0.0,"avgMin":9.3,"totalHrs":24.4},{"label":"W6","monthShort":"Feb","calls":177,"ignored":1,"ignRate":0.6,"avgMin":7.6,"totalHrs":22.4},{"label":"W7","monthShort":"Feb","calls":140,"ignored":1,"ignRate":0.7,"avgMin":6.9,"totalHrs":16.1},{"label":"W8","monthShort":"Feb","calls":169,"ignored":2,"ignRate":1.2,"avgMin":7.4,"totalHrs":20.6},{"label":"W9","monthShort":"Feb","calls":181,"ignored":0,"ignRate":0.0,"avgMin":6.5,"totalHrs":19.3},{"label":"W10","monthShort":"Mar","calls":189,"ignored":1,"ignRate":0.5,"avgMin":6.1,"totalHrs":19.1},{"label":"W11","monthShort":"Mar","calls":178,"ignored":1,"ignRate":0.6,"avgMin":5.7,"totalHrs":16.9},{"label":"W12","monthShort":"Mar","calls":174,"ignored":0,"ignRate":0.0,"avgMin":5.9,"totalHrs":17.1},{"label":"W13","monthShort":"Mar","calls":45,"ignored":0,"ignRate":0.0,"avgMin":7.0,"totalHrs":5.3}],"monthly":[{"month":"January","calls":566,"ignored":1,"ignRate":0.2,"avgMin":10.0,"totalHrs":93.0},{"month":"February","calls":667,"ignored":4,"ignRate":0.6,"avgMin":7.1,"totalHrs":78.4},{"month":"March","calls":586,"ignored":2,"ignRate":0.3,"avgMin":6.0,"totalHrs":58.4}]},"Souhaila Ouahi":{"totalCalls":1734,"totalIgnored":10,"ignRate":0.58,"avgTalk":8.9,"days":56,"dateRange":"Jan 05 – Mar 23, 2026","avgPerDay":31.0,"weekly":[{"label":"W2","monthShort":"Jan","calls":170,"ignored":2,"ignRate":1.2,"avgMin":9.6,"totalHrs":27.2},{"label":"W3","monthShort":"Jan","calls":154,"ignored":0,"ignRate":0.0,"avgMin":10.3,"totalHrs":25.8},{"label":"W4","monthShort":"Jan","calls":155,"ignored":0,"ignRate":0.0,"avgMin":8.8,"totalHrs":23.1},{"label":"W5","monthShort":"Jan","calls":150,"ignored":1,"ignRate":0.7,"avgMin":10.7,"totalHrs":26.6},{"label":"W6","monthShort":"Feb","calls":151,"ignored":0,"ignRate":0.0,"avgMin":10.8,"totalHrs":26.7},{"label":"W7","monthShort":"Feb","calls":168,"ignored":0,"ignRate":0.0,"avgMin":9.3,"totalHrs":25.8},{"label":"W8","monthShort":"Feb","calls":160,"ignored":2,"ignRate":1.2,"avgMin":8.7,"totalHrs":23.0},{"label":"W9","monthShort":"Feb","calls":106,"ignored":2,"ignRate":1.9,"avgMin":9.3,"totalHrs":15.8},{"label":"W10","monthShort":"Mar","calls":146,"ignored":0,"ignRate":0.0,"avgMin":8.5,"totalHrs":20.7},{"label":"W11","monthShort":"Mar","calls":163,"ignored":1,"ignRate":0.6,"avgMin":5.9,"totalHrs":16.2},{"label":"W12","monthShort":"Mar","calls":168,"ignored":2,"ignRate":1.2,"avgMin":5.9,"totalHrs":16.6},{"label":"W13","monthShort":"Mar","calls":43,"ignored":0,"ignRate":0.0,"avgMin":6.6,"totalHrs":4.8}],"monthly":[{"month":"January","calls":629,"ignored":3,"ignRate":0.5,"avgMin":9.9,"totalHrs":102.6},{"month":"February","calls":585,"ignored":4,"ignRate":0.7,"avgMin":9.5,"totalHrs":91.3},{"month":"March","calls":520,"ignored":3,"ignRate":0.6,"avgMin":6.8,"totalHrs":58.2}]},"Zahra Zahir":{"totalCalls":1556,"totalIgnored":25,"ignRate":1.61,"avgTalk":7.3,"days":47,"dateRange":"Jan 05 – Mar 20, 2026","avgPerDay":33.1,"weekly":[{"label":"W2","monthShort":"Jan","calls":146,"ignored":0,"ignRate":0.0,"avgMin":7.7,"totalHrs":18.8},{"label":"W3","monthShort":"Jan","calls":145,"ignored":6,"ignRate":4.1,"avgMin":7.1,"totalHrs":17.1},{"label":"W4","monthShort":"Jan","calls":170,"ignored":0,"ignRate":0.0,"avgMin":7.6,"totalHrs":21.7},{"label":"W5","monthShort":"Jan","calls":164,"ignored":5,"ignRate":3.0,"avgMin":7.2,"totalHrs":19.5},{"label":"W6","monthShort":"Feb","calls":110,"ignored":7,"ignRate":6.4,"avgMin":7.8,"totalHrs":14.3},{"label":"W7","monthShort":"Feb","calls":169,"ignored":2,"ignRate":1.2,"avgMin":7.4,"totalHrs":20.7},{"label":"W8","monthShort":"Feb","calls":131,"ignored":2,"ignRate":1.5,"avgMin":7.1,"totalHrs":15.6},{"label":"W9","monthShort":"Feb","calls":175,"ignored":1,"ignRate":0.6,"avgMin":6.6,"totalHrs":18.4},{"label":"W10","monthShort":"Mar","calls":90,"ignored":0,"ignRate":0.0,"avgMin":8.0,"totalHrs":11.0},{"label":"W11","monthShort":"Mar","calls":133,"ignored":2,"ignRate":1.5,"avgMin":6.5,"totalHrs":14.5},{"label":"W12","monthShort":"Mar","calls":123,"ignored":0,"ignRate":0.0,"avgMin":7.8,"totalHrs":15.5}],"monthly":[{"month":"January","calls":625,"ignored":11,"ignRate":1.8,"avgMin":7.4,"totalHrs":77.1},{"month":"February","calls":585,"ignored":12,"ignRate":2.1,"avgMin":7.2,"totalHrs":68.9},{"month":"March","calls":346,"ignored":2,"ignRate":0.6,"avgMin":7.4,"totalHrs":41.0}]},"Khalil Ibrahim":{"totalCalls":1454,"totalIgnored":53,"ignRate":3.65,"avgTalk":9.3,"days":47,"dateRange":"Jan 05 – Mar 23, 2026","avgPerDay":30.9,"weekly":[{"label":"W2","monthShort":"Jan","calls":121,"ignored":22,"ignRate":18.2,"avgMin":11.3,"totalHrs":22.7},{"label":"W3","monthShort":"Jan","calls":124,"ignored":10,"ignRate":8.1,"avgMin":11.9,"totalHrs":24.3},{"label":"W4","monthShort":"Jan","calls":168,"ignored":4,"ignRate":2.4,"avgMin":9.4,"totalHrs":24.2},{"label":"W5","monthShort":"Jan","calls":91,"ignored":1,"ignRate":1.1,"avgMin":9.3,"totalHrs":14.2},{"label":"W6","monthShort":"Feb","calls":77,"ignored":1,"ignRate":1.3,"avgMin":10.7,"totalHrs":13.6},{"label":"W7","monthShort":"Feb","calls":152,"ignored":3,"ignRate":2.0,"avgMin":9.6,"totalHrs":23.7},{"label":"W8","monthShort":"Feb","calls":145,"ignored":1,"ignRate":0.7,"avgMin":9.1,"totalHrs":22.1},{"label":"W9","monthShort":"Feb","calls":185,"ignored":0,"ignRate":0.0,"avgMin":8.3,"totalHrs":25.2},{"label":"W10","monthShort":"Mar","calls":108,"ignored":0,"ignRate":0.0,"avgMin":6.8,"totalHrs":12.1},{"label":"W11","monthShort":"Mar","calls":113,"ignored":11,"ignRate":9.7,"avgMin":7.6,"totalHrs":14.4},{"label":"W12","monthShort":"Mar","calls":131,"ignored":0,"ignRate":0.0,"avgMin":7.2,"totalHrs":15.1},{"label":"W13","monthShort":"Mar","calls":39,"ignored":0,"ignRate":0.0,"avgMin":8.2,"totalHrs":5.3}],"monthly":[{"month":"January","calls":504,"ignored":37,"ignRate":7.3,"avgMin":10.6,"totalHrs":85.5},{"month":"February","calls":559,"ignored":5,"ignRate":0.9,"avgMin":9.3,"totalHrs":84.5},{"month":"March","calls":391,"ignored":11,"ignRate":2.8,"avgMin":7.4,"totalHrs":46.9}]},"Tarik Akabli":{"totalCalls":327,"totalIgnored":3,"ignRate":0.92,"avgTalk":8.7,"days":18,"dateRange":"Feb 25 – Mar 23, 2026","avgPerDay":18.2,"weekly":[{"label":"W9","monthShort":"Feb","calls":13,"ignored":0,"ignRate":0.0,"avgMin":11.6,"totalHrs":2.5},{"label":"W10","monthShort":"Mar","calls":24,"ignored":1,"ignRate":4.2,"avgMin":9.8,"totalHrs":3.9},{"label":"W11","monthShort":"Mar","calls":100,"ignored":1,"ignRate":1.0,"avgMin":8.9,"totalHrs":14.4},{"label":"W12","monthShort":"Mar","calls":151,"ignored":1,"ignRate":0.7,"avgMin":6.1,"totalHrs":15.3},{"label":"W13","monthShort":"Mar","calls":39,"ignored":0,"ignRate":0.0,"avgMin":7.3,"totalHrs":4.8}],"monthly":[{"month":"February","calls":13,"ignored":0,"ignRate":0.0,"avgMin":11.6,"totalHrs":2.5},{"month":"March","calls":314,"ignored":3,"ignRate":1.0,"avgMin":8.1,"totalHrs":38.4}]},"Hind Ogri":{"totalCalls":317,"totalIgnored":6,"ignRate":1.89,"avgTalk":10.0,"days":19,"dateRange":"Feb 25 – Mar 23, 2026","avgPerDay":16.7,"weekly":[{"label":"W9","monthShort":"Feb","calls":21,"ignored":6,"ignRate":28.6,"avgMin":8.0,"totalHrs":3.1},{"label":"W10","monthShort":"Mar","calls":34,"ignored":0,"ignRate":0.0,"avgMin":11.1,"totalHrs":6.1},{"label":"W11","monthShort":"Mar","calls":115,"ignored":0,"ignRate":0.0,"avgMin":9.3,"totalHrs":17.7},{"label":"W12","monthShort":"Mar","calls":121,"ignored":0,"ignRate":0.0,"avgMin":10.6,"totalHrs":20.5},{"label":"W13","monthShort":"Mar","calls":26,"ignored":0,"ignRate":0.0,"avgMin":12.0,"totalHrs":5.2}],"monthly":[{"month":"February","calls":21,"ignored":6,"ignRate":28.6,"avgMin":8.0,"totalHrs":3.1},{"month":"March","calls":296,"ignored":0,"ignRate":0.0,"avgMin":10.4,"totalHrs":49.5}]},"Saad Essajai":{"totalCalls":291,"totalIgnored":3,"ignRate":1.03,"avgTalk":10.2,"days":18,"dateRange":"Feb 26 – Mar 23, 2026","avgPerDay":16.2,"weekly":[{"label":"W9","monthShort":"Feb","calls":5,"ignored":0,"ignRate":0.0,"avgMin":12.6,"totalHrs":1.0},{"label":"W10","monthShort":"Mar","calls":23,"ignored":0,"ignRate":0.0,"avgMin":10.9,"totalHrs":4.0},{"label":"W11","monthShort":"Mar","calls":98,"ignored":1,"ignRate":1.0,"avgMin":10.6,"totalHrs":17.2},{"label":"W12","monthShort":"Mar","calls":130,"ignored":2,"ignRate":1.5,"avgMin":8.5,"totalHrs":18.0},{"label":"W13","monthShort":"Mar","calls":35,"ignored":0,"ignRate":0.0,"avgMin":8.9,"totalHrs":5.2}],"monthly":[{"month":"February","calls":5,"ignored":0,"ignRate":0.0,"avgMin":12.6,"totalHrs":1.0},{"month":"March","calls":286,"ignored":3,"ignRate":1.0,"avgMin":9.9,"totalHrs":44.4}]}};
+
+const HIGH_IGN = new Set(['Mohammed Mesti','Driss Ourhou','Khalil Ibrahim']);
+const agentNames = Object.keys(ALL);
+let activeCharts = [];
+let currentAgent = agentNames[0];
+
+// ── CHART CONFIG ──────────────────────────────────────────
+const GRID_CLR = 'rgba(255,255,255,0.05)';
+const TICK = { color:'#6b7694', font:{ family:'DM Mono, monospace', size:10 } };
+
+function tc(extra){ return Object.assign({ backgroundColor:'#191d28', borderColor:'#242938', borderWidth:1, titleColor:'#e8ecf4', bodyColor:'#6b7694' }, extra||{}); }
+
+// ── TEAM OVERVIEW ─────────────────────────────────────────
+function buildTeamStrip() {
+  const names = agentNames;
+  const totalCalls  = names.reduce((s,n)=>s+ALL[n].totalCalls,0);
+  const totalIgn    = names.reduce((s,n)=>s+ALL[n].totalIgnored,0);
+  const avgTalk     = (names.reduce((s,n)=>s+ALL[n].avgTalk,0)/names.length).toFixed(1);
+  const teamIgnRate = (totalIgn/totalCalls*100).toFixed(2);
+  const crisisCount = names.filter(n=>ALL[n].ignRate>=5).length;
+
+  document.getElementById('teamStrip').innerHTML = `
+    <div class="team-tile" data-icon="👥"><div class="tile-label">Total Agents</div><div class="tile-value tv-blue">${names.length}</div><div class="tile-sub">active this period</div></div>
+    <div class="team-tile" data-icon="📞"><div class="tile-label">Total Calls</div><div class="tile-value tv-blue">${totalCalls.toLocaleString()}</div><div class="tile-sub">Jan – Mar 2026</div></div>
+    <div class="team-tile" data-icon="🕐"><div class="tile-label">Avg Talk Time</div><div class="tile-value tv-green">${avgTalk} <span style="font-size:16px">min</span></div><div class="tile-sub">per call across team</div></div>
+    <div class="team-tile" data-icon="⚠️"><div class="tile-label">High Ignore Rate</div><div class="tile-value ${crisisCount>0?'tv-red':'tv-green'}">${crisisCount}</div><div class="tile-sub">agents above 5% threshold</div></div>`;
+}
+
+// ── AGENT TABS ────────────────────────────────────────────
+function buildTabs() {
+  const el = document.getElementById('agentTabs');
+  agentNames.forEach(name => {
+    const btn = document.createElement('button');
+    btn.className = 'ag-tab' + (HIGH_IGN.has(name)?' warn-tab':'') + (name===currentAgent?' active':'');
+    btn.textContent = name;
+    btn.onclick = () => {
+      document.querySelectorAll('.ag-tab').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      currentAgent = name;
+      renderAgent(name);
+    };
+    el.appendChild(btn);
+  });
+}
+
+// ── IGN BADGE ─────────────────────────────────────────────
+function ignBadge(r) {
+  if (r >= 5)  return `<span class="ign-badge ign-bad">${r.toFixed(1)}%</span>`;
+  if (r >= 2)  return `<span class="ign-badge ign-warn">${r.toFixed(1)}%</span>`;
+  return `<span class="ign-badge ign-ok">${r.toFixed(1)}%</span>`;
+}
+
+// ── RENDER AGENT ──────────────────────────────────────────
+function renderAgent(name) {
+  activeCharts.forEach(c=>c.destroy()); activeCharts=[];
+  const d = ALL[name];
+  const wks = d.weekly;
+  const labels  = wks.map(w=>w.label);
+  const calls   = wks.map(w=>w.calls);
+  const ignored = wks.map(w=>w.ignored);
+  const avgMin  = wks.map(w=>w.avgMin);
+  const maxCalls = Math.max(...calls);
+  const isNew   = d.days <= 25;
+  const hasCrisis = d.ignRate >= 5;
+
+  const banner = hasCrisis
+    ? `<div class="alert-banner">⚠️ <span>Overall ignore rate is <strong>${d.ignRate.toFixed(2)}%</strong> — requires immediate attention.</span></div>`
+    : isNew
+    ? `<div class="info-banner">ℹ️ <span>New agent — limited data available (${d.dateRange}).</span></div>`
+    : '';
+
+  document.getElementById('agentView').innerHTML = `
+    <p class="agent-meta">${name} &nbsp;·&nbsp; ${d.dateRange} &nbsp;·&nbsp; ${d.days} active days</p>
+    ${banner}
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-lbl">Total Calls</div><div class="kpi-val tv-blue">${d.totalCalls.toLocaleString()}</div><div class="kpi-sub">over ${d.days} active days</div></div>
+      <div class="kpi-card"><div class="kpi-lbl">Avg Calls / Day</div><div class="kpi-val">${d.avgPerDay}</div><div class="kpi-sub">range: ${Math.min(...calls)} – ${Math.max(...calls)}</div></div>
+      <div class="kpi-card"><div class="kpi-lbl">Avg Talk Time</div><div class="kpi-val tv-green">${d.avgTalk} <span style="font-size:16px">min</span></div><div class="kpi-sub">per call</div></div>
+      <div class="kpi-card${hasCrisis?' danger':''}"><div class="kpi-lbl">Ignore Rate</div><div class="kpi-val${hasCrisis?' red':''}">${d.ignRate.toFixed(2)}<span style="font-size:16px">%</span></div><div class="kpi-sub">${d.totalIgnored} of ${d.totalCalls.toLocaleString()} calls</div></div>
+    </div>
+
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-lbl">Calls per week</div>
+        <div class="chart-legend">
+          <span class="legend-item"><span class="legend-dot" style="background:var(--accent)"></span>Answered</span>
+          <span class="legend-item"><span class="legend-dot" style="background:var(--fail)"></span>Ignored</span>
+        </div>
+        <div style="position:relative;height:200px"><canvas id="cCalls"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-lbl">Avg talk time per week (min)</div>
+        <div class="chart-legend">
+          <span class="legend-item"><span class="legend-dot" style="background:var(--pass)"></span>Avg talk</span>
+          <span class="legend-item"><span class="legend-dash"></span>Overall avg</span>
+        </div>
+        <div style="position:relative;height:200px"><canvas id="cTalk"></canvas></div>
+      </div>
+    </div>
+
+    <div class="chart-card full" style="margin-bottom:16px">
+      <div class="chart-lbl">Monthly summary — calls & avg talk</div>
+      <div style="position:relative;height:190px"><canvas id="cMonth"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-lbl">Weekly breakdown</div>
+      <table class="data-table">
+        <thead><tr><th>Week</th><th>Month</th><th>Calls</th><th>Ignored</th><th>Ignore %</th><th>Avg Talk</th><th>Total Talk</th><th>Volume</th></tr></thead>
+        <tbody id="cTable"></tbody>
+      </table>
+    </div>`;
+
+  // Calls chart
+  activeCharts.push(new Chart(document.getElementById('cCalls'), {
+    type:'bar',
+    data:{ labels, datasets:[
+      { label:'Calls',   data:calls,   backgroundColor:'rgba(79,140,255,.75)', borderRadius:3, stack:'a' },
+      { label:'Ignored', data:ignored, backgroundColor:'rgba(244,63,94,.75)',  borderRadius:3, stack:'a' }
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{ mode:'index', ...tc() }},
+      scales:{ x:{ stacked:true, grid:{display:false}, ticks:TICK }, y:{ stacked:true, grid:{color:GRID_CLR}, ticks:TICK }}}
+  }));
+
+  // Talk time chart
+  activeCharts.push(new Chart(document.getElementById('cTalk'), {
+    type:'line',
+    data:{ labels, datasets:[
+      { label:'Avg talk',    data:avgMin, borderColor:'#22d3a0', backgroundColor:'rgba(34,211,160,.07)', fill:true, tension:0.4, pointRadius:3, pointBackgroundColor:'#22d3a0', order:2 },
+      { label:'Overall avg', data:Array(labels.length).fill(d.avgTalk), borderColor:'rgba(244,63,94,.6)', borderDash:[5,4], borderWidth:2, pointRadius:0, fill:false, order:1 }
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{ ...tc() }},
+      scales:{ x:{ grid:{display:false}, ticks:TICK }, y:{ grid:{color:GRID_CLR}, ticks:{ ...TICK, callback:v=>v+'m' }, min:0 }}}
+  }));
+
+  // Monthly chart
+  activeCharts.push(new Chart(document.getElementById('cMonth'), {
+    type:'bar',
+    data:{ labels: d.monthly.map(m=>m.month), datasets:[
+      { label:'Calls',    data:d.monthly.map(m=>m.calls),   backgroundColor:'rgba(79,140,255,.7)',  borderRadius:3, yAxisID:'y'  },
+      { label:'Avg talk', data:d.monthly.map(m=>m.avgMin),  backgroundColor:'rgba(34,211,160,.5)',  borderRadius:3, yAxisID:'y2' }
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{ mode:'index', ...tc() }},
+      scales:{
+        x:  { grid:{display:false}, ticks:TICK },
+        y:  { position:'left',  grid:{color:GRID_CLR}, ticks:{ ...TICK, color:'#4f8cff' }, title:{display:true,text:'Calls',   color:'#4f8cff', font:{size:10}} },
+        y2: { position:'right', grid:{display:false},  ticks:{ ...TICK, color:'#22d3a0', callback:v=>v+'m' }, title:{display:true,text:'Avg talk',color:'#22d3a0',font:{size:10}}, min:0 }
+      }}
+  }));
+
+  // Table
+  const tbody = document.getElementById('cTable');
+  wks.forEach(w => {
+    const pct  = Math.round(w.calls/maxCalls*100);
+    const flag = w.ignRate>=5 ? `<span class="high-flag">high</span>` : '';
+    tbody.innerHTML += `<tr>
+      <td style="font-family:'DM Mono',monospace">${w.label}</td>
+      <td style="color:var(--muted);font-family:'DM Mono',monospace">${w.monthShort}</td>
+      <td>${w.calls}</td>
+      <td style="color:var(--muted)">${w.ignored}</td>
+      <td>${ignBadge(w.ignRate)}${flag}</td>
+      <td style="font-family:'DM Mono',monospace">${w.avgMin} min</td>
+      <td style="font-family:'DM Mono',monospace;color:var(--muted)">${w.totalHrs} hrs</td>
+      <td><div class="vol-bar-bg"><div class="vol-bar-f" style="width:${pct}%"></div></div></td>
+    </tr>`;
+  });
+}
+
+// ── INIT ──────────────────────────────────────────────────
+document.getElementById('loadingOverlay').style.display = 'none';
+document.getElementById('hdrMonth').textContent = new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+
+buildTeamStrip();
+buildTabs();
+renderAgent(currentAgent);
+
+// Logout (works standalone or in portal)
+document.getElementById('logoutBtn').addEventListener('click', function() {
+  try { window.parent.postMessage({ type:'sd-logout' }, '*'); } catch(e){}
+  location.reload();
+});
+
+// Broadcast to portal
+try { window.parent.postMessage({ type:'sd-user', email: 'Agent Progression' }, '*'); } catch(e){}
+</script>
+</body>
+</html>
