@@ -60,12 +60,9 @@ body::after{content:'';position:fixed;top:-200px;left:50%;transform:translateX(-
 .hdr-btn:hover{border-color:var(--accent);color:var(--accent);}
 .hdr-btn.admin{border-color:rgba(167,139,250,.4);color:var(--accent2);}
 .hdr-btn.admin:hover{border-color:var(--accent2);}
-/* Hide inner header when in portal iframe */
 
 /* MAIN */
 .main{max-width:1300px;margin:0 auto;padding:28px 28px;}
-
-
 
 /* UPLOAD */
 #uploadBig{border:2px dashed var(--border);border-radius:16px;padding:44px 36px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface);position:relative;margin-bottom:24px;}
@@ -208,8 +205,6 @@ tr:hover td{background:rgba(79,140,255,.03);}
 .acct-input{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-family:'DM Mono',monospace;font-size:12px;flex:1;width:100%;margin-bottom:8px;}
 .acct-input:focus{outline:none;border-color:var(--accent);}
 
-
-
 /* ===== UTILS ===== */
 #loadingOverlay{position:fixed;inset:0;background:rgba(11,13,19,.75);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:9998;}
 .spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
@@ -247,9 +242,12 @@ tr:hover td{background:rgba(79,140,255,.03);}
         <span class="pass-toggle" id="passToggle">&#x1F441;</span>
       </div>
     </div>
-    <div class="remember-row">
-      <input type="checkbox" id="rememberMe">
-      <label for="rememberMe">Remember me</label>
+    <div class="remember-row" style="justify-content:space-between; margin-bottom:16px;">
+      <div style="display:flex; gap:8px;">
+        <input type="checkbox" id="rememberMe">
+        <label for="rememberMe">Remember me</label>
+      </div>
+      <a href="#" id="forgotPasswordLink" style="color:var(--accent); font-size:11px; font-family:'DM Mono',monospace;">Forgot password?</a>
     </div>
     <button class="login-btn" id="loginBtn">Sign In</button>
     <div class="login-error" id="loginError"></div>
@@ -361,7 +359,6 @@ tr:hover td{background:rgba(79,140,255,.03);}
 <script>
 // Iframe detection
 
-
 // Supabase configuration (your project)
 var SUPABASE_URL = 'https://uygnkczbbctypleijmls.supabase.co';
 var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5Z25rY3piYmN0eXBsZWlqbWxzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5OTgxNTAsImV4cCI6MjA4OTU3NDE1MH0.CeXH9krVW8YMpkhn6Pw1ThlHKx6r_4_RgybhKBor55k';
@@ -406,6 +403,23 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('loginBtn').addEventListener('click', doLogin);
   document.getElementById('logoutBtnEl').addEventListener('click', doLogout);
   document.getElementById('manageAccountsBtn').addEventListener('click', openAccountModal);
+  document.getElementById('forgotPasswordLink').addEventListener('click', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('loginEmail').value.trim();
+    if (!email) {
+      document.getElementById('loginError').innerText = 'Please enter your email address.';
+      document.getElementById('loginError').style.display = 'block';
+      return;
+    }
+    const { error } = await sb.auth.resetPasswordForEmail(email);
+    if (error) {
+      document.getElementById('loginError').innerText = error.message;
+      document.getElementById('loginError').style.display = 'block';
+    } else {
+      showToast('Password reset email sent! Check your inbox.', true);
+      document.getElementById('loginError').style.display = 'none';
+    }
+  });
 
   document.getElementById('chooseBtnEl').addEventListener('click', e => { e.stopPropagation(); document.getElementById('fileInputBig').click(); });
   document.getElementById('viewFilesBtnEl').addEventListener('click', e => { e.stopPropagation(); toggleFilesDrawer(); });
@@ -526,6 +540,11 @@ async function onLogin() {
   showLoading(true);
   await loadScorecards();
   showLoading(false);
+
+  // Notify parent portal that user is logged in
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({ type: 'userInfo', email: currentUser.email }, '*');
+  }
 }
 
 async function doLogout() {
@@ -540,6 +559,11 @@ async function doLogout() {
   document.getElementById('filesList').innerHTML = '';
   document.getElementById('dashSection').classList.add('hidden');
   document.getElementById('placeholder').style.display = '';
+
+  // Notify parent portal that logout is done
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({ type: 'logoutDone' }, '*');
+  }
 }
 
 // ---------- Account management ----------
@@ -815,6 +839,27 @@ async function saveCallNote(){notes_upsert('call:'+currentCallKey,document.getEl
 async function saveAgentNote(name){var el=document.getElementById('anotes-'+name.replace(/\W/g,'_'));if(el)notes_upsert('agent:'+name,el.value,'agok-'+name.replace(/\W/g,'_'));}
 async function loadAgentNote(name,elId){var r=await sb.from('notes').select('content').eq('note_key','agent:'+name).single();if(r.data&&r.data.content){var el=document.getElementById(elId);if(el)el.value=r.data.content;}}
 async function notes_upsert(key,val,okId){await sb.from('notes').upsert({note_key:key,content:val,updated_by:currentUser.id},{onConflict:'note_key'});var ok=document.getElementById(okId);if(ok){ok.style.display='block';setTimeout(()=>ok.style.display='none',2000);}}
+
+// Add message listener for parent portal
+window.addEventListener('message', async (event) => {
+  const data = event.data;
+  if (!data || !data.type) return;
+  if (data.type === 'getUser') {
+    if (currentUser && currentUser.email) {
+      event.source.postMessage({ type: 'userInfo', email: currentUser.email }, '*');
+    } else {
+      event.source.postMessage({ type: 'userInfo', email: null }, '*');
+    }
+  }
+  if (data.type === 'logout') {
+    if (sb) {
+      await sb.auth.signOut();
+      // Reload to show login screen
+      window.location.reload();
+    }
+    event.source.postMessage({ type: 'logoutDone' }, '*');
+  }
+});
 
 </script>
 </body>
