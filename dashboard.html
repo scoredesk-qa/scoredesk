@@ -170,10 +170,9 @@
   .acct-input:focus{outline:none;border-color:var(--accent);}
 
   /* UTILS */
-  #loadingOverlay{position:fixed;inset:0;background:rgba(11,13,19,.75);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:9998;}
+  #loadingOverlay{position:fixed;inset:0;background:rgba(11,13,19,.85);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:9998;}
   .spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg);}}
-  @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(70px);background:var(--surface2);border:1px solid var(--border);padding:11px 20px;border-radius:9px;font-size:13px;font-weight:600;z-index:9999;transition:transform .3s cubic-bezier(.4,0,.2,1);}
   .toast.show{transform:translateX(-50%) translateY(0);}
   .toast.ok{border-color:var(--pass);color:var(--pass);}
@@ -182,11 +181,14 @@
   ::-webkit-scrollbar{width:5px;height:5px;}
   ::-webkit-scrollbar-track{background:var(--surface);}
   ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
-  ::-webkit-scrollbar-thumb:hover{background:var(--muted);}
+  .empty-state{text-align:center;padding:60px 40px;}
+  .empty-icon{font-size:48px;margin-bottom:14px;opacity:.5;}
+  .empty-title{font-size:17px;font-weight:700;margin-bottom:7px;}
+  .empty-sub{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted2);}
 </style>
 </head>
 <body>
-<div id="loadingOverlay" style="display:flex;"><div class="spinner"></div></div>
+<div id="loadingOverlay"><div class="spinner"></div></div>
 
 <div class="main">
   <div id="uploadBig">
@@ -240,7 +242,7 @@
     <div class="agent-cards" id="agentCards"></div>
   </div>
 
-  <div id="placeholder"><div style="font-size:40px;text-align:center;margin-bottom:12px;">📭</div><p style="font-size:15px;text-align:center;">Upload scorecard Excel files to get started</p></div>
+  <div id="placeholder" style="display:none;"><div style="font-size:40px;text-align:center;margin-bottom:12px;">📭</div><p style="font-size:15px;text-align:center;">Upload scorecard Excel files to get started</p></div>
 </div>
 
 <!-- CALL DETAIL MODAL -->
@@ -265,66 +267,112 @@
   let weeklyChartInst = null, stackedChartInst = null, agentChartInst = null;
   const CHART_CFG = { gridColor:'rgba(255,255,255,0.06)', tickFont:{ family:'DM Mono, monospace', size:11 } };
 
-  function showLoading(on) { document.getElementById('loadingOverlay').style.display = on ? 'flex' : 'none'; }
-  function showToast(msg, ok) { var t = document.getElementById('toast') || (() => { let d = document.createElement('div'); d.id = 'toast'; d.className = 'toast'; document.body.appendChild(d); return d; })(); t.textContent = msg; t.className = 'toast' + (ok === true ? ' ok' : ok === false ? ' err' : ''); t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); }
+  function showLoading(on) { 
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) overlay.style.display = on ? 'flex' : 'none';
+  }
+  function showToast(msg, ok) { 
+    let t = document.getElementById('toast');
+    if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); }
+    t.textContent = msg; 
+    t.className = 'toast' + (ok === true ? ' ok' : ok === false ? ' err' : ''); 
+    t.classList.add('show'); 
+    setTimeout(() => t.classList.remove('show'), 3000); 
+  }
 
   // ---------- Authentication ----------
   async function init() {
-    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true } });
-    const { data: { session } } = await sb.auth.getSession();
-    if (!session) {
-      document.getElementById('placeholder').innerHTML = '<div style="text-align:center;padding:60px"><div class="empty-icon">🔒</div><div class="empty-title">Not authenticated</div><div class="empty-sub">Please log in from the main portal.</div></div>';
-      showLoading(false);
-      return;
-    }
-    currentUser = session.user;
-    const meta = currentUser.user_metadata || {};
-    isAdmin = (currentUser.email === 'admin@scoredesk.com') || (meta.role === 'admin');
-    if (!isAdmin) {
-      document.getElementById('uploadBig').style.display = 'none';
-      document.getElementById('uploadCompact').style.display = 'none';
-    }
-    document.getElementById('compactMonth').textContent = new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+    try {
+      console.log('Dashboard init started');
+      sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true } });
+      const { data: { session }, error: sessionError } = await sb.auth.getSession();
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+        showError('Authentication error: ' + sessionError.message);
+        showLoading(false);
+        return;
+      }
+      if (!session) {
+        console.warn('No session found in dashboard iframe');
+        showError('Not authenticated. Please log in from the main portal.');
+        showLoading(false);
+        return;
+      }
+      currentUser = session.user;
+      const meta = currentUser.user_metadata || {};
+      isAdmin = (currentUser.email === 'admin@scoredesk.com') || (meta.role === 'admin');
+      console.log('User logged in:', currentUser.email, 'isAdmin:', isAdmin);
+      
+      if (!isAdmin) {
+        document.getElementById('uploadBig').style.display = 'none';
+        document.getElementById('uploadCompact').style.display = 'none';
+      }
+      document.getElementById('compactMonth').textContent = new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'});
 
-    await loadScorecards();
-    showLoading(false);
+      await loadScorecards();
+      showLoading(false);
+    } catch (err) {
+      console.error('Init error:', err);
+      showError('Failed to initialize: ' + err.message);
+      showLoading(false);
+    }
+  }
+
+  function showError(msg) {
+    const placeholder = document.getElementById('placeholder');
+    placeholder.style.display = 'block';
+    placeholder.innerHTML = `<div style="text-align:center;padding:60px">
+      <div class="empty-icon">⚠️</div>
+      <div class="empty-title">Error</div>
+      <div class="empty-sub">${msg}</div>
+    </div>`;
+    document.getElementById('dashSection').classList.add('hidden');
   }
 
   async function loadScorecards() {
-    let query = sb.from('scorecards').select('*').order('created_at',{ascending:true});
-    if (!isAdmin && currentUser.user_metadata?.agent_name) {
-      query = query.eq('agent_name', currentUser.user_metadata.agent_name);
-    }
-    const { data, error } = await query;
-    if (error) { showToast('Load error: '+error.message, false); return; }
-    agentMap = {};
-    document.getElementById('filesList').innerHTML = '';
-    if (data && data.length>0) {
-      data.forEach(function(row){
-        var sc={ name:row.agent_name, account:row.account_ref, callDate:row.call_date, auditor:row.auditor, fileName:row.file_name, pass:row.pass, pfReason:row.pf_reason, autoFails:row.auto_fails||[], criteria:row.criteria||[], dbId:row.id };
-        addToAgentMap(sc);
-        if (isAdmin) appendFileBar(row.file_name, sc);
-      });
-      if (isAdmin) {
-        switchToCompact();
+    try {
+      let query = sb.from('scorecards').select('*').order('created_at',{ascending:true});
+      if (!isAdmin && currentUser.user_metadata?.agent_name) {
+        query = query.eq('agent_name', currentUser.user_metadata.agent_name);
       }
-      renderAll();
-    } else {
-      document.getElementById('uploadBig').style.display = isAdmin ? '' : 'none';
-      document.getElementById('uploadCompact').style.display = 'none';
-      document.getElementById('dashSection').classList.add('hidden');
-      document.getElementById('placeholder').style.display = isAdmin ? '' : 'none';
-      if (!isAdmin && (!currentUser.user_metadata?.agent_name || data.length===0)) {
-        document.getElementById('placeholder').innerHTML = '<div style="text-align:center;padding:60px"><div class="empty-icon">📭</div><div class="empty-title">No scorecards found</div><div class="empty-sub">Please contact your administrator.</div></div>';
-        document.getElementById('placeholder').style.display = '';
-      } else if (!isAdmin && data.length===0) {
-        document.getElementById('placeholder').innerHTML = '<div style="text-align:center;padding:60px"><div class="empty-icon">📭</div><div class="empty-title">No scorecards uploaded yet</div></div>';
-        document.getElementById('placeholder').style.display = '';
+      const { data, error } = await query;
+      if (error) { 
+        console.error('Load scorecards error:', error);
+        showToast('Load error: '+error.message, false); 
+        return; 
       }
+      console.log('Loaded scorecards count:', data?.length);
+      agentMap = {};
+      document.getElementById('filesList').innerHTML = '';
+      if (data && data.length>0) {
+        data.forEach(function(row){
+          var sc={ name:row.agent_name, account:row.account_ref, callDate:row.call_date, auditor:row.auditor, fileName:row.file_name, pass:row.pass, pfReason:row.pf_reason, autoFails:row.auto_fails||[], criteria:row.criteria||[], dbId:row.id };
+          addToAgentMap(sc);
+          if (isAdmin) appendFileBar(row.file_name, sc);
+        });
+        if (isAdmin) switchToCompact();
+        renderAll();
+      } else {
+        // No data
+        document.getElementById('uploadBig').style.display = isAdmin ? '' : 'none';
+        document.getElementById('uploadCompact').style.display = 'none';
+        document.getElementById('dashSection').classList.add('hidden');
+        document.getElementById('placeholder').style.display = '';
+        if (!isAdmin && (!currentUser.user_metadata?.agent_name || data.length===0)) {
+          document.getElementById('placeholder').innerHTML = '<div style="text-align:center;padding:60px"><div class="empty-icon">📭</div><div class="empty-title">No scorecards found</div><div class="empty-sub">Please contact your administrator.</div></div>';
+          document.getElementById('placeholder').style.display = '';
+        } else if (!isAdmin && data.length===0) {
+          document.getElementById('placeholder').innerHTML = '<div style="text-align:center;padding:60px"><div class="empty-icon">📭</div><div class="empty-title">No scorecards uploaded yet</div></div>';
+          document.getElementById('placeholder').style.display = '';
+        }
+      }
+    } catch (err) {
+      console.error('loadScorecards exception:', err);
+      showToast('Load error: ' + err.message, false);
     }
   }
 
-  // Helper functions from original
+  // Helper functions from original (same as before)
   function normaliseName(n){ return n.toLowerCase().replace(/[^a-z0-9\s]/g,'').trim().split(/\s+/).sort().join(' '); }
   function levenshtein(a,b){ var m=a.length,n=b.length,dp=[]; for(var i=0;i<=m;i++){dp[i]=[i];for(var j=1;j<=n;j++)dp[i][j]=0;} for(var j=0;j<=n;j++)dp[0][j]=j; for(var i=1;i<=m;i++)for(var j=1;j<=n;j++){if(a[i-1]===b[j-1])dp[i][j]=dp[i-1][j-1];else dp[i][j]=1+Math.min(dp[i-1][j-1],dp[i-1][j],dp[i][j-1]);} return dp[m][n]; }
   function findMatchingKey(name){ var norm=normaliseName(name),keys=Object.keys(agentMap); for(var i=0;i<keys.length;i++){if(normaliseName(keys[i])===norm)return keys[i];} for(var i=0;i<keys.length;i++){if(levenshtein(normaliseName(keys[i]),norm)<=2)return keys[i];} return null; }
@@ -357,9 +405,11 @@
     if(sc.dbId&&document.getElementById('fb-'+sc.dbId)) return;
     var div=document.createElement('div'); div.className='file-bar';
     if(sc.dbId) div.id='fb-'+sc.dbId;
-    div.innerHTML='<span>📄</span><div class="file-bar-info"><div class="file-bar-agent">'+sc.name+'</div><div class="file-bar-name">'+fileName+'</div></div><span class="file-bar-badge '+(sc.pass?'pass':'fail')+'">'+(sc.pass?'PASS':'FAIL')+'</span><button class="rm-btn" onclick="removeFile(\''+sc.name.replace(/'/g,"\\'")+'\',\''+fileName.replace(/'/g,"\\'")+'\',\''+(sc.dbId||'')+'\',this)">Remove</button>';
+    div.innerHTML='<span>📄</span><div class="file-bar-info"><div class="file-bar-agent">'+escapeHtml(sc.name)+'</div><div class="file-bar-name">'+escapeHtml(fileName)+'</div></div><span class="file-bar-badge '+(sc.pass?'pass':'fail')+'">'+(sc.pass?'PASS':'FAIL')+'</span><button class="rm-btn" onclick="removeFile(\''+escapeJs(sc.name)+'\',\''+escapeJs(fileName)+'\',\''+(sc.dbId||'')+'\',this)">Remove</button>';
     document.getElementById('filesList').appendChild(div);
   }
+  function escapeHtml(str) { return str.replace(/[&<>]/g, function(m){if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
+  function escapeJs(str) { return str.replace(/'/g, "\\'"); }
 
   async function parseFile(file) {
     var reader = new FileReader();
@@ -424,7 +474,7 @@
     return{name,account,callDate,auditor,fileName,pass,pfResult,pfReason,autoFails,criteria};
   }
 
-  // ---------- Dashboard rendering ----------
+  // Dashboard rendering (same as before, but we keep it short; you can copy the full functions from previous version)
   function renderAll(){
     var agents=Object.values(agentMap);
     if(!agents.length){document.getElementById('dashSection').classList.add('hidden');document.getElementById('placeholder').style.display='';return;}
@@ -487,16 +537,16 @@
       var card=document.createElement('div');card.className='agent-card';
       card.innerHTML='<div class="agent-card-header" onclick="toggleCard(\''+cid+'\')">'
         +'<div class="agent-avatar">'+ini+'</div>'
-        +'<div class="agent-card-info"><div class="agent-card-name">'+agent.name+'</div><div class="agent-card-sub">'+tot+' call'+(tot!==1?'s':'')+' \u00b7 '+pas+' passed \u00b7 '+fai+' failed</div></div>'
+        +'<div class="agent-card-info"><div class="agent-card-name">'+escapeHtml(agent.name)+'</div><div class="agent-card-sub">'+tot+' call'+(tot!==1?'s':'')+' \u00b7 '+pas+' passed \u00b7 '+fai+' failed</div></div>'
         +'<div class="agent-card-stats"><span class="mini-badge '+cls+'">'+lbl+'</span><span class="calls-count">'+tot+' call'+(tot!==1?'s':'')+'</span></div>'
         +'<span class="chevron" id="'+cid+'-chev">▾</span></div>'
         +'<div class="calls-table-wrap" id="'+cid+'">'
         +'<table><thead><tr><th>#</th><th>Call Date</th><th>Auditor</th><th>Status</th><th>Fail Reason</th><th>Detail</th></tr></thead><tbody>'+rows+'</tbody></table>'
         +'<div style="padding:14px 20px;border-top:1px solid var(--border);">'
-        +'<div class="notes-lbl">One-on-One Notes — '+agent.name+'</div>'
+        +'<div class="notes-lbl">One-on-One Notes — '+escapeHtml(agent.name)+'</div>'
         +'<textarea class="notes-area" id="'+nk+'" placeholder="Coaching notes for 1:1..."></textarea>'
         +'<div style="display:flex;align-items:center;gap:10px;margin-top:8px;">'
-        +'<button class="save-btn" onclick="saveAgentNote(\''+agent.name.replace(/'/g,"\\'")+'\')">Save Notes</button>'
+        +'<button class="save-btn" onclick="saveAgentNote(\''+escapeJs(agent.name)+'\')">Save Notes</button>'
         +'<span class="save-ok" id="'+ok+'">✓ Saved</span></div></div></div>';
       container.appendChild(card);
       loadAgentNote(agent.name,nk);
@@ -504,7 +554,7 @@
   }
 
   function callRow(c,idx){
-    var reason=(!c.pass&&c.pfReason)?'<span class="fail-reason" title="'+c.pfReason+'">'+c.pfReason+'</span>':'<span style="color:var(--muted);font-size:11px;">'+(c.pass?'—':'No reason recorded')+'</span>';
+    var reason=(!c.pass&&c.pfReason)?'<span class="fail-reason" title="'+escapeHtml(c.pfReason)+'">'+escapeHtml(c.pfReason)+'</span>':'<span style="color:var(--muted);font-size:11px;">'+(c.pass?'—':'No reason recorded')+'</span>';
     var key=encodeURIComponent(c.name+'||'+c.fileName);
     return '<tr><td style="font-family:monospace;font-size:11px;color:var(--muted);">'+String(idx).padStart(2,'0')+'</td><td style="font-family:monospace;font-size:11px;">'+(c.callDate||'—')+'</td><td style="font-family:monospace;font-size:11px;color:var(--muted);">'+(c.auditor||'—')+'</td><td><span class="badge '+(c.pass?'pass':'fail')+'">'+(c.pass?'PASSED':'FAILED')+'</span></td><td>'+reason+'</td><td><button class="action-btn" onclick="openModal(\''+key+'\')">View Detail</button></td></tr>';
   }
@@ -518,13 +568,13 @@
     if(!c)return; currentCallKey=key;
     document.getElementById('mName').textContent=c.name;
     document.getElementById('mMeta').textContent=[c.account&&('Account: '+c.account),c.callDate&&('Call: '+c.callDate),c.auditor&&('Auditor: '+c.auditor)].filter(Boolean).join(' · ');
-    var html='<div class="result-banner '+(c.pass?'pass':'fail')+'"><div class="result-icon">'+(c.pass?'✅':'❌')+'</div><div class="result-label '+(c.pass?'pass':'fail')+'">'+(c.pass?'PASSED':'FAILED')+'</div>'+(c.pfReason?'<div class="result-reason">Reason: '+c.pfReason+'</div>':'')+'</div>';
-    if(!c.pass&&c.autoFails&&c.autoFails.length){html+='<div class="af-box"><div class="af-box-title">⚠️ Auto-Fail Triggers</div>';c.autoFails.forEach(af=>{html+='<div class="af-row"><div class="af-q">'+af.label+'</div><div class="af-result">FAILED — '+af.val+'</div>'+(af.fb?'<div class="af-fb">'+af.fb+'</div>':'')+'</div>';});html+='</div>';}
+    var html='<div class="result-banner '+(c.pass?'pass':'fail')+'"><div class="result-icon">'+(c.pass?'✅':'❌')+'</div><div class="result-label '+(c.pass?'pass':'fail')+'">'+(c.pass?'PASSED':'FAILED')+'</div>'+(c.pfReason?'<div class="result-reason">Reason: '+escapeHtml(c.pfReason)+'</div>':'')+'</div>';
+    if(!c.pass&&c.autoFails&&c.autoFails.length){html+='<div class="af-box"><div class="af-box-title">⚠️ Auto-Fail Triggers</div>';c.autoFails.forEach(af=>{html+='<div class="af-row"><div class="af-q">'+escapeHtml(af.label)+'</div><div class="af-result">FAILED — '+escapeHtml(af.val)+'</div>'+(af.fb?'<div class="af-fb">'+escapeHtml(af.fb)+'</div>':'')+'</div>';});html+='</div>';}
     var secs=[];if(c.criteria)c.criteria.forEach(cr=>{if(secs.indexOf(cr.section)===-1)secs.push(cr.section);});
-    secs.forEach(sec=>{var items=c.criteria.filter(cr=>cr.section===sec);html+='<div><div class="sec-title">'+(sec||'General')+'</div><div class="criteria-list">';items.forEach(cr=>{var r=cr.score!==null?cr.score/cr.weight:-1,cls=r<0?'na':r>=1?'full':r>0?'partial':'zero',disp=cr.score!==null?(cr.score+' / '+cr.weight):('-- / '+cr.weight);html+='<div class="cr-item"><div class="cr-top"><span class="cr-label">'+cr.label+'</span><span class="cr-wt">Max: '+cr.weight+'</span><span class="cr-pts '+cls+'">'+disp+'</span></div>'+(cr.feedback?'<div class="cr-fb">'+cr.feedback+'</div>':'')+'</div>';});html+='</div></div>';});
+    secs.forEach(sec=>{var items=c.criteria.filter(cr=>cr.section===sec);html+='<div><div class="sec-title">'+(sec||'General')+'</div><div class="criteria-list">';items.forEach(cr=>{var r=cr.score!==null?cr.score/cr.weight:-1,cls=r<0?'na':r>=1?'full':r>0?'partial':'zero',disp=cr.score!==null?(cr.score+' / '+cr.weight):('-- / '+cr.weight);html+='<div class="cr-item"><div class="cr-top"><span class="cr-label">'+escapeHtml(cr.label)+'</span><span class="cr-wt">Max: '+cr.weight+'</span><span class="cr-pts '+cls+'">'+disp+'</span></div>'+(cr.feedback?'<div class="cr-fb">'+escapeHtml(cr.feedback)+'</div>':'')+'</div>';});html+='</div></div>';});
     var nr=await sb.from('notes').select('content').eq('note_key','call:'+key).single();
     var en=(nr.data&&nr.data.content)?nr.data.content:'';
-    html+='<div><div class="notes-lbl">Notes for this call</div><textarea class="notes-area" id="callNoteArea" placeholder="Notes about this call...">'+en+'</textarea><div style="display:flex;align-items:center;gap:10px;margin-top:8px;"><button class="save-btn" onclick="saveCallNote()">Save Notes</button><span class="save-ok" id="callSaveOk">✓ Saved</span></div></div>';
+    html+='<div><div class="notes-lbl">Notes for this call</div><textarea class="notes-area" id="callNoteArea" placeholder="Notes about this call...">'+escapeHtml(en)+'</textarea><div style="display:flex;align-items:center;gap:10px;margin-top:8px;"><button class="save-btn" onclick="saveCallNote()">Save Notes</button><span class="save-ok" id="callSaveOk">✓ Saved</span></div></div>';
     document.getElementById('mBody').innerHTML=html;
     document.getElementById('modalOverlay').classList.add('open');
   }
