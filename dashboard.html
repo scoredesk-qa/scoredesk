@@ -46,26 +46,8 @@ body::after{content:'';position:fixed;top:-200px;left:50%;transform:translateX(-
 .login-error{color:var(--fail);font-family:'DM Mono',monospace;font-size:12px;margin-top:12px;display:none;padding:10px 14px;background:rgba(244,63,94,.1);border-radius:8px;border:1px solid rgba(244,63,94,.3);line-height:1.5;text-align:left;}
 .login-status{color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;margin-top:10px;padding:8px 12px;background:var(--surface2);border-radius:7px;border:1px solid var(--border);line-height:1.5;text-align:left;}
 
-/* ===== HEADER ===== */
-.header{display:flex;align-items:center;justify-content:space-between;padding:0 32px;height:52px;border-bottom:1px solid var(--border);background:rgba(18,21,30,.9);backdrop-filter:blur(16px);position:sticky;top:0;z-index:100;position:relative;}
-.header::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));}
-.logo{display:flex;align-items:center;gap:11px;}
-.logo-icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 3px 12px rgba(79,140,255,.25);}
-.logo-name{font-size:14px;font-weight:800;letter-spacing:-.3px;}
-.logo-sub{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
-.hdr-right{display:flex;align-items:center;gap:10px;}
-.hdr-month{font-family:'DM Mono',monospace;font-size:10px;color:var(--accent);background:rgba(79,140,255,.1);border:1px solid rgba(79,140,255,.2);padding:4px 12px;border-radius:5px;}
-.hdr-user{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
-.hdr-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 13px;border-radius:6px;font-size:11px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:600;transition:all .15s;}
-.hdr-btn:hover{border-color:var(--accent);color:var(--accent);}
-.hdr-btn.admin{border-color:rgba(167,139,250,.4);color:var(--accent2);}
-.hdr-btn.admin:hover{border-color:var(--accent2);}
-/* Hide inner header when in portal iframe */
-
 /* MAIN */
 .main{max-width:1300px;margin:0 auto;padding:28px 28px;}
-
-
 
 /* UPLOAD */
 #uploadBig{border:2px dashed var(--border);border-radius:16px;padding:44px 36px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface);position:relative;margin-bottom:24px;}
@@ -208,8 +190,6 @@ tr:hover td{background:rgba(79,140,255,.03);}
 .acct-input{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-family:'DM Mono',monospace;font-size:12px;flex:1;width:100%;margin-bottom:8px;}
 .acct-input:focus{outline:none;border-color:var(--accent);}
 
-
-
 /* ===== UTILS ===== */
 #loadingOverlay{position:fixed;inset:0;background:rgba(11,13,19,.75);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:9998;}
 .spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
@@ -257,21 +237,8 @@ tr:hover td{background:rgba(79,140,255,.03);}
   </div>
 </div>
 
-<!-- APP -->
+<!-- APP (header removed) -->
 <div id="app" class="hidden">
-  <div class="header" style="position:sticky">
-    <div class="logo">
-      <div class="logo-icon">📋</div>
-      <div><div class="logo-name">ScoreDesk</div><div class="logo-sub">QA Platform</div></div>
-    </div>
-    <div class="hdr-right">
-      <span class="hdr-month" id="hdrMonth"></span>
-      <span class="hdr-user" id="hdrUser"></span>
-      <button class="hdr-btn admin" id="manageAccountsBtn" style="display:none">Manage Accounts</button>
-      <button class="hdr-btn" id="logoutBtnEl">Sign Out</button>
-    </div>
-  </div>
-
   <div class="main">
     <div id="uploadBig">
       <input type="file" id="fileInputBig" accept=".xlsx,.xls" multiple>
@@ -359,10 +326,7 @@ tr:hover td{background:rgba(79,140,255,.03);}
 <div class="toast" id="toast"></div>
 
 <script>
-// Iframe detection
-
-
-// Supabase configuration (your project)
+// Supabase configuration
 var SUPABASE_URL = 'https://uygnkczbbctypleijmls.supabase.co';
 var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5Z25rY3piYmN0eXBsZWlqbWxzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5OTgxNTAsImV4cCI6MjA4OTU3NDE1MH0.CeXH9krVW8YMpkhn6Pw1ThlHKx6r_4_RgybhKBor55k';
 
@@ -376,11 +340,9 @@ var currentAgentName = null;
 var weeklyChartInst = null, stackedChartInst = null, agentChartInst = null;
 var CHART_CFG = { gridColor:'rgba(255,255,255,0.06)', tickFont:{ family:'DM Mono, monospace', size:11 } };
 
-// ---------- Helper functions ----------
 function showLoading(on) { document.getElementById('loadingOverlay').style.display = on ? 'flex' : 'none'; }
 function showToast(msg, ok) { var t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast' + (ok === true ? ' ok' : ok === false ? ' err' : ''); t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); }
 
-// ---------- Login ----------
 window.addEventListener('load', function() {
   try {
     if (typeof window.supabase === 'undefined') throw new Error('Supabase SDK not loaded');
@@ -404,8 +366,7 @@ document.addEventListener('DOMContentLoaded', function() {
     else { input.type = 'password'; icon.innerHTML = '&#x1F441;'; }
   });
   document.getElementById('loginBtn').addEventListener('click', doLogin);
-  document.getElementById('logoutBtnEl').addEventListener('click', doLogout);
-  document.getElementById('manageAccountsBtn').addEventListener('click', openAccountModal);
+  // logout button removed, no event listener
 
   document.getElementById('chooseBtnEl').addEventListener('click', e => { e.stopPropagation(); document.getElementById('fileInputBig').click(); });
   document.getElementById('viewFilesBtnEl').addEventListener('click', e => { e.stopPropagation(); toggleFilesDrawer(); });
@@ -449,7 +410,6 @@ async function restoreSession() {
       currentUser = r.data.session.user;
       await onLogin();
     } else {
-      // No session — show login screen
       showLoading(false);
       document.getElementById('loginScreen').style.display = 'flex';
     }
@@ -508,12 +468,11 @@ async function onLogin() {
   showLoading(false);
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').classList.remove('hidden');
-  document.getElementById('hdrUser').textContent = currentUser.email;
+  // removed header user/month display
   var mo = new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'});
-  document.getElementById('hdrMonth').textContent = mo;
   document.getElementById('compactMonth').textContent = mo;
-  document.getElementById('manageAccountsBtn').style.display = isAdmin ? '' : 'none';
-
+  // manage accounts button hidden because no header; but we keep admin logic for account modal (can still be triggered via console if needed, but UI button removed)
+  // admin upload toggle
   if (!isAdmin) {
     document.getElementById('uploadBig').style.display = 'none';
     document.getElementById('uploadCompact').style.display = 'none';
