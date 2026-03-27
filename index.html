@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ScoreDesk Portal</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
 <style>
 :root {
   --bg: #07080f;
@@ -35,7 +36,7 @@ body {
 .nav {
   display: flex;
   align-items: center;
-  gap: 0;
+  justify-content: space-between;
   padding: 0 24px;
   height: 52px;
   background: var(--surface);
@@ -45,12 +46,17 @@ body {
   z-index: 10;
 }
 
-/* top accent line */
 .nav::before {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0; height: 2px;
   background: linear-gradient(90deg, var(--accent), var(--accent2));
+}
+
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 0;
 }
 
 .nav-logo {
@@ -84,7 +90,6 @@ body {
   font-size: 12px; font-weight: 500;
   transition: all .15s;
   white-space: nowrap;
-  text-decoration: none;
 }
 .nav-tab:hover { color: var(--text); background: var(--surface2); }
 .nav-tab.active {
@@ -96,6 +101,38 @@ body {
   width: 6px; height: 6px; border-radius: 50%;
   background: currentColor; opacity: .6;
   flex-shrink: 0;
+}
+
+/* User area */
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.user-email {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: var(--muted2);
+  background: var(--surface2);
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+}
+.logout-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: 'Syne', sans-serif;
+  font-weight: 600;
+  transition: all .15s;
+}
+.logout-btn:hover {
+  border-color: var(--fail);
+  color: var(--fail);
 }
 
 /* IFRAME CONTAINER */
@@ -120,23 +157,29 @@ iframe.active { display: block; }
 <body>
 
 <nav class="nav">
-  <div class="nav-logo">
-    <div class="nav-logo-icon">📋</div>
-    <div class="nav-logo-name">ScoreDesk</div>
+  <div class="nav-left">
+    <div class="nav-logo">
+      <div class="nav-logo-icon">📋</div>
+      <div class="nav-logo-name">ScoreDesk</div>
+    </div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" data-tab="dashboard">
+        <span class="nav-tab-dot"></span>
+        📊 Dashboard
+      </button>
+      <button class="nav-tab" data-tab="analysis">
+        <span class="nav-tab-dot"></span>
+        🔍 Zero Score Analysis
+      </button>
+      <button class="nav-tab" data-tab="progression">
+        <span class="nav-tab-dot"></span>
+        📈 Agent Progression
+      </button>
+    </div>
   </div>
-  <div class="nav-tabs">
-    <button class="nav-tab active" onclick="switchTab('dashboard', this)">
-      <span class="nav-tab-dot"></span>
-      📊 Dashboard
-    </button>
-    <button class="nav-tab" onclick="switchTab('analysis', this)">
-      <span class="nav-tab-dot"></span>
-      🔍 Zero Score Analysis
-    </button>
-    <button class="nav-tab" onclick="switchTab('progression', this)">
-      <span class="nav-tab-dot"></span>
-      📈 Agent Progression
-    </button>
+  <div class="nav-right" id="navRight">
+    <span class="user-email" id="userEmail">—</span>
+    <button class="logout-btn" id="logoutBtn">Sign Out</button>
   </div>
 </nav>
 
@@ -147,12 +190,72 @@ iframe.active { display: block; }
 </div>
 
 <script>
-function switchTab(name, btn) {
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('iframe').forEach(f => f.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('frame-' + name).classList.add('active');
-}
+  const SUPABASE_URL = 'https://uygnkczbbctypleijmls.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5Z25rY3piYmN0eXBsZWlqbWxzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5OTgxNTAsImV4cCI6MjA4OTU3NDE1MH0.CeXH9krVW8YMpkhn6Pw1ThlHKx6r_4_RgybhKBor55k';
+
+  // This is only used to help with cross‑iframe communication; we do not rely on it for login.
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let activeIframeId = 'dashboard';
+  let iframeElements = {
+    dashboard: document.getElementById('frame-dashboard'),
+    analysis: document.getElementById('frame-analysis'),
+    progression: document.getElementById('frame-progression')
+  };
+
+  // Tab switching
+  document.querySelectorAll('.nav-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.getAttribute('data-tab');
+      if (!tab) return;
+      document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('iframe').forEach(f => f.classList.remove('active'));
+      iframeElements[tab].classList.add('active');
+      activeIframeId = tab;
+      // Request user info from the newly active iframe
+      requestUserInfo();
+    });
+  });
+
+  // Request user info from the currently active iframe
+  function requestUserInfo() {
+    const iframe = iframeElements[activeIframeId];
+    if (iframe && iframe.contentWindow) {
+      iframe.contentWindow.postMessage({ type: 'getUser' }, '*');
+    }
+  }
+
+  // Listen for messages from iframes
+  window.addEventListener('message', (event) => {
+    const data = event.data;
+    if (!data || !data.type) return;
+    switch (data.type) {
+      case 'userInfo':
+        if (data.email) {
+          document.getElementById('userEmail').innerText = data.email;
+        }
+        break;
+      case 'logoutDone':
+        // After iframe logs out, we can clear the user display and optionally show login screen inside iframe
+        document.getElementById('userEmail').innerText = '—';
+        break;
+    }
+  });
+
+  // Logout button: send logout message to all iframes
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    Object.values(iframeElements).forEach(iframe => {
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage({ type: 'logout' }, '*');
+      }
+    });
+  });
+
+  // When the page loads, request user info from the active iframe
+  window.addEventListener('load', () => {
+    setTimeout(requestUserInfo, 500); // give iframes time to load
+  });
 </script>
 </body>
 </html>
