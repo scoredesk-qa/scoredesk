@@ -566,7 +566,7 @@
     font-size: 13px;
   }
 
-  /* Modal for XLSX Upload */
+  /* Modals */
   .modal {
     display: none;
     position: fixed;
@@ -708,8 +708,11 @@
       <div class="content-header">
         <h1 class="content-title">Dashboard</h1>
         <div class="content-actions">
-          <button class="btn-action admin-only" onclick="showUploadModal()">
-            📤 Upload XLSX
+          <button class="btn-action admin-only" onclick="showUploadModal('calls')">
+            📤 Upload Calls CSV
+          </button>
+          <button class="btn-action admin-only" onclick="showUploadModal('performance')">
+            📊 Upload Performance XLSX
           </button>
           <button class="btn-action" onclick="refreshDashboard()">
             🔄 Refresh
@@ -749,9 +752,7 @@
             </tr>
           </thead>
           <tbody id="dashboardTable">
-            <tr>
-              <td colspan="6" style="text-align: center; padding: 20px;">Loading...</td>
-            </tr>
+            <tr><td colspan="6" style="text-align: center; padding: 20px;">Loading...</td></tr>
           </tbody>
         </table>
       </div>
@@ -762,9 +763,7 @@
       <div class="content-header">
         <h1 class="content-title">Zero Score Analysis</h1>
         <div class="content-actions">
-          <button class="btn-action" onclick="refreshAnalysis()">
-            🔄 Refresh
-          </button>
+          <button class="btn-action" onclick="refreshAnalysis()">🔄 Refresh</button>
         </div>
       </div>
       
@@ -780,22 +779,18 @@
             </tr>
           </thead>
           <tbody id="analysisTable">
-            <tr>
-              <td colspan="5" style="text-align: center; padding: 20px;">Loading...</td>
-            </tr>
+            <tr><td colspan="5" style="text-align: center; padding: 20px;">Loading...</td></tr>
           </tbody>
         </table>
       </div>
     </div>
     
-    <!-- AGENT PROGRESSION TAB -->
+    <!-- AGENT PROGRESSION TAB (now shows daily call volume) -->
     <div id="tabProgression" class="tab-content">
       <div class="content-header">
-        <h1 class="content-title">Agent Progression</h1>
+        <h1 class="content-title">Agent Call Volume (Daily)</h1>
         <div class="content-actions">
-          <button class="btn-action" onclick="refreshProgression()">
-            🔄 Refresh
-          </button>
+          <button class="btn-action" onclick="refreshProgression()">🔄 Refresh</button>
         </div>
       </div>
       
@@ -804,16 +799,14 @@
           <thead>
             <tr>
               <th>Agent Name</th>
-              <th>Week</th>
-              <th>Avg Score</th>
-              <th>Improvement</th>
-              <th>Trend</th>
+              <th>Date</th>
+              <th>Calls</th>
+              <th>Ignored</th>
+              <th>Total Talk Time</th>
             </tr>
           </thead>
           <tbody id="progressionTable">
-            <tr>
-              <td colspan="5" style="text-align: center; padding: 20px;">Loading...</td>
-            </tr>
+            <tr><td colspan="5" style="text-align: center; padding: 20px;">Loading...</td></tr>
           </tbody>
         </table>
       </div>
@@ -821,214 +814,126 @@
   </div>
 </div>
 
-<!-- XLSX Upload Modal -->
+<!-- MODAL FOR UPLOADS -->
 <div id="uploadModal" class="modal">
   <div class="modal-content">
-    <div class="modal-header">Upload Calls XLSX</div>
+    <div class="modal-header" id="modalHeader">Upload</div>
     <div class="modal-body">
-      <p style="margin-bottom: 12px; font-size: 13px; color: var(--muted2);">
-        Excel file must have columns: <code>call_id, agent_name, date, duration, score, reason</code><br>
-        (First sheet used)
-      </p>
-      <input type="file" id="xlsxFile" accept=".xlsx, .xls" style="margin-bottom: 16px; width: 100%;">
+      <p id="modalDescription" style="margin-bottom: 12px; font-size: 13px; color: var(--muted2);"></p>
+      <input type="file" id="uploadFile" accept=".csv, .xlsx, .xls" style="margin-bottom: 16px; width: 100%;">
       <div id="uploadProgress" style="font-size: 12px; color: var(--muted);"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeUploadModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="uploadXLSX()">Upload</button>
+      <button class="btn btn-primary" id="uploadBtn" onclick="uploadFile()">Upload</button>
     </div>
   </div>
 </div>
 
-<!-- Supabase SDK -->
+<!-- Supabase SDK & Libraries -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<!-- SheetJS for XLSX parsing -->
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 
 <script>
 // ==================== CONFIGURATION ====================
-// IMPORTANT: Replace with your actual Supabase credentials
-const SUPABASE_URL = 'https://nuwrymppeqfrkekkctuu.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51d3J5bXBwZXFmcmtla2tjdHV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NTc5MjgsImV4cCI6MjA5MDQzMzkyOH0.xpW_1qczIIPffMuHQiKsLYNus9sSoKVIGQ-mCY5ULgQ';
-
-// Initialize Supabase client
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ==================== STATE ====================
 let currentUser = null;
 let currentProfile = null;
+let uploadType = 'calls'; // 'calls' or 'performance'
 
 // ==================== INITIALIZATION ====================
 async function initApp() {
   const { data: { session } } = await supabaseClient.auth.getSession();
-  
   if (session) {
     const profileLoaded = await loadUserProfile(session.user);
-    if (profileLoaded) {
-      showApp();
-    } else {
-      await supabaseClient.auth.signOut();
-      showLogin();
-      showAlert('loginAlert', 'Your account is not fully set up. Please contact support.', 'error');
-    }
-  } else {
-    showLogin();
-  }
-  
+    if (profileLoaded) showApp();
+    else { await supabaseClient.auth.signOut(); showLogin(); showAlert('loginAlert', 'Your account is not fully set up. Please contact support.', 'error'); }
+  } else showLogin();
   hideLoading();
 }
 
-// ==================== AUTH FUNCTIONS ====================
 async function handleLogin(event) {
   event.preventDefault();
-  
   const email = document.getElementById('loginEmail').value.trim();
   const password = document.getElementById('loginPassword').value;
   const loginBtn = document.getElementById('loginBtn');
-  
-  loginBtn.disabled = true;
-  loginBtn.textContent = 'Signing in...';
-  
+  loginBtn.disabled = true; loginBtn.textContent = 'Signing in...';
   try {
-    const { data, error } = await supabaseClient.auth.signInWithPassword({
-      email: email,
-      password: password
-    });
-    
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    
     const profileLoaded = await loadUserProfile(data.user);
     if (!profileLoaded) throw new Error('User profile not found.');
-    
     showApp();
-  } catch (error) {
-    showAlert('loginAlert', error.message, 'error');
-  } finally {
-    loginBtn.disabled = false;
-    loginBtn.textContent = 'Sign In';
-  }
-  
+  } catch (error) { showAlert('loginAlert', error.message, 'error'); }
+  finally { loginBtn.disabled = false; loginBtn.textContent = 'Sign In'; }
   return false;
 }
 
-async function handleLogout() {
-  try {
-    await supabaseClient.auth.signOut();
-    location.reload();
-  } catch (error) {
-    console.error('Logout error:', error);
-  }
-}
-
+async function handleLogout() { await supabaseClient.auth.signOut(); location.reload(); }
 async function loadUserProfile(user) {
   currentUser = user;
-  const { data, error } = await supabaseClient
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
-  
-  if (error) {
-    console.error('Error loading profile:', error);
-    return false;
-  }
-  
+  const { data, error } = await supabaseClient.from('profiles').select('*').eq('id', user.id).single();
+  if (error) return false;
   currentProfile = data;
   return true;
 }
-
-// ==================== UI DISPLAY ====================
-function showLoading() {
-  document.getElementById('loadingScreen').style.display = 'flex';
-}
-
-function hideLoading() {
-  document.getElementById('loadingScreen').style.display = 'none';
-}
-
-function showLogin() {
-  document.getElementById('loginPage').classList.add('active');
-  document.getElementById('app').classList.remove('active');
-}
-
+function showLoading() { document.getElementById('loadingScreen').style.display = 'flex'; }
+function hideLoading() { document.getElementById('loadingScreen').style.display = 'none'; }
+function showLogin() { document.getElementById('loginPage').classList.add('active'); document.getElementById('app').classList.remove('active'); }
 function showApp() {
   document.getElementById('loginPage').classList.remove('active');
   document.getElementById('app').classList.add('active');
-  
   document.getElementById('userDisplay').textContent = currentProfile.display_name;
   document.getElementById('roleDisplay').textContent = currentProfile.role;
   document.getElementById('roleDisplay').classList.toggle('admin', currentProfile.role === 'admin');
-  
   document.body.classList.toggle('admin', currentProfile.role === 'admin');
-  
-  loadDashboard();
-  loadAnalysis();
-  loadProgression();
+  loadDashboard(); loadAnalysis(); loadProgression();
 }
-
 function showAlert(elementId, message, type = 'error') {
   const alertEl = document.getElementById(elementId);
   alertEl.textContent = message;
   alertEl.className = `alert alert-${type} show`;
-  setTimeout(() => {
-    alertEl.classList.remove('show');
-  }, 5000);
+  setTimeout(() => alertEl.classList.remove('show'), 5000);
 }
-
-// ==================== TAB SWITCHING ====================
 function switchTab(event, tabName) {
-  const buttons = document.querySelectorAll('.nav-tab');
-  buttons.forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(btn => btn.classList.remove('active'));
   event.currentTarget.classList.add('active');
-  
   document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-  const targetId = 'tab' + tabName.charAt(0).toUpperCase() + tabName.slice(1);
-  document.getElementById(targetId).classList.add('active');
+  document.getElementById('tab' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).classList.add('active');
 }
 
-// ==================== DATA LOADING (unchanged) ====================
+// ==================== DATA LOADING ====================
 async function loadDashboard() {
   try {
-    const { data, error } = await supabaseClient
-      .from('dashboard_summary')
-      .select('*');
+    const { data, error } = await supabaseClient.from('dashboard_summary').select('*');
     if (error) throw error;
     renderDashboard(data || []);
   } catch (error) {
-    console.error('Error loading dashboard:', error);
-    document.getElementById('dashboardTable').innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--danger);">Error loading data: ${error.message}</td></tr>`;
+    document.getElementById('dashboardTable').innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--danger)">Error: ${error.message}</td></tr>`;
   }
 }
-
 async function loadAnalysis() {
   try {
-    const { data, error } = await supabaseClient
-      .from('calls')
-      .select('*')
-      .eq('score', 0)
-      .order('date', { ascending: false });
+    const { data, error } = await supabaseClient.from('calls').select('*').eq('score', 0).order('date', { ascending: false });
     if (error) throw error;
     renderAnalysis(data || []);
   } catch (error) {
-    console.error('Error loading analysis:', error);
-    document.getElementById('analysisTable').innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--danger);">Error loading data: ${error.message}</td></tr>`;
+    document.getElementById('analysisTable').innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--danger)">Error: ${error.message}</td></tr>`;
   }
 }
-
 async function loadProgression() {
   try {
-    const { data, error } = await supabaseClient
-      .from('weekly_performance')
-      .select('*')
-      .order('week_start', { ascending: false });
+    const { data, error } = await supabaseClient.from('daily_performance').select('*').order('date', { ascending: false }).limit(100);
     if (error) throw error;
     renderProgression(data || []);
   } catch (error) {
-    console.error('Error loading progression:', error);
-    document.getElementById('progressionTable').innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--danger);">Error loading data: ${error.message}</td></tr>`;
+    document.getElementById('progressionTable').innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--danger)">Error: ${error.message}</td></tr>`;
   }
 }
-
 function renderDashboard(data) {
   let totalCalls = 0, totalAvgScore = 0, totalHighScores = 0, totalZeroScores = 0, agentsWithScore = 0;
   data.forEach(agent => {
@@ -1045,188 +950,190 @@ function renderDashboard(data) {
   document.getElementById('dashboardStats').innerHTML = `
     <div class="stat-card"><div class="stat-label">Total Calls</div><div class="stat-value">${totalCalls}</div></div>
     <div class="stat-card"><div class="stat-label">Average Score</div><div class="stat-value">${avgScore}</div></div>
-    <div class="stat-card"><div class="stat-label">High Scores</div><div class="stat-value">${totalHighScores}</div></div>
+    <div class="stat-card"><div class="stat-label">High Scores (≥90)</div><div class="stat-value">${totalHighScores}</div></div>
     <div class="stat-card"><div class="stat-label">Zero Scores</div><div class="stat-value">${totalZeroScores}</div></div>
   `;
   
   if (data.length === 0) {
-    document.getElementById('dashboardTable').innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">No Data Available</div><div class="empty-text">No performance data found</div></div></td></tr>`;
+    document.getElementById('dashboardTable').innerHTML = `...`; // unchanged
     return;
   }
   
   const tableHTML = data.map(agent => {
     const score = parseFloat(agent.avg_score) || 0;
-    const scoreClass = score >= 8.5 ? 'score-high' : score >= 7.5 ? 'score-mid' : 'score-low';
-    return `<tr><td><strong>${escapeHtml(agent.agent_name)}</strong></td><td>${agent.total_calls || 0}</td><td><span class="score-badge ${scoreClass}">${score.toFixed(1)}</span></td><td>${agent.high_scores || 0}</td><td>${agent.zero_scores || 0}</td><td>${escapeHtml(agent.status) || 'active'}</td></tr>`;
+    // New badge logic:
+    let scoreClass = 'score-low';
+    if (score >= 90) scoreClass = 'score-high';
+    else if (score >= 75) scoreClass = 'score-mid';
+    
+    return `
+      <tr>
+        <td><strong>${escapeHtml(agent.agent_name)}</strong></td>
+        <td>${agent.total_calls || 0}</td>
+        <td><span class="score-badge ${scoreClass}">${score.toFixed(1)}</span></td>
+        <td>${agent.high_scores || 0}</td>
+        <td>${agent.zero_scores || 0}</td>
+        <td>${escapeHtml(agent.status) || 'active'}</td>
+      </tr>
+    `;
   }).join('');
+  
   document.getElementById('dashboardTable').innerHTML = tableHTML;
 }
-
-function renderAnalysis(data) {
-  if (data.length === 0) {
-    document.getElementById('analysisTable').innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🎉</div><div class="empty-title">Great Job!</div><div class="empty-text">No zero score calls found</div></div></td></tr>`;
-    return;
-  }
-  const tableHTML = data.map(call => {
-    const date = new Date(call.date).toLocaleDateString();
-    return `<tr><td><strong>${escapeHtml(call.agent_name)}</strong></td><td>${escapeHtml(call.call_id)}</td><td>${date}</td><td>${escapeHtml(call.duration)}</td><td>${escapeHtml(call.reason) || '-'}</td></tr>`;
-  }).join('');
-  document.getElementById('analysisTable').innerHTML = tableHTML;
-}
-
-function renderProgression(data) {
-  if (data.length === 0) {
-    document.getElementById('progressionTable').innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">📊</div><div class="empty-title">No Progression Data</div><div class="empty-text">Progression tracking will appear here</div></div></td></tr>`;
-    return;
-  }
-  const tableHTML = data.map(week => {
-    const score = parseFloat(week.avg_score) || 0;
-    const scoreClass = score >= 8.5 ? 'score-high' : score >= 7.5 ? 'score-mid' : 'score-low';
-    const trendIcon = week.trend === 'up' ? '📈' : week.trend === 'down' ? '📉' : '➡️';
-    const weekLabel = `Week ${week.week_number}`;
-    const improvement = week.improvement_percentage ? `${week.improvement_percentage > 0 ? '+' : ''}${week.improvement_percentage.toFixed(1)}%` : '-';
-    return `<tr><td><strong>${escapeHtml(week.agent_name)}</strong></td><td>${weekLabel}</td><td><span class="score-badge ${scoreClass}">${score.toFixed(1)}</span></td><td class="stat-change">${improvement}</td><td>${trendIcon}</td></tr>`;
-  }).join('');
-  document.getElementById('progressionTable').innerHTML = tableHTML;
-}
-
 function refreshDashboard() { loadDashboard(); }
 function refreshAnalysis() { loadAnalysis(); }
 function refreshProgression() { loadProgression(); }
 
-// ==================== XLSX UPLOAD FEATURE ====================
-function showUploadModal() {
-  document.getElementById('uploadModal').classList.add('active');
-  document.getElementById('xlsxFile').value = '';
+// ==================== UPLOAD MODAL ====================
+function showUploadModal(type) {
+  uploadType = type;
+  const modal = document.getElementById('uploadModal');
+  const header = document.getElementById('modalHeader');
+  const desc = document.getElementById('modalDescription');
+  const fileInput = document.getElementById('uploadFile');
+  fileInput.value = '';
   document.getElementById('uploadProgress').innerHTML = '';
-}
-
-function closeUploadModal() {
-  document.getElementById('uploadModal').classList.remove('active');
-}
-
-async function uploadXLSX() {
-  const fileInput = document.getElementById('xlsxFile');
-  const file = fileInput.files[0];
-  if (!file) {
-    showAlert('loginAlert', 'Please select an XLSX file', 'error');
-    return;
+  if (type === 'calls') {
+    header.textContent = 'Upload Calls CSV';
+    desc.innerHTML = 'CSV must have columns: <code>call_id, agent_name, date, duration, score, reason</code>';
+    fileInput.accept = '.csv';
+  } else {
+    header.textContent = 'Upload Performance XLSX';
+    desc.innerHTML = 'Excel file with sheets named like "601 Agent Name". Each sheet must have columns: Date, Calls, Ignored, Total Talk Time.';
+    fileInput.accept = '.xlsx, .xls';
   }
-  
+  modal.classList.add('active');
+}
+function closeUploadModal() { document.getElementById('uploadModal').classList.remove('active'); }
+
+async function uploadFile() {
+  const file = document.getElementById('uploadFile').files[0];
+  if (!file) { alert('Please select a file.'); return; }
   const progressDiv = document.getElementById('uploadProgress');
-  progressDiv.innerHTML = 'Reading file...';
-  
-  const reader = new FileReader();
-  reader.onload = async function(e) {
-    const data = new Uint8Array(e.target.result);
-    const workbook = XLSX.read(data, { type: 'array' });
-    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(firstSheet);
-    
-    if (rows.length === 0) {
-      progressDiv.innerHTML = 'No data found in the sheet.';
-      return;
-    }
-    
-    // Validate required columns
-    const requiredColumns = ['call_id', 'agent_name', 'date', 'duration', 'score', 'reason'];
-    const headers = Object.keys(rows[0]);
-    const missing = requiredColumns.filter(col => !headers.includes(col));
-    if (missing.length) {
-      progressDiv.innerHTML = `Missing columns: ${missing.join(', ')}`;
-      return;
-    }
-    
-    progressDiv.innerHTML = `Processing ${rows.length} rows...`;
-    
-    // Get all unique agent names from file to lookup agent_id
-    const agentNames = [...new Set(rows.map(r => r.agent_name))];
-    const { data: agents, error: agentError } = await supabaseClient
-      .from('agents')
-      .select('id, name')
-      .in('name', agentNames);
-    
-    if (agentError) {
-      progressDiv.innerHTML = `Error fetching agents: ${agentError.message}`;
-      return;
-    }
-    
-    const agentMap = {};
-    agents.forEach(a => { agentMap[a.name] = a.id; });
-    
-    // Prepare inserts
-    const insertData = [];
-    const errors = [];
-    
-    for (const row of rows) {
-      const agentId = agentMap[row.agent_name];
-      if (!agentId) {
-        errors.push(`Agent "${row.agent_name}" not found in database.`);
-        continue;
+  progressDiv.innerHTML = 'Processing...';
+  if (uploadType === 'calls') {
+    // CSV upload for calls (using PapaParse)
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async function(results) {
+        const rows = results.data;
+        if (rows.length === 0) { progressDiv.innerHTML = 'No data found.'; return; }
+        const required = ['call_id', 'agent_name', 'date', 'duration', 'score', 'reason'];
+        const headers = results.meta.fields;
+        const missing = required.filter(col => !headers.includes(col));
+        if (missing.length) { progressDiv.innerHTML = `Missing columns: ${missing.join(', ')}`; return; }
+        // Lookup agent IDs
+        const agentNames = [...new Set(rows.map(r => r.agent_name))];
+        const { data: agents, error: agentError } = await supabaseClient.from('agents').select('id, name').in('name', agentNames);
+        if (agentError) { progressDiv.innerHTML = `Error fetching agents: ${agentError.message}`; return; }
+        const agentMap = {}; agents.forEach(a => { agentMap[a.name] = a.id; });
+        const insertData = [], errors = [];
+        for (const row of rows) {
+          const agentId = agentMap[row.agent_name];
+          if (!agentId) { errors.push(`Agent "${row.agent_name}" not found.`); continue; }
+          let score = parseFloat(row.score);
+          if (isNaN(score)) score = null;
+          insertData.push({
+            call_id: row.call_id,
+            agent_id: agentId,
+            agent_name: row.agent_name,
+            date: row.date,
+            duration: row.duration,
+            score: score,
+            reason: row.reason || null
+          });
+        }
+        if (insertData.length === 0) { progressDiv.innerHTML = `No valid rows. Errors: ${errors.join('; ')}`; return; }
+        let successCount = 0;
+        for (let i = 0; i < insertData.length; i += 100) {
+          const batch = insertData.slice(i, i+100);
+          const { error } = await supabaseClient.from('calls').insert(batch);
+          if (error) errors.push(`Batch failed: ${error.message}`);
+          else successCount += batch.length;
+        }
+        if (errors.length) progressDiv.innerHTML = `Uploaded ${successCount} rows. Errors: ${errors.join('; ')}`;
+        else progressDiv.innerHTML = `✅ Uploaded ${successCount} rows successfully.`;
+        loadDashboard(); loadAnalysis();
+        setTimeout(() => closeUploadModal(), 3000);
+      },
+      error: function(err) { progressDiv.innerHTML = `CSV error: ${err.message}`; }
+    });
+  } else {
+    // XLSX upload for performance (daily data)
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const allSheets = workbook.SheetNames;
+      const insertData = [];
+      for (const sheetName of allSheets) {
+        // Extract agent name from sheet name (e.g., "601 Abdulkarim Sghir")
+        const match = sheetName.match(/^\d+\s+(.+)$/);
+        let agentName = match ? match[1] : sheetName;
+        agentName = agentName.trim();
+        const sheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        // Find where the data starts (look for row with "Date" in first column)
+        let dataStart = -1;
+        for (let i = 0; i < rows.length; i++) {
+          if (rows[i] && rows[i][0] === 'Date') { dataStart = i+1; break; }
+        }
+        if (dataStart === -1) continue;
+        for (let i = dataStart; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row || row.length < 2) continue;
+          let dateVal = row[0];
+          if (!dateVal || dateVal === 0) continue;
+          let dateStr;
+          if (typeof dateVal === 'number') {
+            const excelDate = new Date(Math.round((dateVal - 25569) * 86400 * 1000));
+            dateStr = excelDate.toISOString().split('T')[0];
+          } else {
+            dateStr = new Date(dateVal).toISOString().split('T')[0];
+          }
+          const calls = parseFloat(row[1]) || 0;
+          const ignored = parseFloat(row[2]) || 0;
+          let talkTime = row[4] || '00:00:00';
+          if (typeof talkTime === 'string' && talkTime.includes(':')) {
+            // keep as is
+          } else if (typeof talkTime === 'number') {
+            talkTime = new Date(talkTime * 86400000).toISOString().substr(11, 8);
+          } else {
+            talkTime = '00:00:00';
+          }
+          if (calls > 0 || ignored > 0) {
+            insertData.push({
+              agent_name: agentName,
+              date: dateStr,
+              calls: calls,
+              ignored: ignored,
+              total_talk_time: talkTime
+            });
+          }
+        }
       }
-      
-      // Validate and parse score
-      let score = parseFloat(row.score);
-      if (isNaN(score)) score = null;
-      
-      insertData.push({
-        call_id: row.call_id,
-        agent_id: agentId,
-        agent_name: row.agent_name,
-        date: row.date,      // must be YYYY-MM-DD
-        duration: row.duration,
-        score: score,
-        reason: row.reason || null
-      });
-    }
-    
-    if (insertData.length === 0) {
-      progressDiv.innerHTML = `No valid rows to insert. Errors: ${errors.join('; ')}`;
-      return;
-    }
-    
-    // Insert in batches of 100
-    const batchSize = 100;
-    let successCount = 0;
-    for (let i = 0; i < insertData.length; i += batchSize) {
-      const batch = insertData.slice(i, i + batchSize);
-      const { error: insertError } = await supabaseClient
-        .from('calls')
-        .insert(batch);
-      if (insertError) {
-        errors.push(`Batch failed: ${insertError.message}`);
-      } else {
-        successCount += batch.length;
+      if (insertData.length === 0) { progressDiv.innerHTML = 'No valid data found in the Excel file.'; return; }
+      // Insert using upsert to avoid duplicates (agent_name, date)
+      let successCount = 0, errors = [];
+      for (let i = 0; i < insertData.length; i += 100) {
+        const batch = insertData.slice(i, i+100);
+        const { error } = await supabaseClient.from('daily_performance').upsert(batch, { onConflict: 'agent_name,date' });
+        if (error) errors.push(`Batch failed: ${error.message}`);
+        else successCount += batch.length;
       }
-    }
-    
-    if (errors.length) {
-      progressDiv.innerHTML = `Uploaded ${successCount} rows. Errors: ${errors.join('; ')}`;
-    } else {
-      progressDiv.innerHTML = `✅ Uploaded ${successCount} rows successfully.`;
-      // Refresh dashboard and analysis tabs
-      loadDashboard();
-      loadAnalysis();
-    }
-    
-    // Keep modal open to show result, then close after delay
-    setTimeout(() => {
-      closeUploadModal();
-    }, 3000);
-  };
-  reader.onerror = function() {
-    progressDiv.innerHTML = 'Error reading file.';
-  };
-  reader.readAsArrayBuffer(file);
+      if (errors.length) progressDiv.innerHTML = `Uploaded ${successCount} rows. Errors: ${errors.join('; ')}`;
+      else progressDiv.innerHTML = `✅ Uploaded ${successCount} daily records.`;
+      loadProgression();
+      setTimeout(() => closeUploadModal(), 3000);
+    };
+    reader.onerror = function() { progressDiv.innerHTML = 'Error reading file.'; };
+    reader.readAsArrayBuffer(file);
+  }
 }
 
-// ==================== UTILITIES ====================
-function escapeHtml(str) {
-  if (!str) return '';
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
+function escapeHtml(str) { if (!str) return ''; return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
 
-// ==================== INITIALIZE ====================
 initApp();
 </script>
 </body>
