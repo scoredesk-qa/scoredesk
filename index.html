@@ -6,618 +6,600 @@
 <title>ScoreDesk Portal</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-:root {
-  --bg: #07080f;
-  --surface: #0e1018;
-  --surface2: #13161f;
-  --border: #1e2233;
-  --border2: #252a3a;
-  --accent: #4f8cff;
-  --accent2: #a78bfa;
-  --text: #e8ecf4;
-  --muted: #5a6285;
-  --muted2: #7b85a8;
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-}
-
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  font-family: 'Syne', sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-/* LOGIN PAGE */
-.login-container {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.login-box {
-  width: 100%;
-  max-width: 420px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 40px;
-  box-shadow: 0 8px 32px rgba(0,0,0,.4);
-}
-
-.login-header {
-  text-align: center;
-  margin-bottom: 32px;
-}
-
-.login-logo {
-  width: 64px;
-  height: 64px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 32px;
-  margin: 0 auto 16px;
-  box-shadow: 0 8px 24px rgba(79,140,255,.3);
-}
-
-.login-title {
-  font-size: 24px;
-  font-weight: 800;
-  margin-bottom: 8px;
-}
-
-.login-subtitle {
-  color: var(--muted2);
-  font-size: 14px;
-  font-family: 'DM Mono', monospace;
-}
-
-.form-group {
-  margin-bottom: 20px;
-}
-
-.form-label {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  color: var(--muted2);
-}
-
-.form-input {
-  width: 100%;
-  padding: 12px 16px;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
-  font-family: 'DM Mono', monospace;
-  font-size: 14px;
-  transition: all .2s;
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(79,140,255,.1);
-}
-
-.btn {
-  width: 100%;
-  padding: 12px 24px;
-  border: none;
-  border-radius: 8px;
-  font-family: 'Syne', sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all .2s;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  color: white;
-}
-
-.btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 24px rgba(79,140,255,.4);
-}
-
-.login-error {
-  background: rgba(239,68,68,.1);
-  border: 1px solid rgba(239,68,68,.3);
-  color: var(--danger);
-  padding: 12px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  font-size: 13px;
-  display: none;
-}
-
-.login-error.show {
-  display: block;
-}
-
-.login-demo {
-  margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid var(--border);
-}
-
-.demo-title {
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 12px;
-  text-align: center;
-}
-
-.demo-credentials {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.demo-btn {
-  flex: 1;
-  min-width: 120px;
-  padding: 8px 12px;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text);
-  font-family: 'DM Mono', monospace;
-  font-size: 11px;
-  cursor: pointer;
-  transition: all .2s;
-}
-
-.demo-btn:hover {
-  border-color: var(--accent);
-  background: var(--surface);
-}
-
-/* MAIN APP */
-.app {
-  display: none;
-  flex-direction: column;
-  min-height: 100vh;
-}
-
-.app.active {
-  display: flex;
-}
-
-/* NAV BAR */
-.nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0;
-  padding: 0 24px;
-  height: 52px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  position: relative;
-  z-index: 10;
-}
-
-.nav::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg, var(--accent), var(--accent2));
-}
-
-.nav-left {
-  display: flex;
-  align-items: center;
-  gap: 28px;
-}
-
-.nav-logo {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.nav-logo-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  box-shadow: 0 3px 12px rgba(79,140,255,.3);
-}
-
-.nav-logo-name {
-  font-size: 14px;
-  font-weight: 800;
-  letter-spacing: -0.3px;
-}
-
-.nav-tabs {
-  display: flex;
-  gap: 2px;
-}
-
-.nav-tab {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 7px 18px;
-  border-radius: 8px;
-  cursor: pointer;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--muted2);
-  font-family: 'DM Mono', monospace;
-  font-size: 12px;
-  font-weight: 500;
-  transition: all .15s;
-  white-space: nowrap;
-}
-
-.nav-tab:hover {
-  color: var(--text);
-  background: var(--surface2);
-}
-
-.nav-tab.active {
-  background: rgba(79,140,255,.1);
-  border-color: rgba(79,140,255,.25);
-  color: var(--accent);
-}
-
-.nav-tab-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: .6;
-  flex-shrink: 0;
-}
-
-.nav-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.user-badge {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-family: 'DM Mono', monospace;
-  font-size: 12px;
-}
-
-.user-role {
-  padding: 2px 8px;
-  background: rgba(167,139,250,.15);
-  border: 1px solid rgba(167,139,250,.3);
-  color: var(--accent2);
-  border-radius: 4px;
-  font-size: 10px;
-  text-transform: uppercase;
-  font-weight: 600;
-}
-
-.user-role.admin {
-  background: rgba(239,68,68,.15);
-  border-color: rgba(239,68,68,.3);
-  color: var(--danger);
-}
-
-.btn-logout {
-  padding: 6px 14px;
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--muted2);
-  font-family: 'DM Mono', monospace;
-  font-size: 11px;
-  cursor: pointer;
-  transition: all .2s;
-}
-
-.btn-logout:hover {
-  border-color: var(--danger);
-  color: var(--danger);
-  background: rgba(239,68,68,.05);
-}
-
-/* CONTENT AREA */
-.content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px;
-}
-
-.tab-content {
-  display: none;
-}
-
-.tab-content.active {
-  display: block;
-}
-
-.content-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24px;
-}
-
-.content-title {
-  font-size: 28px;
-  font-weight: 800;
-}
-
-.content-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.btn-action {
-  padding: 8px 16px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
-  font-family: 'DM Mono', monospace;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all .2s;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.btn-action:hover {
-  background: var(--surface2);
-  border-color: var(--accent);
-}
-
-.btn-action.admin-only {
-  display: none;
-}
-
-body.admin .btn-action.admin-only {
-  display: flex;
-}
-
-/* CARDS */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.stat-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 20px;
-}
-
-.stat-label {
-  font-family: 'DM Mono', monospace;
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 8px;
-}
-
-.stat-value {
-  font-size: 32px;
-  font-weight: 800;
-  margin-bottom: 4px;
-}
-
-.stat-change {
-  font-family: 'DM Mono', monospace;
-  font-size: 11px;
-  color: var(--success);
-}
-
-.stat-change.negative {
-  color: var(--danger);
-}
-
-/* TABLE */
-.table-container {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.table thead {
-  background: var(--surface2);
-  border-bottom: 1px solid var(--border);
-}
-
-.table th {
-  padding: 12px 16px;
-  text-align: left;
-  font-family: 'DM Mono', monospace;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--muted2);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.table td {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--border);
-  font-family: 'DM Mono', monospace;
-  font-size: 13px;
-}
-
-.table tr:last-child td {
-  border-bottom: none;
-}
-
-.table tbody tr:hover {
-  background: var(--surface2);
-}
-
-.score-badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.score-high {
-  background: rgba(16,185,129,.15);
-  color: var(--success);
-}
-
-.score-mid {
-  background: rgba(245,158,11,.15);
-  color: var(--warning);
-}
-
-.score-low {
-  background: rgba(239,68,68,.15);
-  color: var(--danger);
-}
-
-.action-buttons {
-  display: flex;
-  gap: 6px;
-}
-
-.btn-icon {
-  padding: 4px 8px;
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--muted2);
-  cursor: pointer;
-  font-size: 11px;
-  transition: all .2s;
-}
-
-.btn-icon:hover {
-  background: var(--surface2);
-  color: var(--text);
-}
-
-.btn-icon.delete:hover {
-  border-color: var(--danger);
-  color: var(--danger);
-}
-
-/* Chart Container */
-.chart-container {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 24px;
-}
-
-.chart-title {
-  font-family: 'DM Mono', monospace;
-  font-size: 13px;
-  color: var(--muted2);
-  margin-bottom: 16px;
-}
-
-.chart-placeholder {
-  height: 300px;
-  background: var(--surface2);
-  border: 1px dashed var(--border);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--muted);
-  font-family: 'DM Mono', monospace;
-  font-size: 12px;
-}
-
-/* Empty State */
-.empty-state {
-  text-align: center;
-  padding: 60px 20px;
-}
-
-.empty-icon {
-  font-size: 64px;
-  margin-bottom: 16px;
-}
-
-.empty-title {
-  font-size: 20px;
-  font-weight: 700;
-  margin-bottom: 8px;
-}
-
-.empty-text {
-  color: var(--muted2);
-  font-family: 'DM Mono', monospace;
-  font-size: 13px;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .nav {
-    flex-wrap: wrap;
-    height: auto;
-    padding: 12px;
+  /* (CSS remains exactly as in the original file) */
+  :root {
+    --bg: #07080f;
+    --surface: #0e1018;
+    --surface2: #13161f;
+    --border: #1e2233;
+    --border2: #252a3a;
+    --accent: #4f8cff;
+    --accent2: #a78bfa;
+    --text: #e8ecf4;
+    --muted: #5a6285;
+    --muted2: #7b85a8;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
   }
-  
-  .nav-tabs {
-    width: 100%;
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* LOADING SCREEN */
+  .loading-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
     justify-content: center;
-    margin-top: 12px;
+    z-index: 1000;
   }
-  
+
+  .loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* LOGIN PAGE */
+  .login-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    display: none;
+  }
+
+  .login-container.active {
+    display: flex;
+  }
+
+  .login-box {
+    width: 100%;
+    max-width: 420px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 40px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.4);
+  }
+
+  .login-header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  .login-logo {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    margin: 0 auto 16px;
+    box-shadow: 0 8px 24px rgba(79,140,255,.3);
+  }
+
+  .login-title {
+    font-size: 24px;
+    font-weight: 800;
+    margin-bottom: 8px;
+  }
+
+  .login-subtitle {
+    color: var(--muted2);
+    font-size: 14px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .form-group {
+    margin-bottom: 20px;
+  }
+
+  .form-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--muted2);
+  }
+
+  .form-input {
+    width: 100%;
+    padding: 12px 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    transition: all .2s;
+  }
+
+  .form-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(79,140,255,.1);
+  }
+
+  .btn {
+    width: 100%;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .2s;
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(79,140,255,.4);
+  }
+
+  .alert {
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    display: none;
+  }
+
+  .alert.show {
+    display: block;
+  }
+
+  .alert-error {
+    background: rgba(239,68,68,.1);
+    border: 1px solid rgba(239,68,68,.3);
+    color: var(--danger);
+  }
+
+  .alert-success {
+    background: rgba(16,185,129,.1);
+    border: 1px solid rgba(16,185,129,.3);
+    color: var(--success);
+  }
+
+  /* MAIN APP */
+  .app {
+    display: none;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  .app.active {
+    display: flex;
+  }
+
+  /* NAV BAR */
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0;
+    padding: 0 24px;
+    height: 52px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    position: relative;
+    z-index: 10;
+  }
+
+  .nav::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+  }
+
+  .nav-left {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+  }
+
+  .nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+
+  .nav-logo-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    box-shadow: 0 3px 12px rgba(79,140,255,.3);
+  }
+
+  .nav-logo-name {
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+  }
+
+  .nav-tabs {
+    display: flex;
+    gap: 2px;
+  }
+
+  .nav-tab {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted2);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all .15s;
+    white-space: nowrap;
+  }
+
+  .nav-tab:hover {
+    color: var(--text);
+    background: var(--surface2);
+  }
+
+  .nav-tab.active {
+    background: rgba(79,140,255,.1);
+    border-color: rgba(79,140,255,.25);
+    color: var(--accent);
+  }
+
+  .nav-tab-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: .6;
+    flex-shrink: 0;
+  }
+
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .user-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+  }
+
+  .user-role {
+    padding: 2px 8px;
+    background: rgba(167,139,250,.15);
+    border: 1px solid rgba(167,139,250,.3);
+    color: var(--accent2);
+    border-radius: 4px;
+    font-size: 10px;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .user-role.admin {
+    background: rgba(239,68,68,.15);
+    border-color: rgba(239,68,68,.3);
+    color: var(--danger);
+  }
+
+  .btn-logout {
+    padding: 6px 14px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted2);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all .2s;
+  }
+
+  .btn-logout:hover {
+    border-color: var(--danger);
+    color: var(--danger);
+    background: rgba(239,68,68,.05);
+  }
+
+  /* CONTENT AREA */
   .content {
-    padding: 16px;
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
   }
-  
+
+  .tab-content {
+    display: none;
+  }
+
+  .tab-content.active {
+    display: block;
+  }
+
+  .content-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+
+  .content-title {
+    font-size: 28px;
+    font-weight: 800;
+  }
+
+  .content-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .btn-action {
+    padding: 8px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all .2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .btn-action:hover {
+    background: var(--surface2);
+    border-color: var(--accent);
+  }
+
+  .btn-action.admin-only {
+    display: none;
+  }
+
+  body.admin .btn-action.admin-only {
+    display: flex;
+  }
+
+  /* CARDS */
   .stats-grid {
-    grid-template-columns: 1fr;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
   }
-  
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .stat-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .stat-value {
+    font-size: 32px;
+    font-weight: 800;
+    margin-bottom: 4px;
+  }
+
+  .stat-change {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--success);
+  }
+
+  .stat-change.negative {
+    color: var(--danger);
+  }
+
+  /* TABLE */
   .table-container {
-    overflow-x: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
   }
-}
+
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .table thead {
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .table th {
+    padding: 12px 16px;
+    text-align: left;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted2);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+  }
+
+  .table tr:last-child td {
+    border-bottom: none;
+  }
+
+  .table tbody tr:hover {
+    background: var(--surface2);
+  }
+
+  .score-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .score-high {
+    background: rgba(16,185,129,.15);
+    color: var(--success);
+  }
+
+  .score-mid {
+    background: rgba(245,158,11,.15);
+    color: var(--warning);
+  }
+
+  .score-low {
+    background: rgba(239,68,68,.15);
+    color: var(--danger);
+  }
+
+  .action-buttons {
+    display: flex;
+    gap: 6px;
+  }
+
+  .btn-icon {
+    padding: 4px 8px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted2);
+    cursor: pointer;
+    font-size: 11px;
+    transition: all .2s;
+  }
+
+  .btn-icon:hover {
+    background: var(--surface2);
+    color: var(--text);
+  }
+
+  .btn-icon.delete:hover {
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+
+  /* Empty State */
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+  }
+
+  .empty-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+  }
+
+  .empty-title {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .empty-text {
+    color: var(--muted2);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .nav {
+      flex-wrap: wrap;
+      height: auto;
+      padding: 12px;
+    }
+    
+    .nav-tabs {
+      width: 100%;
+      justify-content: center;
+      margin-top: 12px;
+    }
+    
+    .content {
+      padding: 16px;
+    }
+    
+    .stats-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .table-container {
+      overflow-x: auto;
+    }
+  }
 </style>
 </head>
 <body>
+
+<!-- LOADING SCREEN -->
+<div id="loadingScreen" class="loading-screen">
+  <div class="loading-spinner"></div>
+</div>
 
 <!-- LOGIN PAGE -->
 <div id="loginPage" class="login-container">
@@ -628,36 +610,21 @@ body.admin .btn-action.admin-only {
       <div class="login-subtitle">Agent Performance Analytics</div>
     </div>
     
-    <div id="loginError" class="login-error"></div>
+    <div id="loginAlert" class="alert alert-error"></div>
     
     <form id="loginForm" onsubmit="return handleLogin(event)">
       <div class="form-group">
-        <label class="form-label">Username</label>
-        <input type="text" id="username" class="form-input" required autocomplete="username">
+        <label class="form-label">Email</label>
+        <input type="email" id="loginEmail" class="form-input" required autocomplete="email">
       </div>
       
       <div class="form-group">
         <label class="form-label">Password</label>
-        <input type="password" id="password" class="form-input" required autocomplete="current-password">
+        <input type="password" id="loginPassword" class="form-input" required autocomplete="current-password">
       </div>
       
-      <button type="submit" class="btn btn-primary">Sign In</button>
+      <button type="submit" class="btn btn-primary" id="loginBtn">Sign In</button>
     </form>
-    
-    <div class="login-demo">
-      <div class="demo-title">Demo Accounts</div>
-      <div class="demo-credentials">
-        <button type="button" class="demo-btn" onclick="fillDemo('admin', 'admin123')">
-          👑 Admin<br><small>admin / admin123</small>
-        </button>
-        <button type="button" class="demo-btn" onclick="fillDemo('john.doe', 'pass123')">
-          👤 John Doe<br><small>john.doe / pass123</small>
-        </button>
-        <button type="button" class="demo-btn" onclick="fillDemo('sarah.smith', 'pass123')">
-          👤 Sarah Smith<br><small>sarah.smith / pass123</small>
-        </button>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -670,15 +637,15 @@ body.admin .btn-action.admin-only {
         <div class="nav-logo-name">ScoreDesk</div>
       </div>
       <div class="nav-tabs">
-        <button class="nav-tab active" onclick="switchTab('dashboard')">
+        <button class="nav-tab active" onclick="switchTab(event, 'dashboard')">
           <span class="nav-tab-dot"></span>
           📊 Dashboard
         </button>
-        <button class="nav-tab" onclick="switchTab('analysis')">
+        <button class="nav-tab" onclick="switchTab(event, 'analysis')">
           <span class="nav-tab-dot"></span>
           🔍 Zero Score Analysis
         </button>
-        <button class="nav-tab" onclick="switchTab('progression')">
+        <button class="nav-tab" onclick="switchTab(event, 'progression')">
           <span class="nav-tab-dot"></span>
           📈 Agent Progression
         </button>
@@ -700,17 +667,29 @@ body.admin .btn-action.admin-only {
       <div class="content-header">
         <h1 class="content-title">Dashboard</h1>
         <div class="content-actions">
-          <button class="btn-action admin-only" onclick="handleUpload()">
-            ⬆️ Upload Data
-          </button>
-          <button class="btn-action admin-only" onclick="handleExport()">
-            ⬇️ Export
+          <button class="btn-action" onclick="refreshDashboard()">
+            🔄 Refresh
           </button>
         </div>
       </div>
       
       <div class="stats-grid" id="dashboardStats">
-        <!-- Stats will be populated by JS -->
+        <div class="stat-card">
+          <div class="stat-label">Total Calls</div>
+          <div class="stat-value">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Average Score</div>
+          <div class="stat-value">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">High Scores</div>
+          <div class="stat-value">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Zero Scores</div>
+          <div class="stat-value">-</div>
+        </div>
       </div>
       
       <div class="table-container">
@@ -723,11 +702,12 @@ body.admin .btn-action.admin-only {
               <th>High Scores</th>
               <th>Zero Scores</th>
               <th>Status</th>
-              <th class="admin-only">Actions</th>
             </tr>
           </thead>
           <tbody id="dashboardTable">
-            <!-- Rows will be populated by JS -->
+            <tr>
+              <td colspan="6" style="text-align: center; padding: 20px;">Loading...</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -738,16 +718,9 @@ body.admin .btn-action.admin-only {
       <div class="content-header">
         <h1 class="content-title">Zero Score Analysis</h1>
         <div class="content-actions">
-          <button class="btn-action admin-only" onclick="handleAnalysisExport()">
-            ⬇️ Export Analysis
+          <button class="btn-action" onclick="refreshAnalysis()">
+            🔄 Refresh
           </button>
-        </div>
-      </div>
-      
-      <div class="chart-container">
-        <div class="chart-title">Zero Score Trend</div>
-        <div class="chart-placeholder">
-          📊 Chart visualization would display here
         </div>
       </div>
       
@@ -760,11 +733,12 @@ body.admin .btn-action.admin-only {
               <th>Date</th>
               <th>Duration</th>
               <th>Reason</th>
-              <th class="admin-only">Actions</th>
             </tr>
           </thead>
           <tbody id="analysisTable">
-            <!-- Rows will be populated by JS -->
+            <tr>
+              <td colspan="5" style="text-align: center; padding: 20px;">Loading...</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -775,16 +749,9 @@ body.admin .btn-action.admin-only {
       <div class="content-header">
         <h1 class="content-title">Agent Progression</h1>
         <div class="content-actions">
-          <button class="btn-action admin-only" onclick="handleProgressionExport()">
-            ⬇️ Export Report
+          <button class="btn-action" onclick="refreshProgression()">
+            🔄 Refresh
           </button>
-        </div>
-      </div>
-      
-      <div class="chart-container">
-        <div class="chart-title">Performance Over Time</div>
-        <div class="chart-placeholder">
-          📈 Progression chart would display here
         </div>
       </div>
       
@@ -797,11 +764,12 @@ body.admin .btn-action.admin-only {
               <th>Avg Score</th>
               <th>Improvement</th>
               <th>Trend</th>
-              <th class="admin-only">Actions</th>
             </tr>
           </thead>
           <tbody id="progressionTable">
-            <!-- Rows will be populated by JS -->
+            <tr>
+              <td colspan="5" style="text-align: center; padding: 20px;">Loading...</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -809,220 +777,281 @@ body.admin .btn-action.admin-only {
   </div>
 </div>
 
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <script>
-// ==================== DATA STORAGE ====================
-const USERS = {
-  'admin': {
-    password: 'admin123',
-    role: 'admin',
-    displayName: 'Administrator'
-  },
-  'john.doe': {
-    password: 'pass123',
-    role: 'user',
-    displayName: 'John Doe',
-    agentName: 'John Doe'
-  },
-  'sarah.smith': {
-    password: 'pass123',
-    role: 'user',
-    displayName: 'Sarah Smith',
-    agentName: 'Sarah Smith'
-  },
-  'mike.johnson': {
-    password: 'pass123',
-    role: 'user',
-    displayName: 'Mike Johnson',
-    agentName: 'Mike Johnson'
-  },
-  'emma.wilson': {
-    password: 'pass123',
-    role: 'user',
-    displayName: 'Emma Wilson',
-    agentName: 'Emma Wilson'
-  }
-};
+// ==================== CONFIGURATION ====================
+// IMPORTANT: Replace these with your actual Supabase credentials
+const SUPABASE_URL = 'https://nuwrymppeqfrkekkctuu.supabase.co'; // e.g., 'https://xxxxx.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51d3J5bXBwZXFmcmtla2tjdHV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NTc5MjgsImV4cCI6MjA5MDQzMzkyOH0.xpW_1qczIIPffMuHQiKsLYNus9sSoKVIGQ-mCY5ULgQ';
 
-// Sample data for all agents
-const DASHBOARD_DATA = [
-  { agent: 'John Doe', totalCalls: 245, avgScore: 8.5, highScores: 189, zeroScores: 3, status: 'active' },
-  { agent: 'Sarah Smith', totalCalls: 312, avgScore: 9.2, highScores: 267, zeroScores: 1, status: 'active' },
-  { agent: 'Mike Johnson', totalCalls: 198, avgScore: 7.8, highScores: 142, zeroScores: 8, status: 'active' },
-  { agent: 'Emma Wilson', totalCalls: 276, avgScore: 8.9, highScores: 223, zeroScores: 2, status: 'active' },
-  { agent: 'David Brown', totalCalls: 189, avgScore: 7.2, highScores: 118, zeroScores: 12, status: 'training' }
-];
+// Initialize Supabase client
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const ZERO_SCORE_DATA = [
-  { agent: 'John Doe', callId: 'C-10234', date: '2024-03-25', duration: '3:45', reason: 'Technical Issue' },
-  { agent: 'John Doe', callId: 'C-10189', date: '2024-03-22', duration: '2:18', reason: 'Call Dropped' },
-  { agent: 'John Doe', callId: 'C-10156', date: '2024-03-20', duration: '1:56', reason: 'System Error' },
-  { agent: 'Sarah Smith', callId: 'C-10298', date: '2024-03-26', duration: '4:12', reason: 'Network Issue' },
-  { agent: 'Mike Johnson', callId: 'C-10287', date: '2024-03-26', duration: '5:23', reason: 'Call Quality' },
-  { agent: 'Mike Johnson', callId: 'C-10245', date: '2024-03-24', duration: '3:34', reason: 'Technical Issue' },
-  { agent: 'Mike Johnson', callId: 'C-10201', date: '2024-03-23', duration: '2:45', reason: 'Call Dropped' },
-  { agent: 'Emma Wilson', callId: 'C-10267', date: '2024-03-25', duration: '3:12', reason: 'System Error' },
-  { agent: 'Emma Wilson', callId: 'C-10198', date: '2024-03-21', duration: '4:56', reason: 'Network Issue' },
-  { agent: 'David Brown', callId: 'C-10294', date: '2024-03-27', duration: '2:34', reason: 'Call Quality' }
-];
-
-const PROGRESSION_DATA = [
-  { agent: 'John Doe', week: 'Week 1', avgScore: 7.8, improvement: '+5%', trend: 'up' },
-  { agent: 'John Doe', week: 'Week 2', avgScore: 8.2, improvement: '+5%', trend: 'up' },
-  { agent: 'John Doe', week: 'Week 3', avgScore: 8.5, improvement: '+4%', trend: 'up' },
-  { agent: 'Sarah Smith', week: 'Week 1', avgScore: 8.9, improvement: '+2%', trend: 'up' },
-  { agent: 'Sarah Smith', week: 'Week 2', avgScore: 9.1, improvement: '+2%', trend: 'up' },
-  { agent: 'Sarah Smith', week: 'Week 3', avgScore: 9.2, improvement: '+1%', trend: 'up' },
-  { agent: 'Mike Johnson', week: 'Week 1', avgScore: 7.2, improvement: '+3%', trend: 'up' },
-  { agent: 'Mike Johnson', week: 'Week 2', avgScore: 7.5, improvement: '+4%', trend: 'up' },
-  { agent: 'Mike Johnson', week: 'Week 3', avgScore: 7.8, improvement: '+4%', trend: 'up' },
-  { agent: 'Emma Wilson', week: 'Week 1', avgScore: 8.5, improvement: '+3%', trend: 'up' },
-  { agent: 'Emma Wilson', week: 'Week 2', avgScore: 8.7, improvement: '+2%', trend: 'up' },
-  { agent: 'Emma Wilson', week: 'Week 3', avgScore: 8.9, improvement: '+2%', trend: 'up' }
-];
-
-// ==================== SESSION MANAGEMENT ====================
+// ==================== STATE ====================
 let currentUser = null;
+let currentProfile = null;
 
-function initApp() {
+// ==================== INITIALIZATION ====================
+async function initApp() {
   // Check for existing session
-  const savedUser = sessionStorage.getItem('scoredesk_user');
-  if (savedUser) {
-    currentUser = JSON.parse(savedUser);
-    showApp();
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  if (session) {
+    const profileLoaded = await loadUserProfile(session.user);
+    if (profileLoaded) {
+      showApp();
+    } else {
+      // If profile is missing, log out and show login
+      await supabase.auth.signOut();
+      showLogin();
+      showAlert('loginAlert', 'Your account is not fully set up. Please contact support.', 'error');
+    }
+  } else {
+    showLogin();
   }
+  
+  hideLoading();
 }
 
-// ==================== LOGIN ====================
-function handleLogin(event) {
+// ==================== AUTH FUNCTIONS ====================
+async function handleLogin(event) {
   event.preventDefault();
   
-  const username = document.getElementById('username').value.trim();
-  const password = document.getElementById('password').value;
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const loginBtn = document.getElementById('loginBtn');
   
-  const user = USERS[username];
+  loginBtn.disabled = true;
+  loginBtn.textContent = 'Signing in...';
   
-  if (!user || user.password !== password) {
-    showError('Invalid username or password');
-    return false;
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password
+    });
+    
+    if (error) throw error;
+    
+    const profileLoaded = await loadUserProfile(data.user);
+    if (!profileLoaded) {
+      throw new Error('User profile not found. Please contact support.');
+    }
+    
+    showApp();
+    
+  } catch (error) {
+    showAlert('loginAlert', error.message, 'error');
+  } finally {
+    loginBtn.disabled = false;
+    loginBtn.textContent = 'Sign In';
   }
-  
-  currentUser = {
-    username: username,
-    displayName: user.displayName,
-    role: user.role,
-    agentName: user.agentName || null
-  };
-  
-  sessionStorage.setItem('scoredesk_user', JSON.stringify(currentUser));
-  showApp();
   
   return false;
 }
 
-function fillDemo(username, password) {
-  document.getElementById('username').value = username;
-  document.getElementById('password').value = password;
+async function handleLogout() {
+  try {
+    await supabase.auth.signOut();
+    currentUser = null;
+    currentProfile = null;
+    location.reload();
+  } catch (error) {
+    console.error('Logout error:', error);
+  }
 }
 
-function showError(message) {
-  const errorEl = document.getElementById('loginError');
-  errorEl.textContent = message;
-  errorEl.classList.add('show');
+async function loadUserProfile(user) {
+  currentUser = user;
   
-  setTimeout(() => {
-    errorEl.classList.remove('show');
-  }, 3000);
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single();
+  
+  if (error) {
+    console.error('Error loading profile:', error);
+    return false;
+  }
+  
+  currentProfile = data;
+  return true;
 }
 
-function handleLogout() {
-  sessionStorage.removeItem('scoredesk_user');
-  currentUser = null;
-  location.reload();
+// ==================== UI DISPLAY ====================
+function showLoading() {
+  document.getElementById('loadingScreen').style.display = 'flex';
 }
 
-// ==================== APP DISPLAY ====================
+function hideLoading() {
+  document.getElementById('loadingScreen').style.display = 'none';
+}
+
+function showLogin() {
+  document.getElementById('loginPage').classList.add('active');
+  document.getElementById('app').classList.remove('active');
+}
+
 function showApp() {
-  document.getElementById('loginPage').style.display = 'none';
+  document.getElementById('loginPage').classList.remove('active');
   document.getElementById('app').classList.add('active');
   
   // Update user display
-  document.getElementById('userDisplay').textContent = currentUser.displayName;
-  document.getElementById('roleDisplay').textContent = currentUser.role;
-  document.getElementById('roleDisplay').classList.toggle('admin', currentUser.role === 'admin');
+  document.getElementById('userDisplay').textContent = currentProfile.display_name;
+  document.getElementById('roleDisplay').textContent = currentProfile.role;
+  document.getElementById('roleDisplay').classList.toggle('admin', currentProfile.role === 'admin');
   
-  // Apply admin class to body for CSS targeting
-  document.body.classList.toggle('admin', currentUser.role === 'admin');
+  // Apply admin class to body
+  document.body.classList.toggle('admin', currentProfile.role === 'admin');
   
-  // Load data for all tabs
+  // Load all tabs
   loadDashboard();
   loadAnalysis();
   loadProgression();
 }
 
-// ==================== DATA FILTERING ====================
-function filterDataByUser(data) {
-  if (currentUser.role === 'admin') {
-    return data; // Admin sees all data
-  }
+function showAlert(elementId, message, type = 'error') {
+  const alertEl = document.getElementById(elementId);
+  alertEl.textContent = message;
+  alertEl.className = `alert alert-${type} show`;
   
-  // Regular users only see their own data
-  return data.filter(item => item.agent === currentUser.agentName);
+  setTimeout(() => {
+    alertEl.classList.remove('show');
+  }, 5000);
 }
 
-// ==================== DASHBOARD ====================
-function loadDashboard() {
-  const filteredData = filterDataByUser(DASHBOARD_DATA);
+// ==================== TAB SWITCHING ====================
+function switchTab(event, tabName) {
+  // Update active button
+  const buttons = document.querySelectorAll('.nav-tab');
+  buttons.forEach(btn => btn.classList.remove('active'));
+  event.currentTarget.classList.add('active');
   
-  // Calculate stats
+  // Update active content
+  document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+  const targetId = 'tab' + tabName.charAt(0).toUpperCase() + tabName.slice(1);
+  document.getElementById(targetId).classList.add('active');
+}
+
+// ==================== DATA LOADING ====================
+async function loadDashboard() {
+  try {
+    const { data, error } = await supabase
+      .from('dashboard_summary')
+      .select('*');
+    
+    if (error) throw error;
+    
+    renderDashboard(data || []);
+  } catch (error) {
+    console.error('Error loading dashboard:', error);
+    document.getElementById('dashboardTable').innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align: center; padding: 20px; color: var(--danger);">
+          Error loading data: ${error.message}
+        </td>
+      </tr>
+    `;
+  }
+}
+
+async function loadAnalysis() {
+  try {
+    const { data, error } = await supabase
+      .from('calls')
+      .select('*')
+      .eq('score', 0)
+      .order('date', { ascending: false });
+    
+    if (error) throw error;
+    
+    renderAnalysis(data || []);
+  } catch (error) {
+    console.error('Error loading analysis:', error);
+    document.getElementById('analysisTable').innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align: center; padding: 20px; color: var(--danger);">
+          Error loading data: ${error.message}
+        </td>
+      </tr>
+    `;
+  }
+}
+
+async function loadProgression() {
+  try {
+    const { data, error } = await supabase
+      .from('weekly_performance')
+      .select('*')
+      .order('week_start', { ascending: false });
+    
+    if (error) throw error;
+    
+    renderProgression(data || []);
+  } catch (error) {
+    console.error('Error loading progression:', error);
+    document.getElementById('progressionTable').innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align: center; padding: 20px; color: var(--danger);">
+          Error loading data: ${error.message}
+        </td>
+      </tr>
+    `;
+  }
+}
+
+// ==================== DATA RENDERING ====================
+function renderDashboard(data) {
+  // Calculate totals
   let totalCalls = 0;
   let totalAvgScore = 0;
   let totalHighScores = 0;
   let totalZeroScores = 0;
+  let agentsWithScore = 0;
   
-  filteredData.forEach(agent => {
-    totalCalls += agent.totalCalls;
-    totalAvgScore += agent.avgScore;
-    totalHighScores += agent.highScores;
-    totalZeroScores += agent.zeroScores;
+  data.forEach(agent => {
+    totalCalls += agent.total_calls || 0;
+    if (agent.avg_score !== null && agent.avg_score !== undefined) {
+      totalAvgScore += parseFloat(agent.avg_score) || 0;
+      agentsWithScore++;
+    }
+    totalHighScores += agent.high_scores || 0;
+    totalZeroScores += agent.zero_scores || 0;
   });
   
-  const avgScore = filteredData.length > 0 ? (totalAvgScore / filteredData.length).toFixed(1) : 0;
+  const avgScore = agentsWithScore > 0 ? (totalAvgScore / agentsWithScore).toFixed(1) : 0;
   
   // Render stats
-  const statsHTML = `
+  document.getElementById('dashboardStats').innerHTML = `
     <div class="stat-card">
       <div class="stat-label">Total Calls</div>
       <div class="stat-value">${totalCalls}</div>
-      <div class="stat-change">+12% from last week</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Average Score</div>
       <div class="stat-value">${avgScore}</div>
-      <div class="stat-change">+0.3 from last week</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">High Scores</div>
       <div class="stat-value">${totalHighScores}</div>
-      <div class="stat-change">+8% from last week</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Zero Scores</div>
       <div class="stat-value">${totalZeroScores}</div>
-      <div class="stat-change negative">-15% from last week</div>
     </div>
   `;
   
-  document.getElementById('dashboardStats').innerHTML = statsHTML;
-  
   // Render table
-  if (filteredData.length === 0) {
+  if (data.length === 0) {
     document.getElementById('dashboardTable').innerHTML = `
       <tr>
-        <td colspan="7" style="text-align: center; padding: 40px;">
+        <td colspan="6">
           <div class="empty-state">
             <div class="empty-icon">📭</div>
             <div class="empty-title">No Data Available</div>
-            <div class="empty-text">No performance data found for your account</div>
+            <div class="empty-text">No performance data found</div>
           </div>
         </td>
       </tr>
@@ -1030,26 +1059,18 @@ function loadDashboard() {
     return;
   }
   
-  const tableHTML = filteredData.map(agent => {
-    const scoreClass = agent.avgScore >= 8.5 ? 'score-high' : agent.avgScore >= 7.5 ? 'score-mid' : 'score-low';
-    const adminActions = currentUser.role === 'admin' ? `
-      <td>
-        <div class="action-buttons">
-          <button class="btn-icon" onclick="handleEdit('${agent.agent}')">✏️</button>
-          <button class="btn-icon delete" onclick="handleDelete('${agent.agent}')">🗑️</button>
-        </div>
-      </td>
-    ` : '';
+  const tableHTML = data.map(agent => {
+    const score = parseFloat(agent.avg_score) || 0;
+    const scoreClass = score >= 8.5 ? 'score-high' : score >= 7.5 ? 'score-mid' : 'score-low';
     
     return `
       <tr>
-        <td><strong>${agent.agent}</strong></td>
-        <td>${agent.totalCalls}</td>
-        <td><span class="score-badge ${scoreClass}">${agent.avgScore}</span></td>
-        <td>${agent.highScores}</td>
-        <td>${agent.zeroScores}</td>
-        <td>${agent.status}</td>
-        ${adminActions}
+        <td><strong>${escapeHtml(agent.agent_name)}</strong></td>
+        <td>${agent.total_calls || 0}</td>
+        <td><span class="score-badge ${scoreClass}">${score.toFixed(1)}</span></td>
+        <td>${agent.high_scores || 0}</td>
+        <td>${agent.zero_scores || 0}</td>
+        <td>${escapeHtml(agent.status) || 'active'}</td>
       </tr>
     `;
   }).join('');
@@ -1057,14 +1078,11 @@ function loadDashboard() {
   document.getElementById('dashboardTable').innerHTML = tableHTML;
 }
 
-// ==================== ZERO SCORE ANALYSIS ====================
-function loadAnalysis() {
-  const filteredData = filterDataByUser(ZERO_SCORE_DATA);
-  
-  if (filteredData.length === 0) {
+function renderAnalysis(data) {
+  if (data.length === 0) {
     document.getElementById('analysisTable').innerHTML = `
       <tr>
-        <td colspan="6" style="text-align: center; padding: 40px;">
+        <td colspan="5">
           <div class="empty-state">
             <div class="empty-icon">🎉</div>
             <div class="empty-title">Great Job!</div>
@@ -1076,24 +1094,16 @@ function loadAnalysis() {
     return;
   }
   
-  const tableHTML = filteredData.map(call => {
-    const adminActions = currentUser.role === 'admin' ? `
-      <td>
-        <div class="action-buttons">
-          <button class="btn-icon" onclick="handleViewCall('${call.callId}')">👁️</button>
-          <button class="btn-icon delete" onclick="handleDeleteCall('${call.callId}')">🗑️</button>
-        </div>
-      </td>
-    ` : '';
+  const tableHTML = data.map(call => {
+    const date = new Date(call.date).toLocaleDateString();
     
     return `
       <tr>
-        <td><strong>${call.agent}</strong></td>
-        <td>${call.callId}</td>
-        <td>${call.date}</td>
-        <td>${call.duration}</td>
-        <td>${call.reason}</td>
-        ${adminActions}
+        <td><strong>${escapeHtml(call.agent_name)}</strong></td>
+        <td>${escapeHtml(call.call_id)}</td>
+        <td>${date}</td>
+        <td>${escapeHtml(call.duration)}</td>
+        <td>${escapeHtml(call.reason) || '-'}</td>
       </tr>
     `;
   }).join('');
@@ -1101,14 +1111,11 @@ function loadAnalysis() {
   document.getElementById('analysisTable').innerHTML = tableHTML;
 }
 
-// ==================== AGENT PROGRESSION ====================
-function loadProgression() {
-  const filteredData = filterDataByUser(PROGRESSION_DATA);
-  
-  if (filteredData.length === 0) {
+function renderProgression(data) {
+  if (data.length === 0) {
     document.getElementById('progressionTable').innerHTML = `
       <tr>
-        <td colspan="6" style="text-align: center; padding: 40px;">
+        <td colspan="5">
           <div class="empty-state">
             <div class="empty-icon">📊</div>
             <div class="empty-title">No Progression Data</div>
@@ -1120,25 +1127,20 @@ function loadProgression() {
     return;
   }
   
-  const tableHTML = filteredData.map(week => {
-    const scoreClass = week.avgScore >= 8.5 ? 'score-high' : week.avgScore >= 7.5 ? 'score-mid' : 'score-low';
+  const tableHTML = data.map(week => {
+    const score = parseFloat(week.avg_score) || 0;
+    const scoreClass = score >= 8.5 ? 'score-high' : score >= 7.5 ? 'score-mid' : 'score-low';
     const trendIcon = week.trend === 'up' ? '📈' : week.trend === 'down' ? '📉' : '➡️';
-    const adminActions = currentUser.role === 'admin' ? `
-      <td>
-        <div class="action-buttons">
-          <button class="btn-icon" onclick="handleViewDetails('${week.agent}', '${week.week}')">👁️</button>
-        </div>
-      </td>
-    ` : '';
+    const weekLabel = `Week ${week.week_number}`;
+    const improvement = week.improvement_percentage ? `${week.improvement_percentage > 0 ? '+' : ''}${week.improvement_percentage.toFixed(1)}%` : '-';
     
     return `
       <tr>
-        <td><strong>${week.agent}</strong></td>
-        <td>${week.week}</td>
-        <td><span class="score-badge ${scoreClass}">${week.avgScore}</span></td>
-        <td class="stat-change">${week.improvement}</td>
+        <td><strong>${escapeHtml(week.agent_name)}</strong></td>
+        <td>${weekLabel}</td>
+        <td><span class="score-badge ${scoreClass}">${score.toFixed(1)}</span></td>
+        <td class="stat-change">${improvement}</td>
         <td>${trendIcon}</td>
-        ${adminActions}
       </tr>
     `;
   }).join('');
@@ -1146,59 +1148,31 @@ function loadProgression() {
   document.getElementById('progressionTable').innerHTML = tableHTML;
 }
 
-// ==================== TAB SWITCHING ====================
-function switchTab(tabName) {
-  // Update nav tabs
-  document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
-  event.target.closest('.nav-tab').classList.add('active');
-  
-  // Update content
-  document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-  document.getElementById('tab' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).classList.add('active');
+// ==================== REFRESH FUNCTIONS ====================
+function refreshDashboard() {
+  loadDashboard();
 }
 
-// ==================== ADMIN ACTIONS ====================
-function handleUpload() {
-  alert('Upload functionality would open a file picker dialog');
+function refreshAnalysis() {
+  loadAnalysis();
 }
 
-function handleExport() {
-  alert('Export functionality would download data as CSV/Excel');
+function refreshProgression() {
+  loadProgression();
 }
 
-function handleAnalysisExport() {
-  alert('Export analysis functionality would download analysis report');
+// ==================== UTILITIES ====================
+function escapeHtml(str) {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
-function handleProgressionExport() {
-  alert('Export progression functionality would download progression report');
-}
-
-function handleEdit(agent) {
-  alert(`Edit functionality for agent: ${agent}`);
-}
-
-function handleDelete(agent) {
-  if (confirm(`Are you sure you want to delete data for ${agent}?`)) {
-    alert(`Delete functionality for agent: ${agent}`);
-  }
-}
-
-function handleViewCall(callId) {
-  alert(`View call details for: ${callId}`);
-}
-
-function handleDeleteCall(callId) {
-  if (confirm(`Are you sure you want to delete call ${callId}?`)) {
-    alert(`Delete call: ${callId}`);
-  }
-}
-
-function handleViewDetails(agent, week) {
-  alert(`View details for ${agent} - ${week}`);
-}
-
-// ==================== INITIALIZE ====================
+// ==================== INITIALIZE APP ====================
 initApp();
 </script>
 </body>
