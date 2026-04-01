@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ScoreDesk Portal</title>
+<title>ScoreDesk – QA Portal</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -17,10 +18,10 @@
   --text: #e8ecf4;
   --muted: #5a6285;
   --muted2: #7b85a8;
+  --pass: #22d3a0;
+  --fail: #f43f5e;
 }
-
 * { box-sizing: border-box; margin: 0; padding: 0; }
-
 body {
   font-family: 'Syne', sans-serif;
   background: var(--bg);
@@ -31,60 +32,153 @@ body {
   overflow: hidden;
 }
 
-/* NAV BAR */
+/* LOGIN SCREEN */
+#loginScreen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  background: var(--bg);
+  padding: 24px;
+}
+.login-box {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 22px;
+  padding: 48px 44px;
+  width: 100%;
+  max-width: 420px;
+  text-align: center;
+  position: relative;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+}
+.login-logo {
+  width: 56px; height: 56px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  margin: 0 auto 22px;
+  box-shadow: 0 8px 32px rgba(79,140,255,0.3);
+}
+.login-title { font-size: 26px; font-weight: 800; margin-bottom: 5px; }
+.login-sub { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted2); margin-bottom: 32px; text-transform: uppercase; letter-spacing: 2px; }
+.login-field { margin-bottom: 18px; text-align: left; }
+.login-field label {
+  display: block;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--muted2);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.login-input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  padding: 13px 16px;
+  border-radius: 10px;
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  transition: border-color .2s;
+}
+.login-input:focus { border-color: var(--accent); outline: none; }
+.login-btn {
+  width: 100%;
+  background: linear-gradient(135deg, var(--accent), #6366f1);
+  color: #fff;
+  border: none;
+  padding: 14px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 8px;
+}
+.login-btn:disabled { opacity: .5; cursor: not-allowed; }
+.login-error {
+  color: var(--fail);
+  font-family: monospace;
+  font-size: 12px;
+  margin-top: 12px;
+  display: none;
+  background: rgba(244,63,94,.08);
+  border-radius: 8px;
+  padding: 8px;
+}
+.pass-wrap { position: relative; }
+.pass-wrap .login-input { padding-right: 46px; }
+.pass-toggle {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: var(--muted);
+}
+
+/* MAIN APP */
+#app {
+  display: none;
+  flex: 1;
+  flex-direction: column;
+  height: 100%;
+}
 .nav {
   display: flex;
   align-items: center;
-  gap: 0;
   padding: 0 24px;
-  height: 52px;
+  height: 56px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   position: relative;
-  z-index: 10;
 }
-
-/* top accent line */
 .nav::before {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0; height: 2px;
   background: linear-gradient(90deg, var(--accent), var(--accent2));
 }
-
 .nav-logo {
-  display: flex; align-items: center; gap: 9px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
   margin-right: 28px;
 }
 .nav-logo-icon {
-  width: 28px; height: 28px; border-radius: 8px;
+  width: 30px; height: 30px;
+  border-radius: 8px;
   background: linear-gradient(135deg, var(--accent), var(--accent2));
-  display: flex; align-items: center; justify-content: center;
-  font-size: 14px;
-  box-shadow: 0 3px 12px rgba(79,140,255,.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
 }
-.nav-logo-name {
-  font-size: 14px; font-weight: 800; letter-spacing: -0.3px;
-}
-
+.nav-logo-name { font-size: 15px; font-weight: 800; }
 .nav-tabs {
-  display: flex; gap: 2px;
+  display: flex;
+  gap: 4px;
 }
-
 .nav-tab {
-  display: flex; align-items: center; gap: 7px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
   padding: 7px 18px;
   border-radius: 8px;
   cursor: pointer;
-  border: 1px solid transparent;
   background: transparent;
   color: var(--muted2);
   font-family: 'DM Mono', monospace;
-  font-size: 12px; font-weight: 500;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid transparent;
   transition: all .15s;
-  white-space: nowrap;
-  text-decoration: none;
 }
 .nav-tab:hover { color: var(--text); background: var(--surface2); }
 .nav-tab.active {
@@ -93,10 +187,37 @@ body {
   color: var(--accent);
 }
 .nav-tab-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: currentColor; opacity: .6;
-  flex-shrink: 0;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
 }
+.hdr-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.hdr-user {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--muted2);
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: background .15s;
+}
+.hdr-user:hover { background: var(--surface2); }
+.hdr-btn {
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--muted2);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.hdr-btn:hover { border-color: var(--accent); color: var(--accent); }
 
 /* IFRAME CONTAINER */
 .frame-wrap {
@@ -104,7 +225,6 @@ body {
   position: relative;
   overflow: hidden;
 }
-
 iframe {
   position: absolute;
   inset: 0;
@@ -115,43 +235,400 @@ iframe {
   background: var(--bg);
 }
 iframe.active { display: block; }
+
+/* MODAL */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 16px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s;
+}
+.modal-overlay.open {
+  opacity: 1;
+  pointer-events: all;
+}
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  width: 100%;
+  max-width: 500px;
+  max-height: 92vh;
+  overflow-y: auto;
+  transform: translateY(14px);
+  transition: transform .2s;
+}
+.modal-overlay.open .modal {
+  transform: translateY(0);
+}
+.modal-top {
+  padding: 22px 26px 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 2;
+}
+.modal-agent {
+  font-size: 20px;
+  font-weight: 800;
+}
+.modal-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.modal-close {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.modal-close:hover {
+  border-color: var(--fail);
+  color: var(--fail);
+}
+.modal-body {
+  padding: 22px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.acct-input {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  width: 100%;
+}
+.acct-input:focus { outline: none; border-color: var(--accent); }
+.save-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 8px 18px;
+  border-radius: 7px;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: all .15s;
+}
+.save-btn:hover { background: #3a7aee; }
+.save-ok {
+  color: var(--pass);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  margin-top: 5px;
+  display: none;
+}
+
+/* TOAST */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(70px);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 11px 20px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 9999;
+  transition: transform .3s cubic-bezier(.4,0,.2,1);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+.toast.ok { border-color: var(--pass); color: var(--pass); }
+.toast.err { border-color: var(--fail); color: var(--fail); }
 </style>
 </head>
 <body>
 
-<nav class="nav">
-  <div class="nav-logo">
-    <div class="nav-logo-icon">📋</div>
-    <div class="nav-logo-name">ScoreDesk</div>
+<!-- LOGIN SCREEN -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">📋</div>
+    <div class="login-title">ScoreDesk</div>
+    <div class="login-sub">QA PLATFORM</div>
+    <div class="login-field">
+      <label>Email</label>
+      <input class="login-input" type="email" id="loginEmail" placeholder="you@example.com">
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <div class="pass-wrap">
+        <input class="login-input" type="password" id="loginPass" placeholder="••••••••">
+        <span class="pass-toggle" id="passToggle">👁</span>
+      </div>
+    </div>
+    <button class="login-btn" id="loginBtn">Sign In</button>
+    <div class="login-error" id="loginError"></div>
   </div>
-  <div class="nav-tabs">
-    <button class="nav-tab active" onclick="switchTab('dashboard', this)">
-      <span class="nav-tab-dot"></span>
-      📊 Dashboard
-    </button>
-    <button class="nav-tab" onclick="switchTab('analysis', this)">
-      <span class="nav-tab-dot"></span>
-      🔍 Zero Score Analysis
-    </button>
-    <button class="nav-tab" onclick="switchTab('progression', this)">
-      <span class="nav-tab-dot"></span>
-      📈 Agent Progression
-    </button>
-  </div>
-</nav>
-
-<div class="frame-wrap">
-  <iframe id="frame-dashboard" class="active" src="dashboard.html"></iframe>
-  <iframe id="frame-analysis"  src="scoredesk-zero-analysis.html"></iframe>
-  <iframe id="frame-progression" src="agent-progression.html"></iframe>
 </div>
 
+<!-- MAIN APP (after login) -->
+<div id="app">
+  <div class="nav">
+    <div class="nav-logo">
+      <div class="nav-logo-icon">📋</div>
+      <div class="nav-logo-name">ScoreDesk</div>
+    </div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="switchTab('dashboard')">
+        <span class="nav-tab-dot"></span> 📊 Dashboard
+      </button>
+      <button class="nav-tab" onclick="switchTab('analysis')">
+        <span class="nav-tab-dot"></span> 🔍 Zero Score Analysis
+      </button>
+      <button class="nav-tab" onclick="switchTab('progression')">
+        <span class="nav-tab-dot"></span> 📈 Agent Progression
+      </button>
+    </div>
+    <div class="hdr-right">
+      <span class="hdr-user" id="headerUser" onclick="openProfileModal()">Manage account</span>
+      <button class="hdr-btn" id="logoutBtn">Sign Out</button>
+    </div>
+  </div>
+  <div class="frame-wrap">
+    <iframe id="frame-dashboard" class="active" src="dashboard.html"></iframe>
+    <iframe id="frame-analysis" src="scoredesk-zero-analysis.html"></iframe>
+    <iframe id="frame-progression" src="agent-progression.html"></iframe>
+  </div>
+</div>
+
+<!-- PROFILE MODAL (manage account) -->
+<div class="modal-overlay" id="profileModal">
+  <div class="modal">
+    <div class="modal-top">
+      <div>
+        <div class="modal-agent">Your Profile</div>
+        <div class="modal-meta">Update your password</div>
+      </div>
+      <button class="modal-close" onclick="closeProfileModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div>
+        <div class="notes-lbl" style="margin-bottom:8px;">Email</div>
+        <input class="acct-input" type="email" id="profileEmail" disabled readonly>
+      </div>
+      <div>
+        <div class="notes-lbl" style="margin-bottom:8px;">New Password</div>
+        <input class="acct-input" type="password" id="newPassword" placeholder="Enter new password (min 6 chars)">
+      </div>
+      <div>
+        <div class="notes-lbl" style="margin-bottom:8px;">Confirm Password</div>
+        <input class="acct-input" type="password" id="confirmPassword" placeholder="Confirm new password">
+      </div>
+      <button class="save-btn" id="updatePasswordBtn">Update Password</button>
+      <div id="profileMsg" class="save-ok" style="display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
 <script>
-function switchTab(name, btn) {
+// ==================== SUPABASE CONFIG ====================
+const SUPABASE_URL = 'https://qbvjgiamqzkscdykenvi.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFidmpnaWFtcXprc2NkeWtlbnZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwMzUxMTIsImV4cCI6MjA5MDYxMTExMn0.OeV5qa9y_PCGw6nG0wbfPfiMBjYC_jvzsUXHOip1RTU';
+
+let sb = null;
+let currentUser = null;
+
+// Helper: show toast message
+function showToast(msg, ok) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (ok === true ? ' ok' : ok === false ? ' err' : '');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// Initialize Supabase client and check session
+window.addEventListener('load', async () => {
+  try {
+    if (typeof window.supabase === 'undefined') throw new Error('Supabase SDK not loaded');
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { autoRefreshToken: true, persistSession: true }
+    });
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) {
+      currentUser = session.user;
+      showApp();
+    }
+  } catch (e) {
+    console.error('Init error:', e);
+    document.getElementById('loginError').textContent = 'Failed to connect. Check console.';
+    document.getElementById('loginError').style.display = 'block';
+  }
+});
+
+// Password visibility toggle
+document.getElementById('passToggle').addEventListener('click', function() {
+  const inp = document.getElementById('loginPass');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+  this.textContent = inp.type === 'password' ? '👁' : '🙈';
+});
+
+// Login event handlers
+document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('loginBtn').addEventListener('click', doLogin);
+document.getElementById('logoutBtn').addEventListener('click', doLogout);
+document.getElementById('updatePasswordBtn').addEventListener('click', updatePassword);
+
+// Login function
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  const btn = document.getElementById('loginBtn');
+  const errEl = document.getElementById('loginError');
+  errEl.style.display = 'none';
+  if (!email || !pass) {
+    errEl.textContent = 'Please enter email and password.';
+    errEl.style.display = 'block';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Signing in...';
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) {
+    errEl.textContent = /invalid|credentials/i.test(error.message) ? 'Incorrect email or password.' : error.message;
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
+    return;
+  }
+  const { data: { user } } = await sb.auth.getUser();
+  currentUser = user;
+  showApp();
+}
+
+// Show main application after login
+function showApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('headerUser').textContent = currentUser.email; // Show email as "manage account" clickable
+  // Reload iframes to ensure fresh content
+  document.getElementById('frame-dashboard').src = 'dashboard.html';
+  document.getElementById('frame-analysis').src = 'scoredesk-zero-analysis.html';
+  document.getElementById('frame-progression').src = 'agent-progression.html';
+  // Ensure first tab is active
+  setTimeout(() => {
+    document.querySelectorAll('.nav-tab').forEach((t, i) => t.classList.toggle('active', i === 0));
+    document.getElementById('frame-dashboard').classList.add('active');
+    document.getElementById('frame-analysis').classList.remove('active');
+    document.getElementById('frame-progression').classList.remove('active');
+  }, 100);
+}
+
+// Logout: sign out, clear local storage, reload page to login
+async function doLogout() {
+  await sb.auth.signOut();
+  // Clear any Supabase session data from localStorage
+  const storageKeys = Object.keys(localStorage);
+  for (const key of storageKeys) {
+    if (key.includes('supabase.auth.token') || key.includes('sb-')) {
+      localStorage.removeItem(key);
+    }
+  }
+  window.location.href = window.location.pathname;
+}
+
+// Tab switching (3 tabs)
+function switchTab(name) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('iframe').forEach(f => f.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('frame-' + name).classList.add('active');
+  if (name === 'dashboard') {
+    document.querySelectorAll('.nav-tab')[0].classList.add('active');
+    document.getElementById('frame-dashboard').classList.add('active');
+  } else if (name === 'analysis') {
+    document.querySelectorAll('.nav-tab')[1].classList.add('active');
+    document.getElementById('frame-analysis').classList.add('active');
+  } else if (name === 'progression') {
+    document.querySelectorAll('.nav-tab')[2].classList.add('active');
+    document.getElementById('frame-progression').classList.add('active');
+  }
+}
+
+// Profile modal (manage account)
+function openProfileModal() {
+  const modal = document.getElementById('profileModal');
+  document.getElementById('profileEmail').value = currentUser.email;
+  document.getElementById('newPassword').value = '';
+  document.getElementById('confirmPassword').value = '';
+  document.getElementById('profileMsg').style.display = 'none';
+  modal.classList.add('open');
+}
+function closeProfileModal() {
+  document.getElementById('profileModal').classList.remove('open');
+}
+
+// Update password
+async function updatePassword() {
+  const newPass = document.getElementById('newPassword').value.trim();
+  const confirmPass = document.getElementById('confirmPassword').value.trim();
+  const msgDiv = document.getElementById('profileMsg');
+
+  if (!newPass) {
+    msgDiv.textContent = 'Please enter a new password.';
+    msgDiv.style.color = 'var(--fail)';
+    msgDiv.style.display = 'block';
+    return;
+  }
+  if (newPass.length < 6) {
+    msgDiv.textContent = 'Password must be at least 6 characters.';
+    msgDiv.style.color = 'var(--fail)';
+    msgDiv.style.display = 'block';
+    return;
+  }
+  if (newPass !== confirmPass) {
+    msgDiv.textContent = 'Passwords do not match.';
+    msgDiv.style.color = 'var(--fail)';
+    msgDiv.style.display = 'block';
+    return;
+  }
+
+  try {
+    const { error } = await sb.auth.updateUser({ password: newPass });
+    if (error) throw error;
+    msgDiv.textContent = 'Password updated successfully!';
+    msgDiv.style.color = 'var(--pass)';
+    msgDiv.style.display = 'block';
+    document.getElementById('newPassword').value = '';
+    document.getElementById('confirmPassword').value = '';
+    setTimeout(() => closeProfileModal(), 2000);
+  } catch (err) {
+    msgDiv.textContent = err.message;
+    msgDiv.style.color = 'var(--fail)';
+    msgDiv.style.display = 'block';
+  }
 }
 </script>
 </body>
