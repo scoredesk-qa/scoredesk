@@ -330,7 +330,7 @@ async function onLogin() {
   showLoading(false);
 }
 
-// ========== ALL ORIGINAL DASHBOARD FUNCTIONS (unchanged except three) ==========
+// ========== ALL ORIGINAL DASHBOARD FUNCTIONS (unchanged except removed agent notes) ==========
 async function loadScorecards() {
   let query = sb.from('scorecards').select('*').order('created_at',{ascending:true});
   if (!isAdmin && currentAgentName) {
@@ -515,11 +515,11 @@ function renderCharts(){
   agentChartInst=new Chart(gs('agentChart'),{type:'bar',data:{labels:weeks,datasets:[{label:'Scored',data:tc,backgroundColor:'rgba(79,140,255,0.7)',borderRadius:4,borderSkipped:false}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:Object.assign({},tt,{callbacks:{label:ctx=>' '+ctx.parsed.y+' scored'}})},scales:{x:{ticks:{color:'#6b7694',font:CHART_CFG.tickFont},grid:{color:CHART_CFG.gridColor}},y:{ticks:{color:'#6b7694',font:CHART_CFG.tickFont,stepSize:1},grid:{color:CHART_CFG.gridColor}}}}});
 }
 
-// ========== MODIFIED renderCards – hides notes for non-admins when no notes exist ==========
-async function renderCards(agents,filter){
+// ========== renderCards – NO agent notes section ==========
+function renderCards(agents,filter){
   var filtered=agents.filter(a=>{if(filter==='pass')return a.calls.every(c=>c.pass);if(filter==='fail')return a.calls.some(c=>!c.pass);return true;});
   var container=document.getElementById('agentCards');container.innerHTML='';
-  for (const agent of filtered) {
+  filtered.forEach(agent=>{
     var tot=agent.calls.length,pas=agent.calls.filter(c=>c.pass).length,fai=tot-pas;
     var cls=fai===0?'pass':pas===0?'fail':'mixed',lbl=fai===0?'ALL PASSED':pas===0?'ALL FAILED':(fai+' FAIL'+(fai>1?'S':''));
     var ini=agent.name.split(' ').map(p=>p[0]||'').join('').slice(0,2).toUpperCase();
@@ -534,44 +534,7 @@ async function renderCards(agents,filter){
       +'<div class="calls-table-wrap" id="'+cid+'">'
       +'<table><thead><th>#</th><th>Call Date</th><th>Auditor</th><th>Status</th><th>Fail Reason</th><th>Detail</th></thead><tbody>'+rows+'</tbody></table>'
       +'</div>';
-
-    // Handle notes section
-    if (isAdmin) {
-      // Admin always gets the notes section
-      var nk='anotes-'+agent.name.replace(/\W/g,'_');
-      var ok='agok-'+agent.name.replace(/\W/g,'_');
-      card.innerHTML += '<div style="padding:14px 20px;border-top:1px solid var(--border);">'
-        +'<div class="notes-lbl">One-on-One Notes — '+agent.name+'</div>'
-        +'<textarea class="notes-area" id="'+nk+'" placeholder="Coaching notes for 1:1..."></textarea>'
-        +'<div style="display:flex;align-items:center;gap:10px;margin-top:8px;">'
-        +'<button class="save-btn" onclick="saveAgentNote(\''+agent.name.replace(/'/g,"\\'")+'\')">Save Notes</button>'
-        +'<span class="save-ok" id="'+ok+'">✓ Saved</span></div></div>';
-      container.appendChild(card);
-      loadAgentNote(agent.name,nk);
-    } else {
-      // Non-admin: check if there are existing notes
-      const { data: noteData } = await sb.from('notes').select('content').eq('note_key','agent:'+agent.name).single();
-      if (noteData && noteData.content) {
-        // Show read-only notes
-        card.innerHTML += '<div style="padding:14px 20px;border-top:1px solid var(--border);">'
-          +'<div class="notes-lbl">One-on-One Notes</div>'
-          +'<div style="background:var(--surface2);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;">'+escapeHtml(noteData.content)+'</div>'
-          +'</div>';
-      }
-      container.appendChild(card);
-    }
-  }
-}
-
-// Helper to escape HTML in notes
-function escapeHtml(str) {
-  return str.replace(/[&<>]/g, function(m) {
-    if (m === '&') return '&amp;';
-    if (m === '<') return '&lt;';
-    if (m === '>') return '&gt;';
-    return m;
-  }).replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, function(c) {
-    return c;
+    container.appendChild(card);
   });
 }
 
@@ -584,7 +547,7 @@ function callRow(c,idx){
 function toggleCard(id){document.getElementById(id).classList.toggle('open');document.getElementById(id+'-chev').classList.toggle('open');}
 function filterAgents(f,btn){currentFilter=f;document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));btn.classList.add('active');renderCards(Object.values(agentMap),f);}
 
-// ========== MODIFIED openModal – shows notes read‑only for non‑admins ==========
+// ========== MODIFIED openModal – only call notes (no agent notes) ==========
 async function openModal(key){
   var dec=decodeURIComponent(key),parts=dec.split('||'),name=parts[0],fn=parts[1];
   var c=agentMap[name]&&agentMap[name].calls.find(x=>x.fileName===fn);
@@ -612,10 +575,19 @@ async function openModal(key){
 
 function closeModal(){document.getElementById('modalOverlay').classList.remove('open');}
 async function saveCallNote(){notes_upsert('call:'+currentCallKey,document.getElementById('callNoteArea').value,'callSaveOk');}
-async function saveAgentNote(name){var el=document.getElementById('anotes-'+name.replace(/\W/g,'_'));if(el)notes_upsert('agent:'+name,el.value,'agok-'+name.replace(/\W/g,'_'));}
-async function loadAgentNote(name,elId){var r=await sb.from('notes').select('content').eq('note_key','agent:'+name).single();if(r.data&&r.data.content){var el=document.getElementById(elId);if(el)el.value=r.data.content;}}
 
-// ========== notes_upsert – only admins can save ==========
+// Helper to escape HTML
+function escapeHtml(str) {
+  return str.replace(/[&<>]/g, function(m) {
+    if (m === '&') return '&amp;';
+    if (m === '<') return '&lt;';
+    if (m === '>') return '&gt;';
+    return m;
+  }).replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, function(c) {
+    return c;
+  });
+}
+
 async function notes_upsert(key,val,okId){
   if (!isAdmin) return; // Only admins can save notes
   await sb.from('notes').upsert({note_key:key,content:val,updated_by:currentUser.id},{onConflict:'note_key'});
