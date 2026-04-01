@@ -8,7 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
 <style>
-/* ========== ALL ORIGINAL DASHBOARD CSS – unchanged ========== */
+/* ========== ALL ORIGINAL DASHBOARD CSS – unchanged except overflow fix ========== */
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap');
 :root{
   --bg:#0b0d13;--surface:#12151e;--surface2:#191d28;--surface3:#1f2335;
@@ -98,10 +98,10 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .chevron{color:var(--muted);transition:transform .2s;font-size:13px;}
 .chevron.open{transform:rotate(180deg);}
 
-/* TABLE */
-.calls-table-wrap{border-top:1px solid var(--border);display:none;}
+/* TABLE – FIXED: add horizontal scroll */
+.calls-table-wrap{border-top:1px solid var(--border);display:none;overflow-x:auto;width:100%;}
 .calls-table-wrap.open{display:block;}
-table{width:100%;border-collapse:collapse;}
+table{width:100%;border-collapse:collapse;min-width:600px;}
 thead{background:var(--surface2);}
 th{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.7px;color:var(--muted);text-align:left;padding:10px 20px;border-bottom:1px solid var(--border);text-transform:uppercase;}
 td{padding:12px 20px;border-bottom:1px solid var(--border);font-size:12px;vertical-align:middle;}
@@ -515,11 +515,11 @@ function renderCharts(){
   agentChartInst=new Chart(gs('agentChart'),{type:'bar',data:{labels:weeks,datasets:[{label:'Scored',data:tc,backgroundColor:'rgba(79,140,255,0.7)',borderRadius:4,borderSkipped:false}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:Object.assign({},tt,{callbacks:{label:ctx=>' '+ctx.parsed.y+' scored'}})},scales:{x:{ticks:{color:'#6b7694',font:CHART_CFG.tickFont},grid:{color:CHART_CFG.gridColor}},y:{ticks:{color:'#6b7694',font:CHART_CFG.tickFont,stepSize:1},grid:{color:CHART_CFG.gridColor}}}}});
 }
 
-// ========== MODIFIED renderCards – hides notes for non‑admins ==========
-function renderCards(agents,filter){
+// ========== MODIFIED renderCards – hides notes for non-admins when no notes exist ==========
+async function renderCards(agents,filter){
   var filtered=agents.filter(a=>{if(filter==='pass')return a.calls.every(c=>c.pass);if(filter==='fail')return a.calls.some(c=>!c.pass);return true;});
   var container=document.getElementById('agentCards');container.innerHTML='';
-  filtered.forEach(agent=>{
+  for (const agent of filtered) {
     var tot=agent.calls.length,pas=agent.calls.filter(c=>c.pass).length,fai=tot-pas;
     var cls=fai===0?'pass':pas===0?'fail':'mixed',lbl=fai===0?'ALL PASSED':pas===0?'ALL FAILED':(fai+' FAIL'+(fai>1?'S':''));
     var ini=agent.name.split(' ').map(p=>p[0]||'').join('').slice(0,2).toUpperCase();
@@ -532,10 +532,12 @@ function renderCards(agents,filter){
       +'<div class="agent-card-stats"><span class="mini-badge '+cls+'">'+lbl+'</span><span class="calls-count">'+tot+' call'+(tot!==1?'s':'')+'</span></div>'
       +'<span class="chevron" id="'+cid+'-chev">\u25be</span></div>'
       +'<div class="calls-table-wrap" id="'+cid+'">'
-      +'<table><thead><th>#</th><th>Call Date</th><th>Auditor</th><th>Status</th><th>Fail Reason</th><th>Detail</th></thead><tbody>'+rows+'</tbody></table>';
+      +'<table><thead><th>#</th><th>Call Date</th><th>Auditor</th><th>Status</th><th>Fail Reason</th><th>Detail</th></thead><tbody>'+rows+'</tbody></table>'
+      +'</div>';
 
-    // Only add notes section if user is admin
+    // Handle notes section
     if (isAdmin) {
+      // Admin always gets the notes section
       var nk='anotes-'+agent.name.replace(/\W/g,'_');
       var ok='agok-'+agent.name.replace(/\W/g,'_');
       card.innerHTML += '<div style="padding:14px 20px;border-top:1px solid var(--border);">'
@@ -543,17 +545,40 @@ function renderCards(agents,filter){
         +'<textarea class="notes-area" id="'+nk+'" placeholder="Coaching notes for 1:1..."></textarea>'
         +'<div style="display:flex;align-items:center;gap:10px;margin-top:8px;">'
         +'<button class="save-btn" onclick="saveAgentNote(\''+agent.name.replace(/'/g,"\\'")+'\')">Save Notes</button>'
-        +'<span class="save-ok" id="'+ok+'">\u2713 Saved</span></div></div>';
+        +'<span class="save-ok" id="'+ok+'">✓ Saved</span></div></div>';
+      container.appendChild(card);
+      loadAgentNote(agent.name,nk);
+    } else {
+      // Non-admin: check if there are existing notes
+      const { data: noteData } = await sb.from('notes').select('content').eq('note_key','agent:'+agent.name).single();
+      if (noteData && noteData.content) {
+        // Show read-only notes
+        card.innerHTML += '<div style="padding:14px 20px;border-top:1px solid var(--border);">'
+          +'<div class="notes-lbl">One-on-One Notes</div>'
+          +'<div style="background:var(--surface2);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;">'+escapeHtml(noteData.content)+'</div>'
+          +'</div>';
+      }
+      container.appendChild(card);
     }
-    container.appendChild(card);
-    if (isAdmin) loadAgentNote(agent.name,nk);
+  }
+}
+
+// Helper to escape HTML in notes
+function escapeHtml(str) {
+  return str.replace(/[&<>]/g, function(m) {
+    if (m === '&') return '&amp;';
+    if (m === '<') return '&lt;';
+    if (m === '>') return '&gt;';
+    return m;
+  }).replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, function(c) {
+    return c;
   });
 }
 
 function callRow(c,idx){
-  var reason=(!c.pass&&c.pfReason)?'<span class="fail-reason" title="'+c.pfReason+'">'+c.pfReason+'</span>':'<span style="color:var(--muted);font-size:11px;">'+(c.pass?'\u2014':'No reason recorded')+'</span>';
+  var reason=(!c.pass&&c.pfReason)?'<span class="fail-reason" title="'+c.pfReason+'">'+c.pfReason+'</span>':'<span style="color:var(--muted);font-size:11px;">'+(c.pass?'—':'No reason recorded')+'</span>';
   var key=encodeURIComponent(c.name+'||'+c.fileName);
-  return '<td style="font-family:monospace;font-size:11px;color:var(--muted);">'+String(idx).padStart(2,'0')+'</td><td style="font-family:monospace;font-size:11px;">'+(c.callDate||'\u2014')+'</td><td style="font-family:monospace;font-size:11px;color:var(--muted);">'+(c.auditor||'\u2014')+'</td><td><span class="badge '+(c.pass?'pass':'fail')+'">'+(c.pass?'PASSED':'FAILED')+'</span></td><td>'+reason+'</td><td><button class="action-btn" onclick="openModal(\''+key+'\')">View Detail</button></td>';
+  return '<tr><td style="font-family:monospace;font-size:11px;color:var(--muted);">'+String(idx).padStart(2,'0')+'</td><td style="font-family:monospace;font-size:11px;">'+(c.callDate||'—')+'</td><td style="font-family:monospace;font-size:11px;color:var(--muted);">'+(c.auditor||'—')+'</td><td><span class="badge '+(c.pass?'pass':'fail')+'">'+(c.pass?'PASSED':'FAILED')+'</span></td><td>'+reason+'</td><td><button class="action-btn" onclick="openModal(\''+key+'\')">View Detail</button></td></tr>';
 }
 
 function toggleCard(id){document.getElementById(id).classList.toggle('open');document.getElementById(id+'-chev').classList.toggle('open');}
@@ -565,7 +590,7 @@ async function openModal(key){
   var c=agentMap[name]&&agentMap[name].calls.find(x=>x.fileName===fn);
   if(!c)return; currentCallKey=key;
   document.getElementById('mName').textContent=c.name;
-  document.getElementById('mMeta').textContent=[c.account&&('Account: '+c.account),c.callDate&&('Call: '+c.callDate),c.auditor&&('Auditor: '+c.auditor)].filter(Boolean).join(' \u00b7 ');
+  document.getElementById('mMeta').textContent=[c.account&&('Account: '+c.account),c.callDate&&('Call: '+c.callDate),c.auditor&&('Auditor: '+c.auditor)].filter(Boolean).join(' · ');
   var html='<div class="result-banner '+(c.pass?'pass':'fail')+'"><div class="result-icon">'+(c.pass?'✅':'❌')+'</div><div class="result-label '+(c.pass?'pass':'fail')+'">'+(c.pass?'PASSED':'FAILED')+'</div>'+(c.pfReason?'<div class="result-reason">Reason: '+c.pfReason+'</div>':'')+'</div>';
   if(!c.pass&&c.autoFails&&c.autoFails.length){html+='<div class="af-box"><div class="af-box-title">⚠️ Auto-Fail Triggers</div>';c.autoFails.forEach(af=>{html+='<div class="af-row"><div class="af-q">'+af.label+'</div><div class="af-result">FAILED — '+af.val+'</div>'+(af.fb?'<div class="af-fb">'+af.fb+'</div>':'')+'</div>';});html+='</div>';}
   var secs=[];if(c.criteria)c.criteria.forEach(cr=>{if(secs.indexOf(cr.section)===-1)secs.push(cr.section);});
@@ -579,7 +604,7 @@ async function openModal(key){
     html+='<div><div class="notes-lbl">Notes for this call</div><textarea class="notes-area" id="callNoteArea" placeholder="Notes about this call...">'+en+'</textarea><div style="display:flex;align-items:center;gap:10px;margin-top:8px;"><button class="save-btn" onclick="saveCallNote()">Save Notes</button><span class="save-ok" id="callSaveOk">✓ Saved</span></div></div>';
   } else if (en) {
     // Non‑admin: show existing notes as read‑only
-    html+='<div><div class="notes-lbl">Notes for this call</div><div style="background:var(--surface2);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;">'+en+'</div></div>';
+    html+='<div><div class="notes-lbl">Notes for this call</div><div style="background:var(--surface2);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;">'+escapeHtml(en)+'</div></div>';
   }
   document.getElementById('mBody').innerHTML=html;
   document.getElementById('modalOverlay').classList.add('open');
@@ -590,7 +615,7 @@ async function saveCallNote(){notes_upsert('call:'+currentCallKey,document.getEl
 async function saveAgentNote(name){var el=document.getElementById('anotes-'+name.replace(/\W/g,'_'));if(el)notes_upsert('agent:'+name,el.value,'agok-'+name.replace(/\W/g,'_'));}
 async function loadAgentNote(name,elId){var r=await sb.from('notes').select('content').eq('note_key','agent:'+name).single();if(r.data&&r.data.content){var el=document.getElementById(elId);if(el)el.value=r.data.content;}}
 
-// ========== MODIFIED notes_upsert – only admins can save ==========
+// ========== notes_upsert – only admins can save ==========
 async function notes_upsert(key,val,okId){
   if (!isAdmin) return; // Only admins can save notes
   await sb.from('notes').upsert({note_key:key,content:val,updated_by:currentUser.id},{onConflict:'note_key'});
