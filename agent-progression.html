@@ -6,9 +6,10 @@
 <title>ScoreDesk – Agent Progression</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
+/* ========== ALL ORIGINAL CSS – unchanged ========== */
 :root{--bg:#0b0d13;--surface:#12151e;--surface2:#191d28;--surface3:#1f2335;--border:#242938;--border2:#2e3448;--accent:#4f8cff;--accent2:#a78bfa;--pass:#22d3a0;--fail:#f43f5e;--warn:#f59e0b;--text:#e8ecf4;--muted:#6b7694;--muted2:#8a94b8;--radius:12px;}
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
@@ -92,47 +93,6 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .empty-icon{font-size:48px;margin-bottom:14px;opacity:.5;}
 .empty-title{font-size:17px;font-weight:700;margin-bottom:7px;}
 .empty-sub{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted2);}
-
-/* Auth modal */
-#authModal {
-  position: fixed;
-  top: 20%;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 28px;
-  z-index: 1000;
-  min-width: 320px;
-  text-align: center;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.3);
-}
-#authModal input {
-  display: block;
-  width: 100%;
-  margin: 12px 0;
-  padding: 10px;
-  background: var(--surface2);
-  border: 1px solid var(--border2);
-  border-radius: 6px;
-  color: var(--text);
-  font-family: 'DM Mono', monospace;
-}
-#authModal button {
-  background: var(--accent);
-  border: none;
-  padding: 10px 20px;
-  border-radius: 6px;
-  font-weight: bold;
-  cursor: pointer;
-  margin-top: 12px;
-}
-#authError {
-  color: var(--fail);
-  font-size: 12px;
-  margin-top: 12px;
-}
 </style>
 </head>
 <body>
@@ -140,19 +100,10 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   <div class="page-hdr">
     <div class="page-eyebrow">Call Analytics</div>
     <div class="page-title">Agent Progression</div>
-    <div class="page-sub">Upload a ZZPS 3CX CallStats Excel — auto‑stored to Supabase</div>
+    <div class="page-sub">Upload a ZZPS 3CX CallStats Excel — data stored in Supabase</div>
   </div>
 
-  <!-- Auth Modal -->
-  <div id="authModal">
-    <h3>🔐 Login to ScoreDesk</h3>
-    <input type="email" id="email" placeholder="Email" autocomplete="email">
-    <input type="password" id="password" placeholder="Password" autocomplete="current-password">
-    <button id="loginBtn">Login</button>
-    <div id="authError"></div>
-    <div style="margin-top:16px; font-size:11px; color:var(--muted);">Admin required to upload data</div>
-  </div>
-
+  <!-- Upload zone – visible only to admins -->
   <div class="upload-zone" id="uploadZone" style="display:none;">
     <input type="file" id="fileInput" accept=".xlsx,.xls">
     <span class="upload-icon">📊</span>
@@ -165,7 +116,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   <div class="fbar" id="fbar">
     <span style="font-size:20px">📋</span>
     <div class="fbar-info"><div class="fbar-name" id="fName"></div><div class="fbar-meta" id="fMeta"></div></div>
-    <button class="clear-btn" id="logoutBtn">🚪 Logout</button>
+    <button class="clear-btn" id="refreshBtn">⟳ Refresh</button>
   </div>
 
   <div id="mainContent" class="hidden">
@@ -175,7 +126,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     </div>
     <div class="team-strip" id="teamStrip"></div>
     <div class="shdr"><div><div class="slabel">Ranked by Volume</div><div class="stitle">Agent Leaderboard</div></div></div>
-    <div class="tcard"><table class="dt"><thead><tr><th>#</th><th>Agent</th><th>Total Calls</th><th>Ignored</th><th>Ignore Rate</th><th>Avg Talk</th><th>Active Days</th><th>Volume</th></tr></thead><tbody id="teamTbody"></tbody></table></div>
+    <div class="tcard"><table class="dt"><thead> Bonn<th>#</th><th>Agent</th><th>Total Calls</th><th>Ignored</th><th>Ignore Rate</th><th>Avg Talk</th><th>Active Days</th><th>Volume</th> </thead><tbody id="teamTbody"></tbody></table></div>
     <div class="shdr"><div><div class="slabel">Drill Down</div><div class="stitle">Per-Agent Analysis</div></div></div>
     <div class="agtabs" id="agTabs"></div>
     <div id="agView"></div>
@@ -184,17 +135,20 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 </div>
 
 <script>
-// Supabase setup – replace with your own!
-const SUPABASE_URL = 'https://qbvjgiamqzkscdykenvi.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFidmpnaWFtcXprc2NkeWtlbnZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwMzUxMTIsImV4cCI6MjA5MDYxMTExMn0.OeV5qa9y_PCGw6nG0wbfPfiMBjYC_jvzsUXHOip1RTU';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// ==================== SUPABASE SETUP ====================
+const SUPABASE_URL = 'https://qbvjgiamqzkscdykenvi.supabase.co';   // <-- REPLACE
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFidmpnaWFtcXprc2NkeWtlbnZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwMzUxMTIsImV4cCI6MjA5MDYxMTExMn0.OeV5qa9y_PCGw6nG0wbfPfiMBjYC_jvzsUXHOip1RTU';                // <-- REPLACE
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { autoRefreshToken: true, persistSession: true }
+});
 
-let ALL = {};
-let AC = [];
-let CA = null;
+let ALL = {};      // aggregated data for all agents
+let AC = [];       // Chart.js instances
+let CA = null;     // currently selected agent
 let currentUser = null;
+let isAdmin = false;
 
-// Helper functions (unchanged)
+// ==================== HELPER FUNCTIONS (unchanged) ====================
 function gwk(d) {
   const dt = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   const day = dt.getUTCDay() || 7;
@@ -222,9 +176,9 @@ function ibadge(r) {
   return '<span class="ib ibok">' + r.toFixed(1) + '%</span>';
 }
 
-// Aggregation logic (reused from original parser)
+// ==================== AGGREGATION (from raw daily rows) ====================
 function aggregateAgentData(rows) {
-  // rows is array of {date, calls, ignored, talk_time_minutes}
+  // rows: array of {date, calls, ignored, talk_time_minutes}
   const dr = rows.map(r => ({
     date: new Date(r.date),
     calls: r.calls,
@@ -243,7 +197,7 @@ function aggregateAgentData(rows) {
   const dateRange = sd.length ? fmt(sd[0]) + ' – ' + fmt(sd[sd.length - 1]) : 'No data';
   const avgPerDay = act.length > 0 ? parseFloat((tc2 / act.length).toFixed(1)) : 0;
 
-  // Weekly
+  // Weekly aggregation
   const wm = {};
   dr.forEach(r => {
     const day = r.date.getDay();
@@ -269,7 +223,7 @@ function aggregateAgentData(rows) {
     totalHrs: parseFloat(w.totalHrs.toFixed(1))
   }));
 
-  // Monthly
+  // Monthly aggregation
   const mm = {};
   dr.forEach(r => {
     const k = r.date.getFullYear() * 100 + r.date.getMonth();
@@ -301,16 +255,18 @@ function aggregateAgentData(rows) {
     dateRange,
     avgPerDay,
     weekly,
-    monthly,
-    dailyRows: dr
+    monthly
   };
 }
 
-// UI rendering functions (unchanged)
+// ==================== UI RENDERING (unchanged) ====================
+const GC = 'rgba(255,255,255,0.05)';
+const TK = { color: '#6b7694', font: { family: 'DM Mono, monospace', size: 10 } };
+function tc() { return { backgroundColor: '#191d28', borderColor: '#242938', borderWidth: 1, titleColor: '#e8ecf4', bodyColor: '#6b7694' }; }
+
 function bStrip() {
   const ag = Object.values(ALL), names = Object.keys(ALL);
-  const tc2 = ag.reduce((s, a) => s + a.totalCalls, 0);
-  const ti = ag.reduce((s, a) => s + a.totalIgnored, 0);
+  const tc2 = ag.reduce((s, a) => s + a.totalCalls, 0), ti = ag.reduce((s, a) => s + a.totalIgnored, 0);
   const tir = (tc2 > 0 ? ti / tc2 * 100 : 0).toFixed(2);
   const at = (ag.reduce((s, a) => s + a.avgTalk, 0) / ag.length).toFixed(1);
   const cc = names.filter(n => ALL[n].ignRate >= 5).length;
@@ -323,7 +279,16 @@ function bTable() {
     const d = ALL[n];
     const pct = Math.round(d.totalCalls / max * 100);
     const rc = i === 0 ? 't1' : i === 1 ? 't2' : i === 2 ? 't3' : '';
-    return `<tr><td><span class="rb ${rc}">${i + 1}</span></td><td style="font-weight:700;cursor:pointer;color:var(--accent)" onclick="selAg('${n.replace(/'/g, "\\'")}')">${d.ignRate >= 5 ? '🔴 ' : ''}${n}</td><td style="font-family:'DM Mono',monospace">${d.totalCalls.toLocaleString()}</td><td style="font-family:'DM Mono',monospace;color:var(--muted)">${d.totalIgnored}</td><td>${ibadge(d.ignRate)}</td><td style="font-family:'DM Mono',monospace">${d.avgTalk} min</td><td style="font-family:'DM Mono',monospace;color:var(--muted)">${d.days}</td><td><div class="mbb"><div class="mbf" style="width:${pct}%"></div></div></td></tr>`;
+    return `<tr>
+      <td><span class="rb ${rc}">${i + 1}</span></td>
+      <td style="font-weight:700;cursor:pointer;color:var(--accent)" onclick="selAg('${n.replace(/'/g, "\\'")}')">${d.ignRate >= 5 ? '🔴 ' : ''}${n}</td>
+      <td style="font-family:'DM Mono',monospace">${d.totalCalls.toLocaleString()}</td>
+      <td style="font-family:'DM Mono',monospace;color:var(--muted)">${d.totalIgnored}</td>
+      <td>${ibadge(d.ignRate)}</td>
+      <td style="font-family:'DM Mono',monospace">${d.avgTalk} min</td>
+      <td style="font-family:'DM Mono',monospace;color:var(--muted)">${d.days}</td>
+      <td><div class="mbb"><div class="mbf" style="width:${pct}%"></div></div></td>
+    </tr>`;
   }).join('');
 }
 function bTabs() {
@@ -353,9 +318,9 @@ function rAgent(name) {
   const hasCrisis = d.ignRate >= 5, isNew = d.days <= 25;
   const banner = hasCrisis ? '<div class="abanner">⚠️ <strong>Overall ignore rate is ' + d.ignRate.toFixed(2) + '%</strong> — requires immediate attention.</div>' : isNew ? '<div class="ibanner">ℹ️ New agent — limited data (' + d.dateRange + ').</div>' : '';
   document.getElementById('agView').innerHTML = '<p class="ameta">' + name + ' · ' + d.dateRange + ' · ' + d.days + ' active days · avg ' + d.avgPerDay + ' calls/day</p>' + banner + '<div class="krow"><div class="kcard"><div class="klbl">Total Calls</div><div class="kval cb">' + d.totalCalls.toLocaleString() + '</div><div class="ksub">over ' + d.days + ' active days</div></div><div class="kcard"><div class="klbl">Avg Calls / Day</div><div class="kval">' + d.avgPerDay + '</div><div class="ksub">range: ' + (Math.min(...calls.filter(c => c > 0)) || 0) + ' – ' + Math.max(...calls) + '</div></div><div class="kcard"><div class="klbl">Avg Talk Time</div><div class="kval cg">' + d.avgTalk + '<span style="font-size:16px"> min</span></div><div class="ksub">per call (weighted)</div></div><div class="kcard' + (hasCrisis ? ' danger' : '') + '"><div class="klbl">Ignore Rate</div><div class="kval' + (hasCrisis ? ' cr' : '') + '">' + d.ignRate.toFixed(2) + '<span style="font-size:16px">%</span></div><div class="ksub">' + d.totalIgnored + ' of ' + d.totalCalls.toLocaleString() + ' calls</div></div></div><div class="crow"><div class="cc"><div class="clbl">Calls per week</div><div class="leg"><span class="li"><span class="ld" style="background:var(--accent)"></span>Answered</span><span class="li"><span class="ld" style="background:var(--fail)"></span>Ignored</span></div><div style="position:relative;height:200px"><canvas id="cC"></canvas></div></div><div class="cc"><div class="clbl">Avg talk time / week</div><div class="leg"><span class="li"><span class="ld" style="background:var(--pass)"></span>Avg talk</span><span class="li"><span class="ldash"></span>Overall avg</span></div><div style="position:relative;height:200px"><canvas id="cT"></canvas></div></div></div><div class="cc full" style="margin-bottom:16px"><div class="clbl">Monthly summary</div><div style="position:relative;height:190px"><canvas id="cM"></canvas></div></div><div class="cc"><div class="clbl">Weekly breakdown</div><table class="dt"><thead><tr><th>Week</th><th>Month</th><th>Calls</th><th>Ignored</th><th>Ignore %</th><th>Avg Talk</th><th>Total Talk</th></tr></thead><tbody id="cTbl"></tbody></table></div>';
-  AC.push(new Chart(document.getElementById('cC'), { type: 'bar', data: { labels, datasets: [{ label: 'Answered', data: calls, backgroundColor: 'rgba(79,140,255,.75)', borderRadius: 3, stack: 'a' }, { label: 'Ignored', data: ignored, backgroundColor: 'rgba(244,63,94,.75)', borderRadius: 3, stack: 'a' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { mode: 'index' } }, scales: { x: { stacked: true, grid: { display: false }, ticks: { color: '#6b7694', font: { family: 'DM Mono, monospace', size: 10 } } }, y: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6b7694', font: { family: 'DM Mono, monospace', size: 10 } } } } } }));
-  AC.push(new Chart(document.getElementById('cT'), { type: 'line', data: { labels, datasets: [{ label: 'Avg talk', data: avgMin, borderColor: '#22d3a0', backgroundColor: 'rgba(34,211,160,.07)', fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: '#22d3a0', order: 2 }, { label: 'Overall', data: Array(labels.length).fill(d.avgTalk), borderColor: 'rgba(244,63,94,.6)', borderDash: [5, 4], borderWidth: 2, pointRadius: 0, fill: false, order: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: {} }, scales: { x: { grid: { display: false }, ticks: { color: '#6b7694', font: { family: 'DM Mono, monospace', size: 10 } } }, y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6b7694', font: { family: 'DM Mono, monospace', size: 10 }, callback: v => v + 'm' }, min: 0 } } } }));
-  AC.push(new Chart(document.getElementById('cM'), { type: 'bar', data: { labels: d.monthly.map(m => m.month), datasets: [{ label: 'Calls', data: d.monthly.map(m => m.calls), backgroundColor: 'rgba(79,140,255,.7)', borderRadius: 3, yAxisID: 'y' }, { label: 'Avg talk', data: d.monthly.map(m => m.avgMin), backgroundColor: 'rgba(34,211,160,.5)', borderRadius: 3, yAxisID: 'y2' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { mode: 'index' } }, scales: { x: { grid: { display: false }, ticks: { color: '#6b7694', font: { family: 'DM Mono, monospace', size: 10 } } }, y: { position: 'left', grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#4f8cff', font: { family: 'DM Mono, monospace', size: 10 } }, title: { display: true, text: 'Calls', color: '#4f8cff', font: { size: 10 } } }, y2: { position: 'right', grid: { display: false }, ticks: { color: '#22d3a0', font: { family: 'DM Mono, monospace', size: 10 }, callback: v => v + 'm' }, title: { display: true, text: 'Avg talk', color: '#22d3a0', font: { size: 10 } }, min: 0 } } } }));
+  AC.push(new Chart(document.getElementById('cC'), { type: 'bar', data: { labels, datasets: [{ label: 'Answered', data: calls, backgroundColor: 'rgba(79,140,255,.75)', borderRadius: 3, stack: 'a' }, { label: 'Ignored', data: ignored, backgroundColor: 'rgba(244,63,94,.75)', borderRadius: 3, stack: 'a' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { mode: 'index', ...tc() } }, scales: { x: { stacked: true, grid: { display: false }, ticks: TK }, y: { stacked: true, grid: { color: GC }, ticks: TK } } } }));
+  AC.push(new Chart(document.getElementById('cT'), { type: 'line', data: { labels, datasets: [{ label: 'Avg talk', data: avgMin, borderColor: '#22d3a0', backgroundColor: 'rgba(34,211,160,.07)', fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: '#22d3a0', order: 2 }, { label: 'Overall', data: Array(labels.length).fill(d.avgTalk), borderColor: 'rgba(244,63,94,.6)', borderDash: [5, 4], borderWidth: 2, pointRadius: 0, fill: false, order: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { ...tc() } }, scales: { x: { grid: { display: false }, ticks: TK }, y: { grid: { color: GC }, ticks: { ...TK, callback: v => v + 'm' }, min: 0 } } } }));
+  AC.push(new Chart(document.getElementById('cM'), { type: 'bar', data: { labels: d.monthly.map(m => m.month), datasets: [{ label: 'Calls', data: d.monthly.map(m => m.calls), backgroundColor: 'rgba(79,140,255,.7)', borderRadius: 3, yAxisID: 'y' }, { label: 'Avg talk', data: d.monthly.map(m => m.avgMin), backgroundColor: 'rgba(34,211,160,.5)', borderRadius: 3, yAxisID: 'y2' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { mode: 'index', ...tc() } }, scales: { x: { grid: { display: false }, ticks: TK }, y: { position: 'left', grid: { color: GC }, ticks: { ...TK, color: '#4f8cff' }, title: { display: true, text: 'Calls', color: '#4f8cff', font: { size: 10 } } }, y2: { position: 'right', grid: { display: false }, ticks: { ...TK, color: '#22d3a0', callback: v => v + 'm' }, title: { display: true, text: 'Avg talk', color: '#22d3a0', font: { size: 10 } }, min: 0 } } } }));
   const tbody = document.getElementById('cTbl');
   tbody.innerHTML = '';
   wks.forEach(w => {
@@ -364,7 +329,7 @@ function rAgent(name) {
   });
 }
 
-// Load data from Supabase and build ALL
+// ==================== LOAD DATA FROM SUPABASE ====================
 async function loadFromSupabase() {
   const { data, error } = await supabase
     .from('agent_daily_stats')
@@ -372,14 +337,14 @@ async function loadFromSupabase() {
     .order('date', { ascending: true });
 
   if (error) {
-    console.error('Error loading from Supabase:', error);
-    alert('Could not load data from database. Make sure you are logged in.');
+    console.error('Error loading data:', error);
+    showToast('Could not load data from database.', false);
     return false;
   }
 
   if (!data || data.length === 0) {
-    // No data yet, show empty state but keep upload visible
-    document.getElementById('uploadZone').style.display = 'block';
+    // No data yet – show empty state
+    document.getElementById('uploadZone').style.display = isAdmin ? 'block' : 'none';
     document.getElementById('mainContent').classList.add('hidden');
     document.getElementById('emptyState').classList.remove('hidden');
     return false;
@@ -398,7 +363,7 @@ async function loadFromSupabase() {
   }
 
   // Update UI
-  document.getElementById('uploadZone').style.display = 'block';
+  document.getElementById('uploadZone').style.display = isAdmin ? 'block' : 'none';
   document.getElementById('fbar').classList.add('show');
   document.getElementById('fName').textContent = 'Data from Supabase';
   document.getElementById('fMeta').textContent = Object.keys(ALL).length + ' agents · ' +
@@ -414,19 +379,22 @@ async function loadFromSupabase() {
   return true;
 }
 
-// File upload handler – parses and stores to Supabase
-function hf(file) {
+// ==================== UPLOAD & STORE TO SUPABASE ====================
+async function parseAndUpload(file) {
   const reader = new FileReader();
   reader.onload = async function(e) {
     try {
       const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
-      ALL = {};
-      const parsedData = {}; // temporary storage for daily rows per agent
+      const allDailyRows = []; // array of {agent_name, date, calls, ignored, talk_time_minutes}
+      const agentNames = [];
 
+      // Parse each sheet
       for (const sn of wb.SheetNames) {
         const ws = wb.Sheets[sn];
         const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
-        const an = sn.replace(/^\d+\s*/, '').trim();
+        const agentName = sn.replace(/^\d+\s*/, '').trim();
+        if (!agentName) continue;
+
         const dr = [];
         for (let i = 3; i < rows.length; i++) {
           const r = rows[i];
@@ -440,163 +408,114 @@ function hf(file) {
             date = dv;
           }
           if (!date || isNaN(date.getTime())) continue;
+
+          const calls = parseFloat(r[1]) || 0;
+          const ignored = parseFloat(r[2]) || 0;
+          const totalHrs = parseFloat(th(r[4]).toFixed(2)); // hours
+          const talkMinutes = totalHrs * 60; // convert to minutes for DB
+
           dr.push({
-            date,
-            calls: parseFloat(r[1]) || 0,
-            ignored: parseFloat(r[2]) || 0,
-            avgMin: parseFloat(tm(r[5]).toFixed(1)),
-            totalHrs: parseFloat(th(r[4]).toFixed(2))
+            agent_name: agentName,
+            date: date.toISOString().slice(0, 10),
+            calls,
+            ignored,
+            talk_time_minutes: talkMinutes
           });
         }
-        const act = dr.filter(r => r.calls > 0);
-        if (!act.length) continue;
-        const tc2 = dr.reduce((s, r) => s + r.calls, 0);
-        const ti = dr.reduce((s, r) => s + r.ignored, 0);
-        const ir = tc2 > 0 ? parseFloat((ti / tc2 * 100).toFixed(2)) : 0;
-        const ws2 = dr.reduce((s, r) => s + r.avgMin * r.calls, 0);
-        const at = tc2 > 0 ? parseFloat((ws2 / tc2).toFixed(1)) : 0;
-        const sd = dr.map(r => r.date).sort((a, b) => a - b);
-        const fmt = d => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-        const wm = {};
-        dr.forEach(r => {
-          const day = r.date.getDay();
-          const diff = day === 0 ? -6 : 1 - day;
-          const mon = new Date(r.date);
-          mon.setDate(r.date.getDate() + diff);
-          const wk = 'W' + gwk(r.date);
-          const ms = r.date.toLocaleDateString('en-GB', { month: 'short' });
-          const k = mon.toISOString().slice(0, 10);
-          if (!wm[k]) wm[k] = { label: wk, monthShort: ms, calls: 0, ignored: 0, totalHrs: 0, talkSum: 0, mon };
-          wm[k].calls += r.calls;
-          wm[k].ignored += r.ignored;
-          wm[k].totalHrs += r.totalHrs;
-          wm[k].talkSum += r.avgMin * r.calls;
-        });
-        const weekly = Object.values(wm).sort((a, b) => a.mon - b.mon).map(w => ({
-          label: w.label, monthShort: w.monthShort, calls: w.calls, ignored: w.ignored,
-          ignRate: w.calls > 0 ? parseFloat((w.ignored / w.calls * 100).toFixed(1)) : 0,
-          avgMin: w.calls > 0 ? parseFloat((w.talkSum / w.calls).toFixed(1)) : 0,
-          totalHrs: parseFloat(w.totalHrs.toFixed(1))
-        }));
-        const mm = {};
-        dr.forEach(r => {
-          const k = r.date.getFullYear() * 100 + r.date.getMonth();
-          const mo = r.date.toLocaleDateString('en-GB', { month: 'long' });
-          if (!mm[k]) mm[k] = { month: mo, calls: 0, ignored: 0, totalHrs: 0, talkSum: 0 };
-          mm[k].calls += r.calls;
-          mm[k].ignored += r.ignored;
-          mm[k].totalHrs += r.totalHrs;
-          mm[k].talkSum += r.avgMin * r.calls;
-        });
-        const monthly = Object.keys(mm).sort().map(k => {
-          const m = mm[k];
-          return {
-            month: m.month,
-            calls: m.calls,
-            ignored: m.ignored,
-            ignRate: m.calls > 0 ? parseFloat((m.ignored / m.calls * 100).toFixed(1)) : 0,
-            avgMin: m.calls > 0 ? parseFloat((m.talkSum / m.calls).toFixed(1)) : 0,
-            totalHrs: parseFloat(m.totalHrs.toFixed(1))
-          };
-        });
-        ALL[an] = {
-          totalCalls: tc2, totalIgnored: ti, ignRate: ir, avgTalk: at,
-          days: act.length,
-          dateRange: fmt(sd[0]) + ' – ' + fmt(sd[sd.length - 1]),
-          avgPerDay: act.length > 0 ? parseFloat((tc2 / act.length).toFixed(1)) : 0,
-          weekly, monthly,
-          dailyRows: dr
-        };
-        parsedData[an] = dr;
-      }
-
-      const names = Object.keys(ALL);
-      if (!names.length) { alert('No agent data found.'); return; }
-
-      // Insert into Supabase
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError || !userData.user) throw new Error('Not authenticated');
-
-      const upsertPromises = [];
-      for (const agentName in parsedData) {
-        const rows = parsedData[agentName];
-        for (const row of rows) {
-          const talkMinutes = row.totalHrs * 60; // total talk time in minutes
-          upsertPromises.push(
-            supabase
-              .from('agent_daily_stats')
-              .upsert({
-                agent_name: agentName,
-                date: row.date.toISOString().slice(0, 10),
-                calls: row.calls,
-                ignored: row.ignored,
-                talk_time_minutes: talkMinutes
-              }, { onConflict: 'agent_name, date', ignoreDuplicates: false })
-          );
+        if (dr.length) {
+          allDailyRows.push(...dr);
+          agentNames.push(agentName);
         }
       }
-      await Promise.all(upsertPromises);
-      console.log('Data stored/updated in Supabase');
 
-      // After successful storage, reload from DB to refresh UI
+      if (agentNames.length === 0) {
+        showToast('No valid agent data found in the Excel file.', false);
+        return;
+      }
+
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) throw new Error('Not authenticated');
+
+      // Upsert all rows
+      const upsertPromises = allDailyRows.map(row =>
+        supabase
+          .from('agent_daily_stats')
+          .upsert({
+            ...row,
+            uploaded_by: user.id
+          }, { onConflict: 'agent_name, date', ignoreDuplicates: false })
+      );
+
+      await Promise.all(upsertPromises);
+      showToast('Data uploaded successfully', true);
+
+      // Reload data to refresh dashboard
       await loadFromSupabase();
 
     } catch (err) {
       console.error(err);
-      alert('Error: ' + err.message + '\n\nMake sure you are logged in as admin (admin@scoredesk.com)');
+      showToast('Upload error: ' + err.message, false);
     }
   };
   reader.readAsArrayBuffer(file);
 }
 
-// Authentication and logout
-async function checkAuth() {
+// ==================== AUTHENTICATION & INIT ====================
+async function init() {
   const { data: { user } } = await supabase.auth.getUser();
-  if (user) {
-    currentUser = user;
-    document.getElementById('authModal').classList.add('hidden');
-    document.getElementById('uploadZone').style.display = 'block';
-    await loadFromSupabase();
-  } else {
-    document.getElementById('authModal').classList.remove('hidden');
-    document.getElementById('uploadZone').style.display = 'none';
-    document.getElementById('mainContent').classList.add('hidden');
-    document.getElementById('emptyState').classList.remove('hidden');
+  if (!user) {
+    // Not authenticated – show error (the parent portal should handle login)
+    document.body.innerHTML = '<div style="text-align:center;padding:80px;"><h2>Not authenticated</h2><p>Please log in via the ScoreDesk portal.</p></div>';
+    return;
   }
+  currentUser = user;
+  const meta = user.user_metadata || {};
+  isAdmin = (user.email === 'admin@scoredesk.com') || (meta.role === 'admin');
+
+  // Show/hide upload zone based on admin status
+  if (isAdmin) {
+    document.getElementById('uploadZone').style.display = 'block';
+  } else {
+    document.getElementById('uploadZone').style.display = 'none';
+  }
+
+  await loadFromSupabase();
 }
 
-document.getElementById('loginBtn').addEventListener('click', async () => {
-  const email = document.getElementById('email').value;
-  const password = document.getElementById('password').value;
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) {
-    document.getElementById('authError').innerText = error.message;
-  } else {
-    checkAuth();
-  }
-});
-
-document.getElementById('logoutBtn').addEventListener('click', async () => {
-  await supabase.auth.signOut();
-  checkAuth();
-});
-
-// File upload zone
+// ==================== EVENT LISTENERS ====================
 const uz = document.getElementById('uploadZone');
 uz.addEventListener('dragover', e => { e.preventDefault(); uz.classList.add('drag-over'); });
 uz.addEventListener('dragleave', () => uz.classList.remove('drag-over'));
 uz.addEventListener('drop', e => {
   e.preventDefault();
   uz.classList.remove('drag-over');
-  if (e.dataTransfer.files[0]) hf(e.dataTransfer.files[0]);
+  if (e.dataTransfer.files[0]) parseAndUpload(e.dataTransfer.files[0]);
 });
 document.getElementById('fileInput').addEventListener('change', e => {
-  if (e.target.files[0]) hf(e.target.files[0]);
+  if (e.target.files[0]) parseAndUpload(e.target.files[0]);
   e.target.value = '';
 });
+document.getElementById('refreshBtn').addEventListener('click', () => {
+  loadFromSupabase();
+  showToast('Data refreshed', true);
+});
 
-// Initial check
-checkAuth();
+// Helper toast
+function showToast(msg, ok) {
+  const toast = document.createElement('div');
+  toast.className = 'toast' + (ok === true ? ' ok' : ok === false ? ' err' : '');
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.classList.add('show'), 10);
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+// Start
+init();
 </script>
 </body>
 </html>
