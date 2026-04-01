@@ -6,6 +6,7 @@
 <title>ScoreDesk – Agent Progression</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -16,6 +17,9 @@
     --border2: #252a3a;
     --accent: #4f8cff;
     --accent2: #a78bfa;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --fail: #ef4444;
     --text: #e8ecf4;
     --muted: #5a6285;
     --muted2: #7b85a8;
@@ -51,6 +55,37 @@
     font-size: 11px;
     color: var(--muted2);
     margin-top: 4px;
+  }
+  .upload-btn {
+    background: var(--accent);
+    border: none;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+  .upload-btn:hover {
+    background: #3d7ae8;
+    transform: translateY(-1px);
+  }
+  .upload-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .upload-btn input[type="file"] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
   }
   .filter-bar {
     display: flex;
@@ -131,6 +166,42 @@
     padding: 20px;
     color: var(--fail);
     text-align: center;
+    margin-bottom: 20px;
+  }
+  .success-message {
+    background: rgba(16,185,129,0.1);
+    border: 1px solid var(--success);
+    border-radius: var(--radius);
+    padding: 20px;
+    color: var(--success);
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  .upload-progress {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--surface2);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 10px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.3s ease;
+  }
+  .progress-text {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--muted2);
+    margin-top: 8px;
   }
 </style>
 </head>
@@ -141,7 +212,15 @@
       <div class="title">Agent Progression</div>
       <div class="sub">Daily call volumes</div>
     </div>
+    <div id="uploadBtnContainer" style="display: none;">
+      <label class="upload-btn" id="uploadBtn">
+        📤 Upload Score Card
+        <input type="file" id="fileInput" accept=".xlsx,.xls" />
+      </label>
+    </div>
   </div>
+
+  <div id="messages"></div>
 
   <div class="filter-bar" id="filterBar" style="display: none;">
     <span class="filter-label">Agent</span>
@@ -184,6 +263,12 @@
       isAdmin = (currentUser.email === 'yassin.aitlehcen@market-wave.com') || (meta.role === 'admin');
       agentName = meta.agent_name || null;
 
+      // Show upload button for admin
+      if (isAdmin) {
+        document.getElementById('uploadBtnContainer').style.display = 'block';
+        setupFileUpload();
+      }
+
       await loadData();
       renderUI();
     } catch (err) {
@@ -193,12 +278,165 @@
     }
   }
 
+  function setupFileUpload() {
+    const fileInput = document.getElementById('fileInput');
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      try {
+        await processExcelFile(file);
+        fileInput.value = ''; // Reset input
+      } catch (err) {
+        console.error('Upload error:', err);
+        showMessage('error', `Upload failed: ${err.message}`);
+      }
+    });
+  }
+
+  async function processExcelFile(file) {
+    showMessage('progress', 'Processing Excel file...');
+    
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data, { type: 'array' });
+
+    const records = [];
+    let processedSheets = 0;
+    const totalSheets = workbook.SheetNames.length;
+
+    for (const sheetName of workbook.SheetNames) {
+      // Skip template sheets
+      if (sheetName.toLowerCase().includes('template')) {
+        continue;
+      }
+
+      // Extract agent name from sheet name (e.g., "601 Abdulkarim Sghir" -> "Abdulkarim Sghir")
+      const agentNameMatch = sheetName.match(/^\d+\s+(.+)$/);
+      if (!agentNameMatch) {
+        console.warn(`Skipping sheet with invalid format: ${sheetName}`);
+        continue;
+      }
+      const agentName = agentNameMatch[1].trim();
+
+      const sheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+      // Find header row (should contain "Date", "Calls", etc.)
+      let headerRowIndex = -1;
+      for (let i = 0; i < Math.min(5, jsonData.length); i++) {
+        const row = jsonData[i];
+        if (row && row[0] === 'Date' && row[1] === 'Calls') {
+          headerRowIndex = i;
+          break;
+        }
+      }
+
+      if (headerRowIndex === -1) {
+        console.warn(`No header row found in sheet: ${sheetName}`);
+        continue;
+      }
+
+      // Process data rows
+      for (let i = headerRowIndex + 1; i < jsonData.length; i++) {
+        const row = jsonData[i];
+        if (!row || !row[0]) continue; // Skip empty rows
+
+        const dateStr = String(row[0]).trim();
+        const calls = parseInt(row[1]) || 0;
+        const ignored = parseInt(row[2]) || 0;
+        const talkTime = row[4]; // Total Talk Time
+
+        // Parse date (YYYYMMDD format)
+        if (dateStr.length !== 8) continue;
+        const year = dateStr.substring(0, 4);
+        const month = dateStr.substring(4, 6);
+        const day = dateStr.substring(6, 8);
+        const formattedDate = `${year}-${month}-${day}`;
+
+        // Convert talk time to minutes
+        let talkTimeMinutes = 0;
+        if (talkTime && typeof talkTime === 'string') {
+          const timeMatch = talkTime.match(/(\d+):(\d+):(\d+)/);
+          if (timeMatch) {
+            const hours = parseInt(timeMatch[1]) || 0;
+            const minutes = parseInt(timeMatch[2]) || 0;
+            const seconds = parseInt(timeMatch[3]) || 0;
+            talkTimeMinutes = hours * 60 + minutes + seconds / 60;
+          }
+        }
+
+        records.push({
+          agent_name: agentName,
+          date: formattedDate,
+          calls: calls,
+          ignored: ignored,
+          talk_time_minutes: talkTimeMinutes
+        });
+      }
+
+      processedSheets++;
+      updateProgress(processedSheets, totalSheets, `Processing ${sheetName}...`);
+    }
+
+    if (records.length === 0) {
+      throw new Error('No valid data found in Excel file');
+    }
+
+    // Upload to Supabase using upsert
+    showMessage('progress', `Uploading ${records.length} records to database...`);
+    
+    const { data, error } = await sb
+      .from('agent_daily_stats')
+      .upsert(records, { onConflict: 'agent_name,date' });
+
+    if (error) {
+      console.error('Supabase upsert error:', error);
+      throw new Error(`Database error: ${error.message}`);
+    }
+
+    showMessage('success', `✓ Successfully uploaded ${records.length} records from ${processedSheets} sheets`);
+    
+    // Reload data and refresh UI
+    await loadData();
+    renderUI();
+  }
+
+  function updateProgress(current, total, message) {
+    const percent = Math.round((current / total) * 100);
+    const messagesDiv = document.getElementById('messages');
+    messagesDiv.innerHTML = `
+      <div class="upload-progress">
+        <div>${message}</div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: ${percent}%"></div>
+        </div>
+        <div class="progress-text">${current} of ${total} sheets (${percent}%)</div>
+      </div>
+    `;
+  }
+
+  function showMessage(type, message) {
+    const messagesDiv = document.getElementById('messages');
+    if (type === 'progress') {
+      messagesDiv.innerHTML = `
+        <div class="upload-progress">
+          <div>${message}</div>
+        </div>
+      `;
+    } else if (type === 'success') {
+      messagesDiv.innerHTML = `<div class="success-message">${message}</div>`;
+      setTimeout(() => { messagesDiv.innerHTML = ''; }, 5000);
+    } else if (type === 'error') {
+      messagesDiv.innerHTML = `<div class="error-message">⚠️ ${message}</div>`;
+      setTimeout(() => { messagesDiv.innerHTML = ''; }, 8000);
+    }
+  }
+
   async function loadData() {
     try {
       let query = sb.from('agent_daily_stats').select('*').order('date', { ascending: true });
       const { data, error } = await query;
       if (error) {
-        // Log full error details to console
         console.error('Supabase error details:', error);
         throw new Error(`Supabase error: ${error.message || JSON.stringify(error)}`);
       }
