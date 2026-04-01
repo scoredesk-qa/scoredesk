@@ -832,12 +832,12 @@
 
 <!-- Supabase SDK & Libraries -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51d3J5bXBwZXFmcmtla2tjdHV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NTc5MjgsImV4cCI6MjA5MDQzMzkyOH0.xpW_1qczIIPffMuHQiKsLYNus9sSoKVIGQ-mCY5ULgQ"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 
 <script>
 // ==================== CONFIGURATION ====================
 const SUPABASE_URL = 'https://nuwrymppeqfrkekkctuu.supabase.co';
-const SUPABASE_ANON_KEY = 'https://nuwrymppeqfrkekkctuu.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51d3J5bXBwZXFmcmtla2tjdHV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NTc5MjgsImV4cCI6MjA5MDQzMzkyOH0.xpW_1qczIIPffMuHQiKsLYNus9sSoKVIGQ-mCY5ULgQ';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ==================== STATE ====================
@@ -938,47 +938,41 @@ function renderDashboard(data) {
   let totalCalls = 0, totalAvgScore = 0, totalHighScores = 0, totalZeroScores = 0, agentsWithScore = 0;
   data.forEach(agent => {
     totalCalls += agent.total_calls || 0;
-    if (agent.avg_score !== null && agent.avg_score !== undefined) {
-      totalAvgScore += parseFloat(agent.avg_score) || 0;
-      agentsWithScore++;
-    }
+    if (agent.avg_score) { totalAvgScore += parseFloat(agent.avg_score); agentsWithScore++; }
     totalHighScores += agent.high_scores || 0;
     totalZeroScores += agent.zero_scores || 0;
   });
   const avgScore = agentsWithScore > 0 ? (totalAvgScore / agentsWithScore).toFixed(1) : 0;
-  
   document.getElementById('dashboardStats').innerHTML = `
     <div class="stat-card"><div class="stat-label">Total Calls</div><div class="stat-value">${totalCalls}</div></div>
     <div class="stat-card"><div class="stat-label">Average Score</div><div class="stat-value">${avgScore}</div></div>
-    <div class="stat-card"><div class="stat-label">High Scores (≥90)</div><div class="stat-value">${totalHighScores}</div></div>
+    <div class="stat-card"><div class="stat-label">High Scores</div><div class="stat-value">${totalHighScores}</div></div>
     <div class="stat-card"><div class="stat-label">Zero Scores</div><div class="stat-value">${totalZeroScores}</div></div>
   `;
-  
-  if (data.length === 0) {
-    document.getElementById('dashboardTable').innerHTML = `...`; // unchanged
-    return;
-  }
-  
+  if (data.length === 0) { document.getElementById('dashboardTable').innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">No Data Available</div><div class="empty-text">No performance data found</div></div></td></tr>`; return; }
   const tableHTML = data.map(agent => {
     const score = parseFloat(agent.avg_score) || 0;
-    // New badge logic:
-    let scoreClass = 'score-low';
-    if (score >= 90) scoreClass = 'score-high';
-    else if (score >= 75) scoreClass = 'score-mid';
-    
-    return `
-      <tr>
-        <td><strong>${escapeHtml(agent.agent_name)}</strong></td>
-        <td>${agent.total_calls || 0}</td>
-        <td><span class="score-badge ${scoreClass}">${score.toFixed(1)}</span></td>
-        <td>${agent.high_scores || 0}</td>
-        <td>${agent.zero_scores || 0}</td>
-        <td>${escapeHtml(agent.status) || 'active'}</td>
-      </tr>
-    `;
+    const scoreClass = score >= 8.5 ? 'score-high' : score >= 7.5 ? 'score-mid' : 'score-low';
+    return `<tr><td><strong>${escapeHtml(agent.agent_name)}</strong></td><td>${agent.total_calls || 0}</td><td><span class="score-badge ${scoreClass}">${score.toFixed(1)}</span></td><td>${agent.high_scores || 0}</td><td>${agent.zero_scores || 0}</td><td>${escapeHtml(agent.status) || 'active'}</td></tr>`;
   }).join('');
-  
   document.getElementById('dashboardTable').innerHTML = tableHTML;
+}
+function renderAnalysis(data) {
+  if (data.length === 0) { document.getElementById('analysisTable').innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🎉</div><div class="empty-title">Great Job!</div><div class="empty-text">No zero score calls found</div></div></td></tr>`; return; }
+  const tableHTML = data.map(call => {
+    const date = new Date(call.date).toLocaleDateString();
+    return `<tr><td><strong>${escapeHtml(call.agent_name)}</strong></td><td>${escapeHtml(call.call_id)}</td><td>${date}</td><td>${escapeHtml(call.duration)}</td><td>${escapeHtml(call.reason) || '-'}</td></tr>`;
+  }).join('');
+  document.getElementById('analysisTable').innerHTML = tableHTML;
+}
+function renderProgression(data) {
+  if (data.length === 0) { document.getElementById('progressionTable').innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">📊</div><div class="empty-title">No Daily Data</div><div class="empty-text">Upload a performance XLSX to see call volume.</div></div></td></tr>`; return; }
+  const tableHTML = data.map(row => {
+    const date = new Date(row.date).toLocaleDateString();
+    const talkTime = row.total_talk_time ? row.total_talk_time : '00:00:00';
+    return `<tr><td><strong>${escapeHtml(row.agent_name)}</strong></td><td>${date}</td><td>${row.calls}</td><td>${row.ignored || 0}</td><td>${talkTime}</td></tr>`;
+  }).join('');
+  document.getElementById('progressionTable').innerHTML = tableHTML;
 }
 function refreshDashboard() { loadDashboard(); }
 function refreshAnalysis() { loadAnalysis(); }
