@@ -124,11 +124,6 @@
     padding: 60px;
     color: var(--muted);
   }
-  .loader {
-    text-align: center;
-    padding: 60px;
-    font-family: 'DM Mono', monospace;
-  }
   .error-message {
     background: rgba(244,63,94,0.1);
     border: 1px solid var(--fail);
@@ -186,7 +181,7 @@
 
       currentUser = session.user;
       const meta = currentUser.user_metadata || {};
-      isAdmin = (currentUser.email === 'admin@scoredesk.com') || (meta.role === 'admin');
+      isAdmin = (currentUser.email === 'yassin.aitlehcen@market-wave.com') || (meta.role === 'admin');
       agentName = meta.agent_name || null;
 
       await loadData();
@@ -202,7 +197,11 @@
     try {
       let query = sb.from('agent_daily_stats').select('*').order('date', { ascending: true });
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        // Log full error details to console
+        console.error('Supabase error details:', error);
+        throw new Error(`Supabase error: ${error.message || JSON.stringify(error)}`);
+      }
       allStats = data || [];
     } catch (err) {
       console.error('Load data error:', err);
