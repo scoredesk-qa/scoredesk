@@ -32,8 +32,9 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .fbar-info{flex:1;}
 .fbar-name{font-size:13px;font-weight:700;margin-bottom:2px;}
 .fbar-meta{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted2);}
-.clear-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:600;transition:all .15s;}
-.clear-btn:hover{border-color:var(--fail);color:var(--fail);}
+.fbar-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:600;transition:all .15s;display:inline-flex;align-items:center;gap:4px;}
+.fbar-btn:hover{border-color:var(--accent);color:var(--accent);}
+.fbar-btn.danger:hover{border-color:var(--fail);color:var(--fail);}
 .team-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:28px;}
 .ttile{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;position:relative;overflow:hidden;}
 .ttile::after{content:attr(data-icon);position:absolute;right:14px;top:12px;font-size:24px;opacity:.08;}
@@ -93,6 +94,10 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .empty-icon{font-size:48px;margin-bottom:14px;opacity:.5;}
 .empty-title{font-size:17px;font-weight:700;margin-bottom:7px;}
 .empty-sub{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted2);}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(70px);background:var(--surface2);border:1px solid var(--border);padding:11px 20px;border-radius:9px;font-size:13px;font-weight:600;z-index:9999;transition:transform .3s cubic-bezier(.4,0,.2,1);pointer-events:none;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+.toast.ok{border-color:var(--pass);color:var(--pass);}
+.toast.err{border-color:var(--fail);color:var(--fail);}
 </style>
 </head>
 <body>
@@ -103,7 +108,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <div class="page-sub">Upload a ZZPS 3CX CallStats Excel — data stored in Supabase</div>
   </div>
 
-  <!-- Upload zone – visible only to admins -->
+  <!-- Upload zone – initially hidden; shown via "Add Files" button -->
   <div class="upload-zone" id="uploadZone" style="display:none;">
     <input type="file" id="fileInput" accept=".xlsx,.xls">
     <span class="upload-icon">📊</span>
@@ -116,7 +121,9 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   <div class="fbar" id="fbar">
     <span style="font-size:20px">📋</span>
     <div class="fbar-info"><div class="fbar-name" id="fName"></div><div class="fbar-meta" id="fMeta"></div></div>
-    <button class="clear-btn" id="refreshBtn">⟳ Refresh</button>
+    <button class="fbar-btn" id="addFilesBtn">+ Add Files</button>
+    <button class="fbar-btn" id="refreshBtn">⟳ Refresh</button>
+    <button class="fbar-btn danger" id="deleteAllBtn">🗑 Delete All Data</button>
   </div>
 
   <div id="mainContent" class="hidden">
@@ -126,7 +133,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     </div>
     <div class="team-strip" id="teamStrip"></div>
     <div class="shdr"><div><div class="slabel">Ranked by Volume</div><div class="stitle">Agent Leaderboard</div></div></div>
-    <div class="tcard"><table class="dt"><thead> Bonn<th>#</th><th>Agent</th><th>Total Calls</th><th>Ignored</th><th>Ignore Rate</th><th>Avg Talk</th><th>Active Days</th><th>Volume</th> </thead><tbody id="teamTbody"></tbody></table></div>
+    <div class="tcard"><table class="dt"><thead> Bonn<th>#</th><th>Agent</th><th>Total Calls</th><th>Ignored</th><th>Ignore Rate</th><th>Avg Talk</th><th>Active Days</th><th>Volume</th> </thead><tbody id="teamTbody"></tbody> </table></div>
     <div class="shdr"><div><div class="slabel">Drill Down</div><div class="stitle">Per-Agent Analysis</div></div></div>
     <div class="agtabs" id="agTabs"></div>
     <div id="agView"></div>
@@ -136,49 +143,56 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 
 <script>
 // ==================== SUPABASE SETUP ====================
-const SUPABASE_URL = 'https://qbvjgiamqzkscdykenvi.supabase.co';   // <-- REPLACE
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFidmpnaWFtcXprc2NkeWtlbnZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwMzUxMTIsImV4cCI6MjA5MDYxMTExMn0.OeV5qa9y_PCGw6nG0wbfPfiMBjYC_jvzsUXHOip1RTU';                // <-- REPLACE
+const SUPABASE_URL = 'https://your-project.supabase.co';   // <-- REPLACE
+const SUPABASE_ANON_KEY = 'your-anon-key';                // <-- REPLACE
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { autoRefreshToken: true, persistSession: true }
 });
 
-let ALL = {};      // aggregated data for all agents
-let AC = [];       // Chart.js instances
-let CA = null;     // currently selected agent
+let ALL = {};
+let AC = [];
+let CA = null;
 let currentUser = null;
 let isAdmin = false;
 
-// ==================== HELPER FUNCTIONS (unchanged) ====================
-function gwk(d) {
-  const dt = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  const day = dt.getUTCDay() || 7;
-  dt.setUTCDate(dt.getUTCDate() + 4 - day);
-  const ys = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1));
-  return Math.ceil((((dt - ys) / 86400000) + 1) / 7);
-}
-function tm(v) {
-  if (v instanceof Date) return v.getHours() * 60 + v.getMinutes() + v.getSeconds() / 60;
-  if (typeof v === 'number') return v * 24 * 60;
-  if (typeof v === 'string') {
-    const p = v.split(':');
-    if (p.length >= 2) return parseInt(p[0]) * 60 + parseInt(p[1]) + (parseInt(p[2] || 0) / 60);
+// ==================== ROBUST TIME PARSING ====================
+function toHours(value) {
+  if (value === undefined || value === null || value === '') return 0;
+  if (value instanceof Date) {
+    return value.getHours() + value.getMinutes() / 60 + value.getSeconds() / 3600;
+  }
+  if (typeof value === 'number') {
+    // Excel serial time (fraction of day)
+    return value * 24;
+  }
+  if (typeof value === 'string') {
+    const parts = value.split(':');
+    if (parts.length >= 2) {
+      const hours = parseInt(parts[0]) || 0;
+      const minutes = parseInt(parts[1]) || 0;
+      const seconds = parts[2] ? parseFloat(parts[2]) : 0;
+      return hours + minutes / 60 + seconds / 3600;
+    }
   }
   return 0;
 }
-function th(v) {
-  if (v instanceof Date) return v.getHours() + v.getMinutes() / 60 + v.getSeconds() / 3600;
-  if (typeof v === 'number') return v * 24;
-  return 0;
-}
-function ibadge(r) {
-  if (r >= 5) return '<span class="ib ibbad">' + r.toFixed(1) + '%</span>';
-  if (r >= 2) return '<span class="ib ibw">' + r.toFixed(1) + '%</span>';
-  return '<span class="ib ibok">' + r.toFixed(1) + '%</span>';
+
+function toMinutes(value) {
+  return toHours(value) * 60;
 }
 
-// ==================== AGGREGATION (from raw daily rows) ====================
+// ==================== WEEK NUMBER (ISO, Monday first) ====================
+function getWeekNumber(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+// ==================== AGGREGATION ====================
 function aggregateAgentData(rows) {
-  // rows: array of {date, calls, ignored, talk_time_minutes}
+  // rows: { date, calls, ignored, talk_time_minutes }
   const dr = rows.map(r => ({
     date: new Date(r.date),
     calls: r.calls,
@@ -186,34 +200,45 @@ function aggregateAgentData(rows) {
     avgMin: r.calls > 0 ? r.talk_time_minutes / r.calls : 0,
     totalHrs: r.talk_time_minutes / 60
   }));
-  const tc2 = dr.reduce((s, r) => s + r.calls, 0);
-  const ti = dr.reduce((s, r) => s + r.ignored, 0);
-  const ir = tc2 > 0 ? parseFloat((ti / tc2 * 100).toFixed(2)) : 0;
-  const ws2 = dr.reduce((s, r) => s + r.avgMin * r.calls, 0);
-  const at = tc2 > 0 ? parseFloat((ws2 / tc2).toFixed(1)) : 0;
-  const act = dr.filter(r => r.calls > 0);
-  const sd = dr.map(r => r.date).sort((a, b) => a - b);
-  const fmt = d => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  const dateRange = sd.length ? fmt(sd[0]) + ' – ' + fmt(sd[sd.length - 1]) : 'No data';
-  const avgPerDay = act.length > 0 ? parseFloat((tc2 / act.length).toFixed(1)) : 0;
 
-  // Weekly aggregation
-  const wm = {};
+  const totalCalls = dr.reduce((s, r) => s + r.calls, 0);
+  const totalIgnored = dr.reduce((s, r) => s + r.ignored, 0);
+  const ignRate = totalCalls > 0 ? parseFloat((totalIgnored / totalCalls * 100).toFixed(2)) : 0;
+  const weightedTalkSum = dr.reduce((s, r) => s + r.avgMin * r.calls, 0);
+  const avgTalk = totalCalls > 0 ? parseFloat((weightedTalkSum / totalCalls).toFixed(1)) : 0;
+  const activeDays = dr.filter(r => r.calls > 0).length;
+  const sortedDates = dr.map(r => r.date).sort((a, b) => a - b);
+  const fmt = d => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const dateRange = sortedDates.length ? fmt(sortedDates[0]) + ' – ' + fmt(sortedDates[sortedDates.length - 1]) : 'No data';
+  const avgPerDay = activeDays > 0 ? parseFloat((totalCalls / activeDays).toFixed(1)) : 0;
+
+  // Weekly grouping (Monday start)
+  const weekMap = {};
   dr.forEach(r => {
     const day = r.date.getDay();
     const diff = day === 0 ? -6 : 1 - day;
-    const mon = new Date(r.date);
-    mon.setDate(r.date.getDate() + diff);
-    const wk = 'W' + gwk(r.date);
-    const ms = r.date.toLocaleDateString('en-GB', { month: 'short' });
-    const k = mon.toISOString().slice(0, 10);
-    if (!wm[k]) wm[k] = { label: wk, monthShort: ms, calls: 0, ignored: 0, totalHrs: 0, talkSum: 0, mon };
-    wm[k].calls += r.calls;
-    wm[k].ignored += r.ignored;
-    wm[k].totalHrs += r.totalHrs;
-    wm[k].talkSum += r.avgMin * r.calls;
+    const monday = new Date(r.date);
+    monday.setDate(r.date.getDate() + diff);
+    const weekNum = getWeekNumber(r.date);
+    const monthShort = r.date.toLocaleDateString('en-GB', { month: 'short' });
+    const key = monday.toISOString().slice(0, 10);
+    if (!weekMap[key]) {
+      weekMap[key] = {
+        label: 'W' + weekNum,
+        monthShort,
+        calls: 0,
+        ignored: 0,
+        totalHrs: 0,
+        talkSum: 0,
+        mon: monday
+      };
+    }
+    weekMap[key].calls += r.calls;
+    weekMap[key].ignored += r.ignored;
+    weekMap[key].totalHrs += r.totalHrs;
+    weekMap[key].talkSum += r.avgMin * r.calls;
   });
-  const weekly = Object.values(wm).sort((a, b) => a.mon - b.mon).map(w => ({
+  const weekly = Object.values(weekMap).sort((a, b) => a.mon - b.mon).map(w => ({
     label: w.label,
     monthShort: w.monthShort,
     calls: w.calls,
@@ -223,19 +248,21 @@ function aggregateAgentData(rows) {
     totalHrs: parseFloat(w.totalHrs.toFixed(1))
   }));
 
-  // Monthly aggregation
-  const mm = {};
+  // Monthly grouping
+  const monthMap = {};
   dr.forEach(r => {
-    const k = r.date.getFullYear() * 100 + r.date.getMonth();
-    const mo = r.date.toLocaleDateString('en-GB', { month: 'long' });
-    if (!mm[k]) mm[k] = { month: mo, calls: 0, ignored: 0, totalHrs: 0, talkSum: 0 };
-    mm[k].calls += r.calls;
-    mm[k].ignored += r.ignored;
-    mm[k].totalHrs += r.totalHrs;
-    mm[k].talkSum += r.avgMin * r.calls;
+    const key = r.date.getFullYear() * 100 + r.date.getMonth();
+    const monthName = r.date.toLocaleDateString('en-GB', { month: 'long' });
+    if (!monthMap[key]) {
+      monthMap[key] = { month: monthName, calls: 0, ignored: 0, totalHrs: 0, talkSum: 0 };
+    }
+    monthMap[key].calls += r.calls;
+    monthMap[key].ignored += r.ignored;
+    monthMap[key].totalHrs += r.totalHrs;
+    monthMap[key].talkSum += r.avgMin * r.calls;
   });
-  const monthly = Object.keys(mm).sort().map(k => {
-    const m = mm[k];
+  const monthly = Object.keys(monthMap).sort().map(k => {
+    const m = monthMap[k];
     return {
       month: m.month,
       calls: m.calls,
@@ -247,11 +274,11 @@ function aggregateAgentData(rows) {
   });
 
   return {
-    totalCalls: tc2,
-    totalIgnored: ti,
-    ignRate: ir,
-    avgTalk: at,
-    days: act.length,
+    totalCalls,
+    totalIgnored,
+    ignRate,
+    avgTalk,
+    days: activeDays,
     dateRange,
     avgPerDay,
     weekly,
@@ -264,6 +291,12 @@ const GC = 'rgba(255,255,255,0.05)';
 const TK = { color: '#6b7694', font: { family: 'DM Mono, monospace', size: 10 } };
 function tc() { return { backgroundColor: '#191d28', borderColor: '#242938', borderWidth: 1, titleColor: '#e8ecf4', bodyColor: '#6b7694' }; }
 
+function ibadge(r) {
+  if (r >= 5) return '<span class="ib ibbad">' + r.toFixed(1) + '%</span>';
+  if (r >= 2) return '<span class="ib ibw">' + r.toFixed(1) + '%</span>';
+  return '<span class="ib ibok">' + r.toFixed(1) + '%</span>';
+}
+
 function bStrip() {
   const ag = Object.values(ALL), names = Object.keys(ALL);
   const tc2 = ag.reduce((s, a) => s + a.totalCalls, 0), ti = ag.reduce((s, a) => s + a.totalIgnored, 0);
@@ -272,6 +305,7 @@ function bStrip() {
   const cc = names.filter(n => ALL[n].ignRate >= 5).length;
   document.getElementById('teamStrip').innerHTML = '<div class="ttile" data-icon="👥"><div class="tlbl">Total Agents</div><div class="tval cb">' + ag.length + '</div><div class="tsub">in this report</div></div><div class="ttile" data-icon="📞"><div class="tlbl">Total Calls</div><div class="tval cb">' + tc2.toLocaleString() + '</div><div class="tsub">' + ti + ' ignored</div></div><div class="ttile" data-icon="📈"><div class="tlbl">Team Ignore Rate</div><div class="tval ' + (parseFloat(tir) >= 5 ? 'cr' : parseFloat(tir) >= 2 ? 'cw' : 'cg') + '">' + tir + '<span style="font-size:16px">%</span></div><div class="tsub">across all agents</div></div><div class="ttile" data-icon="⏱️"><div class="tlbl">Team Avg Talk</div><div class="tval cg">' + at + '<span style="font-size:16px"> min</span></div><div class="tsub">per call</div></div><div class="ttile" data-icon="⚠️"><div class="tlbl">High Ignore ≥5%</div><div class="tval ' + (cc > 0 ? 'cr' : 'cg') + '">' + cc + '</div><div class="tsub">agents need attention</div></div>';
 }
+
 function bTable() {
   const names = Object.keys(ALL).sort((a, b) => ALL[b].totalCalls - ALL[a].totalCalls);
   const max = Math.max(...names.map(n => ALL[n].totalCalls));
@@ -291,6 +325,7 @@ function bTable() {
     </tr>`;
   }).join('');
 }
+
 function bTabs() {
   document.getElementById('agTabs').innerHTML = '';
   Object.keys(ALL).forEach(name => {
@@ -301,6 +336,7 @@ function bTabs() {
     document.getElementById('agTabs').appendChild(btn);
   });
 }
+
 function selAg(name) {
   CA = name;
   document.querySelectorAll('.agtab').forEach(b => {
@@ -310,6 +346,7 @@ function selAg(name) {
   rAgent(name);
   document.getElementById('agView').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+
 function rAgent(name) {
   AC.forEach(c => c.destroy());
   AC = [];
@@ -325,7 +362,7 @@ function rAgent(name) {
   tbody.innerHTML = '';
   wks.forEach(w => {
     const flag = w.ignRate >= 5 ? '<span style="font-size:10px;background:rgba(244,63,94,.1);color:var(--fail);padding:1px 6px;border-radius:4px;margin-left:4px;font-family:\'DM Mono\',monospace">high</span>' : '';
-    tbody.innerHTML += '<tr><td style="font-family:\'DM Mono\',monospace">' + w.label + '</td><td style="color:var(--muted);font-family:\'DM Mono\',monospace">' + w.monthShort + '</td><td>' + w.calls + '</td><td style="color:var(--muted)">' + w.ignored + '</td><td>' + ibadge(w.ignRate) + flag + '</td><td style="font-family:\'DM Mono\',monospace">' + w.avgMin + ' min</td><td style="font-family:\'DM Mono\',monospace;color:var(--muted)">' + w.totalHrs + ' hrs</td></tr>';
+    tbody.innerHTML += `<tr><td style="font-family:'DM Mono',monospace">${w.label}</td><td style="color:var(--muted);font-family:'DM Mono',monospace">${w.monthShort}</td><td>${w.calls}</td><td style="color:var(--muted)">${w.ignored}</td><td>${ibadge(w.ignRate)}${flag}</td><td style="font-family:'DM Mono',monospace">${w.avgMin} min</td><td style="font-family:'DM Mono',monospace;color:var(--muted)">${w.totalHrs} hrs</td></tr>`;
   });
 }
 
@@ -337,14 +374,14 @@ async function loadFromSupabase() {
     .order('date', { ascending: true });
 
   if (error) {
-    console.error('Error loading data:', error);
     showToast('Could not load data from database.', false);
     return false;
   }
 
   if (!data || data.length === 0) {
-    // No data yet – show empty state
-    document.getElementById('uploadZone').style.display = isAdmin ? 'block' : 'none';
+    // No data – show empty state, hide upload zone initially
+    document.getElementById('uploadZone').style.display = 'none';
+    document.getElementById('fbar').classList.remove('show');
     document.getElementById('mainContent').classList.add('hidden');
     document.getElementById('emptyState').classList.remove('hidden');
     return false;
@@ -362,8 +399,8 @@ async function loadFromSupabase() {
     ALL[agentName] = aggregateAgentData(groups[agentName]);
   }
 
-  // Update UI
-  document.getElementById('uploadZone').style.display = isAdmin ? 'block' : 'none';
+  // Update UI: hide upload zone (it will be shown only via "Add Files" button)
+  document.getElementById('uploadZone').style.display = 'none';
   document.getElementById('fbar').classList.add('show');
   document.getElementById('fName').textContent = 'Data from Supabase';
   document.getElementById('fMeta').textContent = Object.keys(ALL).length + ' agents · ' +
@@ -379,13 +416,35 @@ async function loadFromSupabase() {
   return true;
 }
 
+// ==================== DELETE ALL DATA ====================
+async function deleteAllData() {
+  if (!isAdmin) return;
+  const confirmed = confirm('⚠️ WARNING: This will delete ALL call data for all agents. This action cannot be undone.\n\nAre you absolutely sure?');
+  if (!confirmed) return;
+
+  showToast('Deleting all data...', true);
+  const { error } = await supabase
+    .from('agent_daily_stats')
+    .delete()
+    .neq('id', 0); // delete all rows
+
+  if (error) {
+    showToast('Delete failed: ' + error.message, false);
+    return;
+  }
+
+  showToast('All data deleted successfully.', true);
+  // Reload empty state
+  await loadFromSupabase();
+}
+
 // ==================== UPLOAD & STORE TO SUPABASE ====================
 async function parseAndUpload(file) {
   const reader = new FileReader();
   reader.onload = async function(e) {
     try {
       const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
-      const allDailyRows = []; // array of {agent_name, date, calls, ignored, talk_time_minutes}
+      const allDailyRows = [];
       const agentNames = [];
 
       // Parse each sheet
@@ -411,8 +470,9 @@ async function parseAndUpload(file) {
 
           const calls = parseFloat(r[1]) || 0;
           const ignored = parseFloat(r[2]) || 0;
-          const totalHrs = parseFloat(th(r[4]).toFixed(2)); // hours
-          const talkMinutes = totalHrs * 60; // convert to minutes for DB
+          // Use robust time parser
+          const totalHrs = toHours(r[4]);   // column E = Total Talk Time
+          const talkMinutes = totalHrs * 60;
 
           dr.push({
             agent_name: agentName,
@@ -465,7 +525,6 @@ async function parseAndUpload(file) {
 async function init() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    // Not authenticated – show error (the parent portal should handle login)
     document.body.innerHTML = '<div style="text-align:center;padding:80px;"><h2>Not authenticated</h2><p>Please log in via the ScoreDesk portal.</p></div>';
     return;
   }
@@ -473,11 +532,9 @@ async function init() {
   const meta = user.user_metadata || {};
   isAdmin = (user.email === 'admin@scoredesk.com') || (meta.role === 'admin');
 
-  // Show/hide upload zone based on admin status
-  if (isAdmin) {
-    document.getElementById('uploadZone').style.display = 'block';
-  } else {
-    document.getElementById('uploadZone').style.display = 'none';
+  // Hide delete button for non-admins
+  if (!isAdmin) {
+    document.getElementById('deleteAllBtn').style.display = 'none';
   }
 
   await loadFromSupabase();
@@ -496,10 +553,17 @@ document.getElementById('fileInput').addEventListener('change', e => {
   if (e.target.files[0]) parseAndUpload(e.target.files[0]);
   e.target.value = '';
 });
+
+document.getElementById('addFilesBtn').addEventListener('click', () => {
+  document.getElementById('uploadZone').style.display = 'block';
+});
+
 document.getElementById('refreshBtn').addEventListener('click', () => {
   loadFromSupabase();
   showToast('Data refreshed', true);
 });
+
+document.getElementById('deleteAllBtn').addEventListener('click', deleteAllData);
 
 // Helper toast
 function showToast(msg, ok) {
