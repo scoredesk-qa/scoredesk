@@ -4,419 +4,599 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ScoreDesk – Agent Progression</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0b0d13;--surface:#12151e;--surface2:#191d28;--surface3:#1f2335;--border:#242938;--border2:#2e3448;--accent:#4f8cff;--accent2:#a78bfa;--pass:#22d3a0;--fail:#f43f5e;--warn:#f59e0b;--text:#e8ecf4;--muted:#6b7694;--muted2:#8a94b8;--radius:12px;}
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:24px;}
-.container{max-width:1300px;margin:0 auto;}
-.page-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:28px;border-bottom:1px solid var(--border);padding-bottom:20px;}
-.title{font-size:28px;font-weight:800;letter-spacing:-.5px;}
-.sub{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted2);margin-top:4px;}
-.upload-btn{background:var(--accent);border:none;color:white;padding:10px 20px;border-radius:8px;font-family:'Syne',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;position:relative;}
-.upload-btn:hover{background:#3d7ae8;transform:translateY(-1px);}
-.upload-btn:disabled{opacity:.5;cursor:not-allowed;}
-.upload-btn input[type="file"]{position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer;}
-.filter-bar{display:flex;align-items:center;gap:16px;margin-bottom:24px;flex-wrap:wrap;}
-.filter-label{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
-select,button{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:8px;font-family:'Syne',sans-serif;font-size:13px;cursor:pointer;transition:all .15s;}
-select:focus,button:hover{border-color:var(--accent);outline:none;}
-.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:28px;}
-.chart-title{font-size:16px;font-weight:700;margin-bottom:8px;}
-.table-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow-x:auto;}
-table{width:100%;border-collapse:collapse;}
-th{font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);padding:12px 16px;text-align:left;border-bottom:1px solid var(--border);}
-td{padding:12px 16px;font-size:13px;border-bottom:1px solid var(--border);}
-tr:last-child td{border-bottom:none;}
-.empty-state{text-align:center;padding:60px;color:var(--muted);}
-.error-message{background:rgba(244,63,94,.1);border:1px solid var(--fail);border-radius:var(--radius);padding:20px;color:var(--fail);margin-bottom:20px;}
-.success-message{background:rgba(16,185,129,.1);border:1px solid var(--pass);border-radius:var(--radius);padding:20px;color:var(--pass);margin-bottom:20px;}
-.info-message{background:rgba(79,140,255,.1);border:1px solid var(--accent);border-radius:var(--radius);padding:20px;color:var(--accent);margin-bottom:20px;}
-.debug-panel{background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:16px;margin-bottom:20px;font-family:'DM Mono',monospace;font-size:11px;}
-.debug-title{color:var(--accent);font-weight:700;margin-bottom:8px;}
-.loader{text-align:center;color:var(--muted);padding:40px;}
+body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(79,140,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(79,140,255,.02) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0;}
+.main{max-width:1300px;margin:0 auto;padding:28px;position:relative;z-index:1;}
+.page-eyebrow{font-family:'DM Mono',monospace;font-size:10px;color:var(--accent);letter-spacing:2px;text-transform:uppercase;margin-bottom:7px;display:flex;align-items:center;gap:7px;}
+.page-eyebrow::before{content:'';width:14px;height:2px;background:var(--accent);display:inline-block;}
+.page-title{font-size:26px;font-weight:800;letter-spacing:-.5px;margin-bottom:4px;}
+.page-sub{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted2);}
+.page-hdr{margin-bottom:28px;padding-bottom:24px;border-bottom:1px solid var(--border);}
+.upload-zone{border:2px dashed var(--border2);border-radius:16px;padding:44px 36px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface);position:relative;margin-bottom:24px;}
+.upload-zone:hover,.upload-zone.drag-over{border-color:var(--accent);background:rgba(79,140,255,.04);}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.upload-icon{font-size:40px;margin-bottom:12px;display:block;}
+.upload-title{font-size:17px;font-weight:700;margin-bottom:6px;}
+.upload-sub{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);}
+.upload-cta{display:inline-block;margin-top:14px;background:linear-gradient(135deg,var(--accent),#6366f1);color:#fff;padding:10px 24px;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;border:none;box-shadow:0 4px 16px rgba(79,140,255,.25);}
+.fbar{display:none;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 18px;margin-bottom:24px;}
+.fbar.show{display:flex;}
+.fbar-info{flex:1;}
+.fbar-name{font-size:13px;font-weight:700;margin-bottom:2px;}
+.fbar-meta{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted2);}
+.clear-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:600;transition:all .15s;}
+.clear-btn:hover{border-color:var(--fail);color:var(--fail);}
+.team-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:28px;}
+.ttile{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;position:relative;overflow:hidden;}
+.ttile::after{content:attr(data-icon);position:absolute;right:14px;top:12px;font-size:24px;opacity:.08;}
+.tlbl{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px;}
+.tval{font-size:34px;font-weight:800;line-height:1;letter-spacing:-1.5px;}
+.tsub{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-top:5px;}
+.cb{color:var(--accent);}.cr{color:var(--fail);}.cg{color:var(--pass);}.cw{color:var(--warn);}
+.shdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.stitle{font-size:16px;font-weight:700;}
+.slabel{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted2);letter-spacing:1px;text-transform:uppercase;}
+.scnt{font-family:'DM Mono',monospace;font-size:11px;background:var(--surface2);border:1px solid var(--border2);color:var(--muted2);padding:3px 10px;border-radius:20px;}
+.tcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;overflow-x:auto;margin-bottom:28px;}
+.dt{width:100%;border-collapse:collapse;min-width:600px;}
+.dt thead{background:var(--surface2);}
+.dt th{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.7px;text-transform:uppercase;text-align:left;padding:12px 18px;border-bottom:1px solid var(--border);white-space:nowrap;}
+.dt td{padding:12px 18px;border-bottom:1px solid var(--border);font-size:12px;vertical-align:middle;}
+.dt tr:last-child td{border-bottom:none;}
+.dt tbody tr:hover td{background:rgba(79,140,255,.025);}
+.ib{font-family:'DM Mono',monospace;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;white-space:nowrap;}
+.ibok{background:rgba(34,211,160,.1);color:var(--pass);}
+.ibw{background:rgba(245,158,11,.1);color:var(--warn);}
+.ibbad{background:rgba(244,63,94,.1);color:var(--fail);}
+.rb{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;background:var(--surface3);border:1px solid var(--border2);font-family:'DM Mono',monospace;font-size:11px;color:var(--muted2);}
+.rb.t1{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.3);color:var(--warn);}
+.rb.t2{background:rgba(148,163,184,.1);border-color:rgba(148,163,184,.2);color:#94a3b8;}
+.rb.t3{background:rgba(180,120,80,.1);border-color:rgba(180,120,80,.2);color:#b47850;}
+.mbb{background:var(--surface3);border-radius:3px;height:5px;width:60px;display:inline-block;vertical-align:middle;}
+.mbf{height:5px;border-radius:3px;background:var(--accent);}
+.agtabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:24px;}
+.agtab{font-family:'DM Mono',monospace;font-size:11px;padding:6px 14px;border-radius:7px;border:1px solid var(--border2);background:transparent;color:var(--muted2);cursor:pointer;transition:all .15s;}
+.agtab:hover{color:var(--text);border-color:var(--muted);}
+.agtab.active{background:rgba(79,140,255,.12);border-color:rgba(79,140,255,.35);color:var(--accent);}
+.agtab.wtab{border-color:rgba(244,63,94,.3);color:var(--fail);}
+.agtab.wtab.active{background:rgba(244,63,94,.1);border-color:rgba(244,63,94,.4);}
+.krow{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;}
+.kcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;}
+.kcard.danger{border-color:rgba(244,63,94,.25);background:rgba(244,63,94,.04);}
+.klbl{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px;}
+.kval{font-size:28px;font-weight:800;letter-spacing:-1px;line-height:1;}
+.ksub{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-top:5px;}
+.crow{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+.cc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;}
+.cc.full{grid-column:1/-1;}
+.clbl{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted2);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;}
+.leg{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px;}
+.li{display:flex;align-items:center;gap:6px;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted2);}
+.ld{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
+.ldash{width:18px;height:0;border-top:2px dashed var(--fail);}
+.abanner{display:flex;align-items:center;gap:10px;background:rgba(244,63,94,.07);border:1px solid rgba(244,63,94,.25);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-family:'DM Mono',monospace;font-size:12px;color:var(--fail);}
+.ibanner{display:flex;align-items:center;gap:10px;background:rgba(79,140,255,.06);border:1px solid rgba(79,140,255,.2);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-family:'DM Mono',monospace;font-size:12px;color:var(--accent);}
+.ameta{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted2);margin-bottom:14px;}
+.hidden{display:none!important;}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:var(--surface);}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+.empty-state{text-align:center;padding:60px 40px;}
+.empty-icon{font-size:48px;margin-bottom:14px;opacity:.5;}
+.empty-title{font-size:17px;font-weight:700;margin-bottom:7px;}
+.empty-sub{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted2);}
+
+/* Auth modal */
+#authModal {
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+  z-index: 1000;
+  min-width: 320px;
+  text-align: center;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.3);
+}
+#authModal input {
+  display: block;
+  width: 100%;
+  margin: 12px 0;
+  padding: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+}
+#authModal button {
+  background: var(--accent);
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 12px;
+}
+#authError {
+  color: var(--fail);
+  font-size: 12px;
+  margin-top: 12px;
+}
 </style>
 </head>
 <body>
-<div class="container">
-  <div class="page-header">
-    <div>
-      <div class="title">Agent Progression</div>
-      <div class="sub">Daily call volumes</div>
-    </div>
-    <div id="uploadBtnContainer" style="display:none;">
-      <label class="upload-btn" id="uploadBtn">
-        📤 Upload Score Card
-        <input type="file" id="fileInput" accept=".xlsx,.xls"/>
-      </label>
-    </div>
+<div class="main">
+  <div class="page-hdr">
+    <div class="page-eyebrow">Call Analytics</div>
+    <div class="page-title">Agent Progression</div>
+    <div class="page-sub">Upload a ZZPS 3CX CallStats Excel — auto‑stored to Supabase</div>
   </div>
 
-  <div id="debugPanel"></div>
-  <div id="messages"></div>
-
-  <div class="filter-bar" id="filterBar" style="display:none;">
-    <span class="filter-label">Agent</span>
-    <select id="agentSelect"></select>
-    <button id="refreshBtn">↻ Refresh</button>
+  <!-- Auth Modal -->
+  <div id="authModal">
+    <h3>🔐 Login to ScoreDesk</h3>
+    <input type="email" id="email" placeholder="Email" autocomplete="email">
+    <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+    <button id="loginBtn">Login</button>
+    <div id="authError"></div>
+    <div style="margin-top:16px; font-size:11px; color:var(--muted);">Admin required to upload data</div>
   </div>
 
-  <div id="content"><div class="loader">Initializing...</div></div>
+  <div class="upload-zone" id="uploadZone" style="display:none;">
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+    <span class="upload-icon">📊</span>
+    <div class="upload-title">Upload Call Stats Excel</div>
+    <div class="upload-sub">ZZPS_CallStats 3CX format &nbsp;·&nbsp; one sheet per agent</div>
+    <div class="upload-sub" style="margin-top:4px;">Drag & drop or click to choose</div>
+    <button class="upload-cta" onclick="event.stopPropagation();document.getElementById('fileInput').click()">Choose File</button>
+  </div>
+
+  <div class="fbar" id="fbar">
+    <span style="font-size:20px">📋</span>
+    <div class="fbar-info"><div class="fbar-name" id="fName"></div><div class="fbar-meta" id="fMeta"></div></div>
+    <button class="clear-btn" id="logoutBtn">🚪 Logout</button>
+  </div>
+
+  <div id="mainContent" class="hidden">
+    <div class="shdr" style="margin-bottom:14px;">
+      <div><div class="slabel">Team Overview</div><div class="stitle">All Agents Summary</div></div>
+      <span class="scnt" id="agCnt"></span>
+    </div>
+    <div class="team-strip" id="teamStrip"></div>
+    <div class="shdr"><div><div class="slabel">Ranked by Volume</div><div class="stitle">Agent Leaderboard</div></div></div>
+    <div class="tcard"><table class="dt"><thead><tr><th>#</th><th>Agent</th><th>Total Calls</th><th>Ignored</th><th>Ignore Rate</th><th>Avg Talk</th><th>Active Days</th><th>Volume</th></tr></thead><tbody id="teamTbody"></tbody></table></div>
+    <div class="shdr"><div><div class="slabel">Drill Down</div><div class="stitle">Per-Agent Analysis</div></div></div>
+    <div class="agtabs" id="agTabs"></div>
+    <div id="agView"></div>
+  </div>
+  <div id="emptyState"><div class="empty-state"><div class="empty-icon">📤</div><div class="empty-title">No data loaded</div><div class="empty-sub">Upload a ZZPS 3CX CallStats Excel file above to begin</div></div></div>
 </div>
 
 <script>
-const SUPABASE_URL='https://qbvjgiamqzkscdykenvi.supabase.co';
-const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFidmpnaWFtcXprc2NkeWtlbnZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwMzUxMTIsImV4cCI6MjA5MDYxMTExMn0.OeV5qa9y_PCGw6nG0wbfPfiMBjYC_jvzsUXHOip1RTU';
+// Supabase setup – replace with your own!
+const SUPABASE_URL = 'https://qbvjgiamqzkscdykenvi.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFidmpnaWFtcXprc2NkeWtlbnZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwMzUxMTIsImV4cCI6MjA5MDYxMTExMn0.OeV5qa9y_PCGw6nG0wbfPfiMBjYC_jvzsUXHOip1RTU';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-let sb=null;
-let currentUser=null;
-let isAdmin=false;
-let agentName=null;
-let allStats=[];
-let chartInstance=null;
+let ALL = {};
+let AC = [];
+let CA = null;
+let currentUser = null;
 
-function log(msg,data){
-  console.log('[ScoreDesk]',msg,data||'');
-  const panel=document.getElementById('debugPanel');
-  if(panel){
-    const entry=document.createElement('div');
-    entry.style.marginBottom='4px';
-    entry.innerHTML=`<span style="color:var(--muted2)">${new Date().toLocaleTimeString()}</span> ${msg}`;
-    panel.appendChild(entry);
+// Helper functions (unchanged)
+function gwk(d) {
+  const dt = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = dt.getUTCDay() || 7;
+  dt.setUTCDate(dt.getUTCDate() + 4 - day);
+  const ys = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1));
+  return Math.ceil((((dt - ys) / 86400000) + 1) / 7);
+}
+function tm(v) {
+  if (v instanceof Date) return v.getHours() * 60 + v.getMinutes() + v.getSeconds() / 60;
+  if (typeof v === 'number') return v * 24 * 60;
+  if (typeof v === 'string') {
+    const p = v.split(':');
+    if (p.length >= 2) return parseInt(p[0]) * 60 + parseInt(p[1]) + (parseInt(p[2] || 0) / 60);
   }
+  return 0;
+}
+function th(v) {
+  if (v instanceof Date) return v.getHours() + v.getMinutes() / 60 + v.getSeconds() / 3600;
+  if (typeof v === 'number') return v * 24;
+  return 0;
+}
+function ibadge(r) {
+  if (r >= 5) return '<span class="ib ibbad">' + r.toFixed(1) + '%</span>';
+  if (r >= 2) return '<span class="ib ibw">' + r.toFixed(1) + '%</span>';
+  return '<span class="ib ibok">' + r.toFixed(1) + '%</span>';
 }
 
-function showDebug(title,content){
-  const panel=document.getElementById('debugPanel');
-  panel.innerHTML=`<div class="debug-panel"><div class="debug-title">${title}</div>${content}</div>`;
+// Aggregation logic (reused from original parser)
+function aggregateAgentData(rows) {
+  // rows is array of {date, calls, ignored, talk_time_minutes}
+  const dr = rows.map(r => ({
+    date: new Date(r.date),
+    calls: r.calls,
+    ignored: r.ignored,
+    avgMin: r.calls > 0 ? r.talk_time_minutes / r.calls : 0,
+    totalHrs: r.talk_time_minutes / 60
+  }));
+  const tc2 = dr.reduce((s, r) => s + r.calls, 0);
+  const ti = dr.reduce((s, r) => s + r.ignored, 0);
+  const ir = tc2 > 0 ? parseFloat((ti / tc2 * 100).toFixed(2)) : 0;
+  const ws2 = dr.reduce((s, r) => s + r.avgMin * r.calls, 0);
+  const at = tc2 > 0 ? parseFloat((ws2 / tc2).toFixed(1)) : 0;
+  const act = dr.filter(r => r.calls > 0);
+  const sd = dr.map(r => r.date).sort((a, b) => a - b);
+  const fmt = d => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const dateRange = sd.length ? fmt(sd[0]) + ' – ' + fmt(sd[sd.length - 1]) : 'No data';
+  const avgPerDay = act.length > 0 ? parseFloat((tc2 / act.length).toFixed(1)) : 0;
+
+  // Weekly
+  const wm = {};
+  dr.forEach(r => {
+    const day = r.date.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    const mon = new Date(r.date);
+    mon.setDate(r.date.getDate() + diff);
+    const wk = 'W' + gwk(r.date);
+    const ms = r.date.toLocaleDateString('en-GB', { month: 'short' });
+    const k = mon.toISOString().slice(0, 10);
+    if (!wm[k]) wm[k] = { label: wk, monthShort: ms, calls: 0, ignored: 0, totalHrs: 0, talkSum: 0, mon };
+    wm[k].calls += r.calls;
+    wm[k].ignored += r.ignored;
+    wm[k].totalHrs += r.totalHrs;
+    wm[k].talkSum += r.avgMin * r.calls;
+  });
+  const weekly = Object.values(wm).sort((a, b) => a.mon - b.mon).map(w => ({
+    label: w.label,
+    monthShort: w.monthShort,
+    calls: w.calls,
+    ignored: w.ignored,
+    ignRate: w.calls > 0 ? parseFloat((w.ignored / w.calls * 100).toFixed(1)) : 0,
+    avgMin: w.calls > 0 ? parseFloat((w.talkSum / w.calls).toFixed(1)) : 0,
+    totalHrs: parseFloat(w.totalHrs.toFixed(1))
+  }));
+
+  // Monthly
+  const mm = {};
+  dr.forEach(r => {
+    const k = r.date.getFullYear() * 100 + r.date.getMonth();
+    const mo = r.date.toLocaleDateString('en-GB', { month: 'long' });
+    if (!mm[k]) mm[k] = { month: mo, calls: 0, ignored: 0, totalHrs: 0, talkSum: 0 };
+    mm[k].calls += r.calls;
+    mm[k].ignored += r.ignored;
+    mm[k].totalHrs += r.totalHrs;
+    mm[k].talkSum += r.avgMin * r.calls;
+  });
+  const monthly = Object.keys(mm).sort().map(k => {
+    const m = mm[k];
+    return {
+      month: m.month,
+      calls: m.calls,
+      ignored: m.ignored,
+      ignRate: m.calls > 0 ? parseFloat((m.ignored / m.calls * 100).toFixed(1)) : 0,
+      avgMin: m.calls > 0 ? parseFloat((m.talkSum / m.calls).toFixed(1)) : 0,
+      totalHrs: parseFloat(m.totalHrs.toFixed(1))
+    };
+  });
+
+  return {
+    totalCalls: tc2,
+    totalIgnored: ti,
+    ignRate: ir,
+    avgTalk: at,
+    days: act.length,
+    dateRange,
+    avgPerDay,
+    weekly,
+    monthly,
+    dailyRows: dr
+  };
 }
 
-async function init(){
-  try{
-    log('Starting initialization...');
-    
-    // Check if Supabase SDK loaded
-    if(typeof window.supabase==='undefined'){
-      throw new Error('Supabase SDK not loaded. Check internet connection.');
-    }
-    log('Supabase SDK loaded ✓');
-
-    // Create Supabase client
-    sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{
-      auth:{autoRefreshToken:true,persistSession:true}
-    });
-    log('Supabase client created ✓');
-
-    // Get session
-    log('Checking authentication session...');
-    const{data:{session},error:sessionError}=await sb.auth.getSession();
-    
-    if(sessionError){
-      log('Session error:',sessionError);
-      throw sessionError;
-    }
-
-    if(!session){
-      log('No active session found');
-      showMessage('info','⚠️ Not logged in. Please log in via the ScoreDesk portal first.');
-      document.getElementById('content').innerHTML='<div class="empty-state">Please log in via the ScoreDesk portal to view your data.</div>';
-      return;
-    }
-
-    currentUser=session.user;
-    log('User authenticated:',currentUser.email);
-
-    const meta=currentUser.user_metadata||{};
-    isAdmin=(currentUser.email==='yassin.aitlehcen@market-wave.com')||(meta.role==='admin');
-    agentName=meta.agent_name||null;
-
-    log('User role:',isAdmin?'Admin':'Agent');
-    if(agentName)log('Agent name:',agentName);
-
-    showDebug('Authentication Success',`
-      <div>Email: ${currentUser.email}</div>
-      <div>Role: ${isAdmin?'Admin':'Agent'}</div>
-      ${agentName?`<div>Agent: ${agentName}</div>`:''}
-    `);
-
-    if(isAdmin){
-      document.getElementById('uploadBtnContainer').style.display='block';
-      setupFileUpload();
-      log('Upload button enabled for admin');
-    }
-
-    await loadData();
-    renderUI();
-
-  }catch(err){
-    console.error('Init error:',err);
-    log('ERROR:',err.message);
-    showMessage('error',`Initialization failed: ${err.message}`);
-    showDebug('Error Details',`
-      <div style="color:var(--fail)">Message: ${err.message}</div>
-      <div>Stack: ${err.stack?err.stack.substring(0,200)+'...':'N/A'}</div>
-    `);
-  }
+// UI rendering functions (unchanged)
+function bStrip() {
+  const ag = Object.values(ALL), names = Object.keys(ALL);
+  const tc2 = ag.reduce((s, a) => s + a.totalCalls, 0);
+  const ti = ag.reduce((s, a) => s + a.totalIgnored, 0);
+  const tir = (tc2 > 0 ? ti / tc2 * 100 : 0).toFixed(2);
+  const at = (ag.reduce((s, a) => s + a.avgTalk, 0) / ag.length).toFixed(1);
+  const cc = names.filter(n => ALL[n].ignRate >= 5).length;
+  document.getElementById('teamStrip').innerHTML = '<div class="ttile" data-icon="👥"><div class="tlbl">Total Agents</div><div class="tval cb">' + ag.length + '</div><div class="tsub">in this report</div></div><div class="ttile" data-icon="📞"><div class="tlbl">Total Calls</div><div class="tval cb">' + tc2.toLocaleString() + '</div><div class="tsub">' + ti + ' ignored</div></div><div class="ttile" data-icon="📈"><div class="tlbl">Team Ignore Rate</div><div class="tval ' + (parseFloat(tir) >= 5 ? 'cr' : parseFloat(tir) >= 2 ? 'cw' : 'cg') + '">' + tir + '<span style="font-size:16px">%</span></div><div class="tsub">across all agents</div></div><div class="ttile" data-icon="⏱️"><div class="tlbl">Team Avg Talk</div><div class="tval cg">' + at + '<span style="font-size:16px"> min</span></div><div class="tsub">per call</div></div><div class="ttile" data-icon="⚠️"><div class="tlbl">High Ignore ≥5%</div><div class="tval ' + (cc > 0 ? 'cr' : 'cg') + '">' + cc + '</div><div class="tsub">agents need attention</div></div>';
 }
-
-function setupFileUpload(){
-  const fileInput=document.getElementById('fileInput');
-  fileInput.addEventListener('change',async(e)=>{
-    const file=e.target.files[0];
-    if(!file)return;
-    try{
-      await processExcelFile(file);
-      fileInput.value='';
-    }catch(err){
-      console.error('Upload error:',err);
-      showMessage('error',`Upload failed: ${err.message}`);
-    }
+function bTable() {
+  const names = Object.keys(ALL).sort((a, b) => ALL[b].totalCalls - ALL[a].totalCalls);
+  const max = Math.max(...names.map(n => ALL[n].totalCalls));
+  document.getElementById('teamTbody').innerHTML = names.map((n, i) => {
+    const d = ALL[n];
+    const pct = Math.round(d.totalCalls / max * 100);
+    const rc = i === 0 ? 't1' : i === 1 ? 't2' : i === 2 ? 't3' : '';
+    return `<tr><td><span class="rb ${rc}">${i + 1}</span></td><td style="font-weight:700;cursor:pointer;color:var(--accent)" onclick="selAg('${n.replace(/'/g, "\\'")}')">${d.ignRate >= 5 ? '🔴 ' : ''}${n}</td><td style="font-family:'DM Mono',monospace">${d.totalCalls.toLocaleString()}</td><td style="font-family:'DM Mono',monospace;color:var(--muted)">${d.totalIgnored}</td><td>${ibadge(d.ignRate)}</td><td style="font-family:'DM Mono',monospace">${d.avgTalk} min</td><td style="font-family:'DM Mono',monospace;color:var(--muted)">${d.days}</td><td><div class="mbb"><div class="mbf" style="width:${pct}%"></div></div></td></tr>`;
+  }).join('');
+}
+function bTabs() {
+  document.getElementById('agTabs').innerHTML = '';
+  Object.keys(ALL).forEach(name => {
+    const btn = document.createElement('button');
+    btn.className = 'agtab' + (ALL[name].ignRate >= 5 ? ' wtab' : '') + (name === CA ? ' active' : '');
+    btn.textContent = name;
+    btn.onclick = () => selAg(name);
+    document.getElementById('agTabs').appendChild(btn);
+  });
+}
+function selAg(name) {
+  CA = name;
+  document.querySelectorAll('.agtab').forEach(b => {
+    b.classList.remove('active');
+    if (b.textContent === name) b.classList.add('active');
+  });
+  rAgent(name);
+  document.getElementById('agView').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function rAgent(name) {
+  AC.forEach(c => c.destroy());
+  AC = [];
+  const d = ALL[name];
+  const wks = d.weekly, labels = wks.map(w => w.label), calls = wks.map(w => w.calls), ignored = wks.map(w => w.ignored), avgMin = wks.map(w => w.avgMin);
+  const hasCrisis = d.ignRate >= 5, isNew = d.days <= 25;
+  const banner = hasCrisis ? '<div class="abanner">⚠️ <strong>Overall ignore rate is ' + d.ignRate.toFixed(2) + '%</strong> — requires immediate attention.</div>' : isNew ? '<div class="ibanner">ℹ️ New agent — limited data (' + d.dateRange + ').</div>' : '';
+  document.getElementById('agView').innerHTML = '<p class="ameta">' + name + ' · ' + d.dateRange + ' · ' + d.days + ' active days · avg ' + d.avgPerDay + ' calls/day</p>' + banner + '<div class="krow"><div class="kcard"><div class="klbl">Total Calls</div><div class="kval cb">' + d.totalCalls.toLocaleString() + '</div><div class="ksub">over ' + d.days + ' active days</div></div><div class="kcard"><div class="klbl">Avg Calls / Day</div><div class="kval">' + d.avgPerDay + '</div><div class="ksub">range: ' + (Math.min(...calls.filter(c => c > 0)) || 0) + ' – ' + Math.max(...calls) + '</div></div><div class="kcard"><div class="klbl">Avg Talk Time</div><div class="kval cg">' + d.avgTalk + '<span style="font-size:16px"> min</span></div><div class="ksub">per call (weighted)</div></div><div class="kcard' + (hasCrisis ? ' danger' : '') + '"><div class="klbl">Ignore Rate</div><div class="kval' + (hasCrisis ? ' cr' : '') + '">' + d.ignRate.toFixed(2) + '<span style="font-size:16px">%</span></div><div class="ksub">' + d.totalIgnored + ' of ' + d.totalCalls.toLocaleString() + ' calls</div></div></div><div class="crow"><div class="cc"><div class="clbl">Calls per week</div><div class="leg"><span class="li"><span class="ld" style="background:var(--accent)"></span>Answered</span><span class="li"><span class="ld" style="background:var(--fail)"></span>Ignored</span></div><div style="position:relative;height:200px"><canvas id="cC"></canvas></div></div><div class="cc"><div class="clbl">Avg talk time / week</div><div class="leg"><span class="li"><span class="ld" style="background:var(--pass)"></span>Avg talk</span><span class="li"><span class="ldash"></span>Overall avg</span></div><div style="position:relative;height:200px"><canvas id="cT"></canvas></div></div></div><div class="cc full" style="margin-bottom:16px"><div class="clbl">Monthly summary</div><div style="position:relative;height:190px"><canvas id="cM"></canvas></div></div><div class="cc"><div class="clbl">Weekly breakdown</div><table class="dt"><thead><tr><th>Week</th><th>Month</th><th>Calls</th><th>Ignored</th><th>Ignore %</th><th>Avg Talk</th><th>Total Talk</th></tr></thead><tbody id="cTbl"></tbody></table></div>';
+  AC.push(new Chart(document.getElementById('cC'), { type: 'bar', data: { labels, datasets: [{ label: 'Answered', data: calls, backgroundColor: 'rgba(79,140,255,.75)', borderRadius: 3, stack: 'a' }, { label: 'Ignored', data: ignored, backgroundColor: 'rgba(244,63,94,.75)', borderRadius: 3, stack: 'a' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { mode: 'index' } }, scales: { x: { stacked: true, grid: { display: false }, ticks: { color: '#6b7694', font: { family: 'DM Mono, monospace', size: 10 } } }, y: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6b7694', font: { family: 'DM Mono, monospace', size: 10 } } } } } }));
+  AC.push(new Chart(document.getElementById('cT'), { type: 'line', data: { labels, datasets: [{ label: 'Avg talk', data: avgMin, borderColor: '#22d3a0', backgroundColor: 'rgba(34,211,160,.07)', fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: '#22d3a0', order: 2 }, { label: 'Overall', data: Array(labels.length).fill(d.avgTalk), borderColor: 'rgba(244,63,94,.6)', borderDash: [5, 4], borderWidth: 2, pointRadius: 0, fill: false, order: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: {} }, scales: { x: { grid: { display: false }, ticks: { color: '#6b7694', font: { family: 'DM Mono, monospace', size: 10 } } }, y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6b7694', font: { family: 'DM Mono, monospace', size: 10 }, callback: v => v + 'm' }, min: 0 } } } }));
+  AC.push(new Chart(document.getElementById('cM'), { type: 'bar', data: { labels: d.monthly.map(m => m.month), datasets: [{ label: 'Calls', data: d.monthly.map(m => m.calls), backgroundColor: 'rgba(79,140,255,.7)', borderRadius: 3, yAxisID: 'y' }, { label: 'Avg talk', data: d.monthly.map(m => m.avgMin), backgroundColor: 'rgba(34,211,160,.5)', borderRadius: 3, yAxisID: 'y2' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { mode: 'index' } }, scales: { x: { grid: { display: false }, ticks: { color: '#6b7694', font: { family: 'DM Mono, monospace', size: 10 } } }, y: { position: 'left', grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#4f8cff', font: { family: 'DM Mono, monospace', size: 10 } }, title: { display: true, text: 'Calls', color: '#4f8cff', font: { size: 10 } } }, y2: { position: 'right', grid: { display: false }, ticks: { color: '#22d3a0', font: { family: 'DM Mono, monospace', size: 10 }, callback: v => v + 'm' }, title: { display: true, text: 'Avg talk', color: '#22d3a0', font: { size: 10 } }, min: 0 } } } }));
+  const tbody = document.getElementById('cTbl');
+  tbody.innerHTML = '';
+  wks.forEach(w => {
+    const flag = w.ignRate >= 5 ? '<span style="font-size:10px;background:rgba(244,63,94,.1);color:var(--fail);padding:1px 6px;border-radius:4px;margin-left:4px;font-family:\'DM Mono\',monospace">high</span>' : '';
+    tbody.innerHTML += '<tr><td style="font-family:\'DM Mono\',monospace">' + w.label + '</td><td style="color:var(--muted);font-family:\'DM Mono\',monospace">' + w.monthShort + '</td><td>' + w.calls + '</td><td style="color:var(--muted)">' + w.ignored + '</td><td>' + ibadge(w.ignRate) + flag + '</td><td style="font-family:\'DM Mono\',monospace">' + w.avgMin + ' min</td><td style="font-family:\'DM Mono\',monospace;color:var(--muted)">' + w.totalHrs + ' hrs</td></tr>';
   });
 }
 
-async function processExcelFile(file){
-  log('Processing file:',file.name);
-  showMessage('info',`Processing ${file.name}...`);
-  
-  const data=await file.arrayBuffer();
-  const workbook=XLSX.read(data,{type:'array'});
-  log('Workbook loaded, sheets:',workbook.SheetNames.length);
+// Load data from Supabase and build ALL
+async function loadFromSupabase() {
+  const { data, error } = await supabase
+    .from('agent_daily_stats')
+    .select('*')
+    .order('date', { ascending: true });
 
-  const records=[];
-  let processedSheets=0;
+  if (error) {
+    console.error('Error loading from Supabase:', error);
+    alert('Could not load data from database. Make sure you are logged in.');
+    return false;
+  }
 
-  for(const sheetName of workbook.SheetNames){
-    if(sheetName.toLowerCase().includes('template')){
-      log('Skipping template:',sheetName);
-      continue;
-    }
+  if (!data || data.length === 0) {
+    // No data yet, show empty state but keep upload visible
+    document.getElementById('uploadZone').style.display = 'block';
+    document.getElementById('mainContent').classList.add('hidden');
+    document.getElementById('emptyState').classList.remove('hidden');
+    return false;
+  }
 
-    const agentMatch=sheetName.match(/^\d+\s+(.+)$/);
-    if(!agentMatch){
-      log('Skipping invalid sheet:',sheetName);
-      continue;
-    }
-    const agentName=agentMatch[1].trim();
-    log('Processing agent:',agentName);
+  // Group by agent_name
+  const groups = {};
+  for (const row of data) {
+    if (!groups[row.agent_name]) groups[row.agent_name] = [];
+    groups[row.agent_name].push(row);
+  }
 
-    const sheet=workbook.Sheets[sheetName];
-    const jsonData=XLSX.utils.sheet_to_json(sheet,{header:1});
+  ALL = {};
+  for (const agentName in groups) {
+    ALL[agentName] = aggregateAgentData(groups[agentName]);
+  }
 
-    let headerRowIndex=-1;
-    for(let i=0;i<Math.min(5,jsonData.length);i++){
-      const row=jsonData[i];
-      if(row&&row[0]==='Date'&&row[1]==='Calls'){
-        headerRowIndex=i;
-        break;
+  // Update UI
+  document.getElementById('uploadZone').style.display = 'block';
+  document.getElementById('fbar').classList.add('show');
+  document.getElementById('fName').textContent = 'Data from Supabase';
+  document.getElementById('fMeta').textContent = Object.keys(ALL).length + ' agents · ' +
+    Object.values(ALL).reduce((s, a) => s + a.totalCalls, 0).toLocaleString() + ' total calls';
+  document.getElementById('agCnt').textContent = Object.keys(ALL).length + ' agents';
+  document.getElementById('mainContent').classList.remove('hidden');
+  document.getElementById('emptyState').classList.add('hidden');
+  CA = Object.keys(ALL)[0];
+  bStrip();
+  bTable();
+  bTabs();
+  rAgent(CA);
+  return true;
+}
+
+// File upload handler – parses and stores to Supabase
+function hf(file) {
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+      ALL = {};
+      const parsedData = {}; // temporary storage for daily rows per agent
+
+      for (const sn of wb.SheetNames) {
+        const ws = wb.Sheets[sn];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+        const an = sn.replace(/^\d+\s*/, '').trim();
+        const dr = [];
+        for (let i = 3; i < rows.length; i++) {
+          const r = rows[i];
+          if (!r || r[0] == null) continue;
+          let date;
+          const dv = r[0];
+          if (typeof dv === 'number' && dv > 19000000) {
+            const s = String(Math.round(dv));
+            if (s.length === 8) date = new Date(parseInt(s.slice(0, 4)), parseInt(s.slice(4, 6)) - 1, parseInt(s.slice(6, 8)));
+          } else if (dv instanceof Date) {
+            date = dv;
+          }
+          if (!date || isNaN(date.getTime())) continue;
+          dr.push({
+            date,
+            calls: parseFloat(r[1]) || 0,
+            ignored: parseFloat(r[2]) || 0,
+            avgMin: parseFloat(tm(r[5]).toFixed(1)),
+            totalHrs: parseFloat(th(r[4]).toFixed(2))
+          });
+        }
+        const act = dr.filter(r => r.calls > 0);
+        if (!act.length) continue;
+        const tc2 = dr.reduce((s, r) => s + r.calls, 0);
+        const ti = dr.reduce((s, r) => s + r.ignored, 0);
+        const ir = tc2 > 0 ? parseFloat((ti / tc2 * 100).toFixed(2)) : 0;
+        const ws2 = dr.reduce((s, r) => s + r.avgMin * r.calls, 0);
+        const at = tc2 > 0 ? parseFloat((ws2 / tc2).toFixed(1)) : 0;
+        const sd = dr.map(r => r.date).sort((a, b) => a - b);
+        const fmt = d => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        const wm = {};
+        dr.forEach(r => {
+          const day = r.date.getDay();
+          const diff = day === 0 ? -6 : 1 - day;
+          const mon = new Date(r.date);
+          mon.setDate(r.date.getDate() + diff);
+          const wk = 'W' + gwk(r.date);
+          const ms = r.date.toLocaleDateString('en-GB', { month: 'short' });
+          const k = mon.toISOString().slice(0, 10);
+          if (!wm[k]) wm[k] = { label: wk, monthShort: ms, calls: 0, ignored: 0, totalHrs: 0, talkSum: 0, mon };
+          wm[k].calls += r.calls;
+          wm[k].ignored += r.ignored;
+          wm[k].totalHrs += r.totalHrs;
+          wm[k].talkSum += r.avgMin * r.calls;
+        });
+        const weekly = Object.values(wm).sort((a, b) => a.mon - b.mon).map(w => ({
+          label: w.label, monthShort: w.monthShort, calls: w.calls, ignored: w.ignored,
+          ignRate: w.calls > 0 ? parseFloat((w.ignored / w.calls * 100).toFixed(1)) : 0,
+          avgMin: w.calls > 0 ? parseFloat((w.talkSum / w.calls).toFixed(1)) : 0,
+          totalHrs: parseFloat(w.totalHrs.toFixed(1))
+        }));
+        const mm = {};
+        dr.forEach(r => {
+          const k = r.date.getFullYear() * 100 + r.date.getMonth();
+          const mo = r.date.toLocaleDateString('en-GB', { month: 'long' });
+          if (!mm[k]) mm[k] = { month: mo, calls: 0, ignored: 0, totalHrs: 0, talkSum: 0 };
+          mm[k].calls += r.calls;
+          mm[k].ignored += r.ignored;
+          mm[k].totalHrs += r.totalHrs;
+          mm[k].talkSum += r.avgMin * r.calls;
+        });
+        const monthly = Object.keys(mm).sort().map(k => {
+          const m = mm[k];
+          return {
+            month: m.month,
+            calls: m.calls,
+            ignored: m.ignored,
+            ignRate: m.calls > 0 ? parseFloat((m.ignored / m.calls * 100).toFixed(1)) : 0,
+            avgMin: m.calls > 0 ? parseFloat((m.talkSum / m.calls).toFixed(1)) : 0,
+            totalHrs: parseFloat(m.totalHrs.toFixed(1))
+          };
+        });
+        ALL[an] = {
+          totalCalls: tc2, totalIgnored: ti, ignRate: ir, avgTalk: at,
+          days: act.length,
+          dateRange: fmt(sd[0]) + ' – ' + fmt(sd[sd.length - 1]),
+          avgPerDay: act.length > 0 ? parseFloat((tc2 / act.length).toFixed(1)) : 0,
+          weekly, monthly,
+          dailyRows: dr
+        };
+        parsedData[an] = dr;
       }
-    }
 
-    if(headerRowIndex===-1){
-      log('No header in:',sheetName);
-      continue;
-    }
+      const names = Object.keys(ALL);
+      if (!names.length) { alert('No agent data found.'); return; }
 
-    for(let i=headerRowIndex+1;i<jsonData.length;i++){
-      const row=jsonData[i];
-      if(!row||!row[0])continue;
+      // Insert into Supabase
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user) throw new Error('Not authenticated');
 
-      const dateStr=String(row[0]).trim();
-      const calls=parseInt(row[1])||0;
-      const ignored=parseInt(row[2])||0;
-      const talkTime=row[4];
-
-      if(dateStr.length!==8)continue;
-      const year=dateStr.substring(0,4);
-      const month=dateStr.substring(4,6);
-      const day=dateStr.substring(6,8);
-      const formattedDate=`${year}-${month}-${day}`;
-
-      let talkTimeMinutes=0;
-      if(talkTime&&typeof talkTime==='string'){
-        const timeMatch=talkTime.match(/(\d+):(\d+):(\d+)/);
-        if(timeMatch){
-          const hours=parseInt(timeMatch[1])||0;
-          const minutes=parseInt(timeMatch[2])||0;
-          const seconds=parseInt(timeMatch[3])||0;
-          talkTimeMinutes=hours*60+minutes+seconds/60;
+      const upsertPromises = [];
+      for (const agentName in parsedData) {
+        const rows = parsedData[agentName];
+        for (const row of rows) {
+          const talkMinutes = row.totalHrs * 60; // total talk time in minutes
+          upsertPromises.push(
+            supabase
+              .from('agent_daily_stats')
+              .upsert({
+                agent_name: agentName,
+                date: row.date.toISOString().slice(0, 10),
+                calls: row.calls,
+                ignored: row.ignored,
+                talk_time_minutes: talkMinutes
+              }, { onConflict: 'agent_name, date', ignoreDuplicates: false })
+          );
         }
       }
+      await Promise.all(upsertPromises);
+      console.log('Data stored/updated in Supabase');
 
-      records.push({
-        agent_name:agentName,
-        date:formattedDate,
-        calls:calls,
-        ignored:ignored,
-        talk_time_minutes:talkTimeMinutes
-      });
+      // After successful storage, reload from DB to refresh UI
+      await loadFromSupabase();
+
+    } catch (err) {
+      console.error(err);
+      alert('Error: ' + err.message + '\n\nMake sure you are logged in as admin (admin@scoredesk.com)');
     }
-    processedSheets++;
-  }
-
-  if(records.length===0){
-    throw new Error('No valid data found in Excel file');
-  }
-
-  log('Parsed records:',records.length);
-  showMessage('info',`Uploading ${records.length} records...`);
-
-  const{data,error}=await sb
-    .from('agent_daily_stats')
-    .upsert(records,{onConflict:'agent_name,date'});
-
-  if(error){
-    log('Supabase error:',error);
-    throw new Error(`Database error: ${error.message}`);
-  }
-
-  log('Upload complete ✓');
-  showMessage('success',`✓ Successfully uploaded ${records.length} records from ${processedSheets} sheets`);
-  
-  await loadData();
-  renderUI();
+  };
+  reader.readAsArrayBuffer(file);
 }
 
-async function loadData(){
-  try{
-    log('Loading data from Supabase...');
-    const{data,error}=await sb
-      .from('agent_daily_stats')
-      .select('*')
-      .order('date',{ascending:true});
-    
-    if(error){
-      log('Load error:',error);
-      throw new Error(`Database error: ${error.message}`);
-    }
-    
-    allStats=data||[];
-    log('Loaded records:',allStats.length);
-  }catch(err){
-    log('Load error:',err.message);
-    throw err;
+// Authentication and logout
+async function checkAuth() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    currentUser = user;
+    document.getElementById('authModal').classList.add('hidden');
+    document.getElementById('uploadZone').style.display = 'block';
+    await loadFromSupabase();
+  } else {
+    document.getElementById('authModal').classList.remove('hidden');
+    document.getElementById('uploadZone').style.display = 'none';
+    document.getElementById('mainContent').classList.add('hidden');
+    document.getElementById('emptyState').classList.remove('hidden');
   }
 }
 
-function renderUI(){
-  document.getElementById('debugPanel').innerHTML='';
-  
-  if(!allStats.length){
-    document.getElementById('content').innerHTML='<div class="empty-state">No progression data available. Upload scorecards to populate stats.</div>';
-    document.getElementById('filterBar').style.display='none';
-    return;
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) {
+    document.getElementById('authError').innerText = error.message;
+  } else {
+    checkAuth();
   }
+});
 
-  if(isAdmin){
-    const agentSet=new Set(allStats.map(s=>s.agent_name));
-    const agents=Array.from(agentSet).sort();
-    document.getElementById('filterBar').style.display='flex';
-    const select=document.getElementById('agentSelect');
-    select.innerHTML=agents.map(a=>`<option value="${a}">${a}</option>`).join('');
-    select.value=agents[0];
-    select.onchange=()=>renderDataForAgent(select.value);
-    document.getElementById('refreshBtn').onclick=async()=>{
-      await loadData();
-      renderDataForAgent(select.value);
-    };
-    renderDataForAgent(agents[0]);
-  }else{
-    document.getElementById('filterBar').style.display='none';
-    if(agentName){
-      renderDataForAgent(agentName);
-    }else{
-      document.getElementById('content').innerHTML='<div class="empty-state">No agent name in profile. Contact admin.</div>';
-    }
-  }
-}
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await supabase.auth.signOut();
+  checkAuth();
+});
 
-function renderDataForAgent(agent){
-  const agentStats=allStats.filter(s=>s.agent_name===agent).sort((a,b)=>new Date(a.date)-new Date(b.date));
-  if(!agentStats.length){
-    document.getElementById('content').innerHTML=`<div class="empty-state">No stats for ${agent}.</div>`;
-    return;
-  }
+// File upload zone
+const uz = document.getElementById('uploadZone');
+uz.addEventListener('dragover', e => { e.preventDefault(); uz.classList.add('drag-over'); });
+uz.addEventListener('dragleave', () => uz.classList.remove('drag-over'));
+uz.addEventListener('drop', e => {
+  e.preventDefault();
+  uz.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) hf(e.dataTransfer.files[0]);
+});
+document.getElementById('fileInput').addEventListener('change', e => {
+  if (e.target.files[0]) hf(e.target.files[0]);
+  e.target.value = '';
+});
 
-  const labels=agentStats.map(s=>s.date.slice(5));
-  const calls=agentStats.map(s=>s.calls);
-
-  const tableRows=agentStats.map(s=>`
-    <tr>
-      <td>${s.date}</td>
-      <td>${s.calls}</td>
-      <td>${s.ignored}</td>
-      <td>${s.talk_time_minutes?s.talk_time_minutes.toFixed(1):'0'}</td>
-    </tr>
-  `).join('');
-
-  const html=`
-    <div class="chart-card">
-      <div class="chart-title">Daily Calls – ${agent}</div>
-      <canvas id="progressionChart" height="80"></canvas>
-    </div>
-    <div class="table-card">
-      <table>
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Calls</th>
-            <th>Ignored</th>
-            <th>Talk Time (min)</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${tableRows||'<tr><td colspan="4">No data</td></tr>'}
-        </tbody>
-      </table>
-    </div>
-  `;
-  document.getElementById('content').innerHTML=html;
-
-  if(chartInstance)chartInstance.destroy();
-  const ctx=document.getElementById('progressionChart').getContext('2d');
-  chartInstance=new Chart(ctx,{
-    type:'line',
-    data:{
-      labels:labels,
-      datasets:[{
-        label:'Calls',
-        data:calls,
-        borderColor:'#4f8cff',
-        backgroundColor:'rgba(79,140,255,0.05)',
-        tension:0.3,
-        fill:true,
-        pointBackgroundColor:'#4f8cff',
-        pointBorderColor:'#fff',
-        pointRadius:4,
-        pointHoverRadius:6
-      }]
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:true,
-      plugins:{
-        legend:{labels:{color:'#7b85a8',font:{family:'DM Mono'}}},
-        tooltip:{backgroundColor:'#13161f',titleColor:'#e8ecf4',bodyColor:'#7b85a8'}
-      },
-      scales:{
-        x:{ticks:{color:'#5a6285',font:{family:'DM Mono'}},grid:{color:'rgba(255,255,255,0.05)'}},
-        y:{ticks:{color:'#5a6285',font:{family:'DM Mono'},stepSize:1},grid:{color:'rgba(255,255,255,0.05)'}}
-      }
-    }
-  });
-}
-
-function showMessage(type,msg){
-  const div=document.getElementById('messages');
-  const cls=type==='success'?'success-message':type==='error'?'error-message':'info-message';
-  div.innerHTML=`<div class="${cls}">${msg}</div>`;
-  if(type==='success')setTimeout(()=>{div.innerHTML='';},5000);
-  if(type==='error')setTimeout(()=>{div.innerHTML='';},8000);
-}
-
-init();
+// Initial check
+checkAuth();
 </script>
 </body>
 </html>
