@@ -8,7 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-  /* (keep all your existing styles – unchanged) */
+  /* (keep your existing styles, unchanged) */
   :root {
     --bg: #07080f;
     --surface: #0e1018;
@@ -127,10 +127,10 @@
   }
   .error-message {
     background: rgba(244,63,94,0.1);
-    border: 1px solid var(--fail);
+    border: 1px solid #f43f5e;
     border-radius: var(--radius);
     padding: 20px;
-    color: var(--fail);
+    color: #f43f5e;
     text-align: center;
   }
 </style>
@@ -167,7 +167,7 @@
   async function init() {
     try {
       if (typeof window.supabase === 'undefined') {
-        throw new Error('Supabase SDK not loaded. Please check your internet connection.');
+        throw new Error('Supabase SDK not loaded.');
       }
       sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
         auth: { autoRefreshToken: true, persistSession: true }
@@ -188,15 +188,14 @@
       await loadData();
       renderUI();
     } catch (err) {
-      console.error('Progression init error:', err);
+      console.error('Init error:', err);
       let errorMsg = err.message || 'Unknown error';
-      // Show a more helpful message
       if (errorMsg.includes('Failed to fetch')) {
-        errorMsg = 'Cannot connect to Supabase. Check your network and ensure the Supabase URL is correct.';
+        errorMsg = 'Cannot connect to Supabase. <br>Check that you are accessing the page via <strong>http://</strong> or <strong>https://</strong>, not file://. <br>If using a local server, make sure it is running.';
       }
       document.getElementById('content').innerHTML = `
         <div class="error-message">
-          ⚠️ Error loading data: ${errorMsg}<br><br>
+          ⚠️ ${errorMsg}<br><br>
           <button onclick="location.reload()" style="margin-top:12px;">Retry</button>
         </div>`;
     }
@@ -204,13 +203,11 @@
 
   async function loadData() {
     try {
-      // First, test a simple query to see if we can even reach Supabase
-      let query = sb.from('agent_daily_stats').select('*').order('date', { ascending: true });
-      const { data, error } = await query;
+      // First, test connectivity with a simple count
+      const { data, error, status } = await sb.from('agent_daily_stats').select('*').order('date', { ascending: true });
       if (error) {
-        // Log full error details to console
-        console.error('Supabase error details:', error);
-        throw new Error(`Supabase error: ${error.message || JSON.stringify(error)}`);
+        console.error('Supabase error:', error);
+        throw new Error(`${error.message} (HTTP ${status})`);
       }
       allStats = data || [];
     } catch (err) {
@@ -265,7 +262,7 @@
         <td>${s.calls}</td>
         <td>${s.ignored}</td>
         <td>${s.talk_time_minutes ? s.talk_time_minutes.toFixed(1) : '0'}</td>
-       </tr>
+      </tr>
     `).join('');
 
     const html = `
@@ -284,7 +281,7 @@
             </tr>
           </thead>
           <tbody>
-            ${tableRows || '<tr><td colspan="4">No data</td></tr>'}
+            ${tableRows}
           </tbody>
         </table>
       </div>
