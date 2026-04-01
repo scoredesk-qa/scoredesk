@@ -270,6 +270,7 @@ body::after {
 </div>
 
 <script>
+// ==================== NEW SUPABASE CREDENTIALS ====================
 const SUPABASE_URL = 'https://qbvjgiamqzkscdykenvi.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFidmpnaWFtcXprc2NkeWtlbnZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwMzUxMTIsImV4cCI6MjA5MDYxMTExMn0.OeV5qa9y_PCGw6nG0wbfPfiMBjYC_jvzsUXHOip1RTU';
 
@@ -414,7 +415,7 @@ function parseExcel(file) {
   });
 }
 
-// ========== MODIFIED renderAll – only show failures (no passed auto-fails) ==========
+// ========== renderAll – only show failures (no passed auto-fails) ==========
 function renderAll() {
   const container = document.getElementById('analysisContent');
 
@@ -439,7 +440,7 @@ function renderAll() {
   });
   function displayName(raw) { return nameDisplay[canonicalName(raw)] || raw; }
 
-  // Zero-score maps (unchanged)
+  // Zero-score maps
   const zeroMap = {}, agentZeroMap = {};
   allScorecards.forEach(call => {
     const agent = displayName(call.agent_name);
@@ -488,7 +489,7 @@ function renderAll() {
       const section  = af.section || 'ZZPS Summary';
       if (v === 'N/A' || v === '') return;
       const key      = label.toLowerCase().replace(/\s+/g, ' ');
-      // Only store if triggered (NO) – we ignore passed entries completely
+      // Only store if triggered (NO)
       if (v === 'NO') {
         if (!afMap[key]) afMap[key] = { label, section, source, totalTriggers:0, agents:{} };
         afMap[key].totalTriggers++;
@@ -498,7 +499,6 @@ function renderAll() {
         agentAfMap[agent][label].triggered++;
         agentAfMap[agent][label].latestFb = feedback;
       }
-      // Passed entries are ignored – not stored anywhere
     });
   });
 
@@ -526,7 +526,7 @@ function renderAll() {
     return;
   }
 
-  // Team rows: auto-fails first (only those with triggers), then zero scores
+  // Team rows: auto-fails first, then zero scores
   const teamRows = [];
   afList.forEach(e => teamRows.push({
     label: e.label, section: e.section, count: e.totalTriggers, agents: e.agents,
@@ -539,6 +539,7 @@ function renderAll() {
     typeBadge: `<span class="source-tag" style="background:rgba(244,63,94,.08);border-color:rgba(244,63,94,.2);color:var(--fail);white-space:nowrap">Zero Score</span>`
   }));
 
+  // FIXED TABLE HEADERS – removed stray "Bon" and ensured proper </thead>
   html += `<div class="section-hdr">
     <div class="section-hdr-left">
       <div><div class="section-label">Team Overview</div><div class="section-title">Zero Score Leaderboard</div></div>
@@ -547,23 +548,34 @@ function renderAll() {
   </div>
   <div class="table-card">
     <table class="zero-table">
-      <thead>  Bon<th>#</th><th>Criteria</th><th>Section</th><th>Type</th><th>Count</th><th>Affected Agents</th> </thead>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Criteria</th>
+          <th>Section</th>
+          <th>Type</th>
+          <th>Count</th>
+          <th>Affected Agents</th>
+        </tr>
+      </thead>
       <tbody>`;
   teamRows.forEach((e, i) => {
     const rankCls = i===0?'top1':i===1?'top2':i===2?'top3':'';
     const chips   = Object.entries(e.agents).sort((a,b)=>b[1]-a[1]).map(([a,c])=>`<span class="agent-chip">${a} (${c})</span>`).join('');
-    html += `汽水
-      <td><span class="rank-badge ${rankCls}">${i+1}</span> </td>
-      <td class="wrap"><div class="criteria-cell">${e.label}</div> </td>
-      <td><span class="section-cell">${e.section||'—'}</span> </td>
-      <td>${e.typeBadge} </td>
-      <td>${e.badge} </td>
-      <td class="wrap"><div class="agent-chips">${chips}</div> </td>
-     </tr>`;
+    html += `<tr>
+      <td><span class="rank-badge ${rankCls}">${i+1}</span></td>
+      <td class="wrap"><div class="criteria-cell">${e.label}</div></td>
+      <td><span class="section-cell">${e.section||'—'}</span></td>
+      <td>${e.typeBadge}</td>
+      <td>${e.badge}</td>
+      <td class="wrap"><div class="agent-chips">${chips}</div></td>
+    </tr>`;
   });
-  html += `</tbody> </table></div>`;
+  html += `</tbody>
+    </table>
+  </div>`;
 
-  // Per-agent sections (only show agents that have either zeros or triggered auto-fails)
+  // Per-agent sections
   if (isAdmin && allAgents.length) {
     const sortedAgents = allAgents.sort((a,b) => {
       const fa = Object.values(agentZeroMap[a]||{}).reduce((s,v)=>s+v,0) + Object.values(agentAfMap[a]||{}).reduce((s,v)=>s+v.triggered,0);
@@ -584,7 +596,7 @@ function renderAll() {
       const totalZero  = Object.values(zeros).reduce((s,v)=>s+v,0);
       const totalTrigs = Object.values(afs).reduce((s,v)=>s+v.triggered,0);
       const totalFails = totalZero + totalTrigs;
-      if (totalFails === 0) return; // skip agents with no failures
+      if (totalFails === 0) return;
       const ini        = agent.split(' ').map(p=>p[0]||'').join('').slice(0,2).toUpperCase();
       const sid        = 'ag-' + agent.replace(/\W/g,'_');
       const borderStyle = totalFails > 0 ? 'border-color:rgba(244,63,94,0.2)' : '';
@@ -608,7 +620,15 @@ function renderAll() {
         </div>
         <div class="agent-section-body">
           <table class="zero-table">
-            <thead> <tr><th>Criteria</th><th>Section</th><th>Type</th><th>Result / Count</th><th>Feedback</th></tr> </thead>
+            <thead>
+              <tr>
+                <th>Criteria</th>
+                <th>Section</th>
+                <th>Type</th>
+                <th>Result / Count</th>
+                <th>Feedback</th>
+              </tr>
+            </thead>
             <tbody>`;
 
       // Zero scores
@@ -623,7 +643,7 @@ function renderAll() {
         </tr>`;
       });
 
-      // Auto-fail triggers (only those that failed)
+      // Auto-fail triggers
       Object.entries(afs).sort((a,b)=>b[1].triggered-a[1].triggered).forEach(([crit, data]) => {
         html += `<tr>
           <td><div class="criteria-cell">${crit}</div></td>
@@ -634,7 +654,10 @@ function renderAll() {
         </tr>`;
       });
 
-      html += `</tbody> </table></div></div>`;
+      html += `</tbody>
+          </table>
+        </div>
+      </div>`;
     });
 
   } else if (!isAdmin) {
@@ -646,7 +669,9 @@ function renderAll() {
         <div class="section-title">Your Failure Breakdown</div>
       </div></div></div>
       <div class="table-card"><table class="zero-table">
-        <thead> <tr><th>Criteria</th><th>Section</th><th>Type</th><th>Result / Count</th><th>Feedback</th></tr> </thead>
+        <thead>
+          <tr><th>Criteria</th><th>Section</th><th>Type</th><th>Result / Count</th><th>Feedback</th></tr>
+        </thead>
         <tbody>`;
       Object.entries(zeros).sort((a,b)=>b[1]-a[1]).forEach(([crit, count]) => {
         const sec = zeroMap[crit.toLowerCase().replace(/\s+/g,' ')]?.section || '—';
@@ -667,7 +692,8 @@ function renderAll() {
           <td><div class="feedback-cell">${data.latestFb||'—'}</div></td>
         </tr>`;
       });
-      html += `</tbody> </table></div>`;
+      html += `</tbody>
+      </table></div>`;
     } else {
       html += `<div class="success-banner">
         <div class="success-icon">✅</div>
