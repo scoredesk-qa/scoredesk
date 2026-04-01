@@ -129,6 +129,14 @@
     padding: 60px;
     font-family: 'DM Mono', monospace;
   }
+  .error-message {
+    background: rgba(244,63,94,0.1);
+    border: 1px solid var(--fail);
+    border-radius: var(--radius);
+    padding: 20px;
+    color: var(--fail);
+    text-align: center;
+  }
 </style>
 </head>
 <body>
@@ -146,7 +154,7 @@
     <button id="refreshBtn">↻ Refresh</button>
   </div>
 
-  <div id="content"></div>
+  <div id="content"><div class="loader">Loading...</div></div>
 </div>
 
 <script>
@@ -157,20 +165,25 @@
   let currentUser = null;
   let isAdmin = false;
   let agentName = null;
-  let allStats = [];          // array of rows from agent_daily_stats
+  let allStats = [];
   let chartInstance = null;
 
   async function init() {
     try {
-      if (typeof window.supabase === 'undefined') throw new Error('Supabase SDK not loaded');
+      if (typeof window.supabase === 'undefined') {
+        throw new Error('Supabase SDK not loaded. Please check your internet connection.');
+      }
       sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
         auth: { autoRefreshToken: true, persistSession: true }
       });
-      const { data: { session } } = await sb.auth.getSession();
+
+      const { data: { session }, error: sessionError } = await sb.auth.getSession();
+      if (sessionError) throw sessionError;
       if (!session) {
         document.getElementById('content').innerHTML = '<div class="empty-state">Please log in via the ScoreDesk portal.</div>';
         return;
       }
+
       currentUser = session.user;
       const meta = currentUser.user_metadata || {};
       isAdmin = (currentUser.email === 'admin@scoredesk.com') || (meta.role === 'admin');
@@ -179,18 +192,22 @@
       await loadData();
       renderUI();
     } catch (err) {
-      console.error(err);
-      document.getElementById('content').innerHTML = `<div class="empty-state">Error loading data: ${err.message}</div>`;
+      console.error('Progression init error:', err);
+      let errorMsg = err.message || 'Unknown error';
+      document.getElementById('content').innerHTML = `<div class="error-message">⚠️ Error loading data: ${errorMsg}</div>`;
     }
   }
 
   async function loadData() {
-    // Query agent_daily_stats
-    let query = sb.from('agent_daily_stats').select('*').order('date', { ascending: true });
-    // RLS will already restrict rows for non-admins
-    const { data, error } = await query;
-    if (error) throw error;
-    allStats = data || [];
+    try {
+      let query = sb.from('agent_daily_stats').select('*').order('date', { ascending: true });
+      const { data, error } = await query;
+      if (error) throw error;
+      allStats = data || [];
+    } catch (err) {
+      console.error('Load data error:', err);
+      throw err;
+    }
   }
 
   function renderUI() {
@@ -200,24 +217,26 @@
       return;
     }
 
-    // Determine available agents (for admin)
-    let agents = [];
     if (isAdmin) {
       const agentSet = new Set(allStats.map(s => s.agent_name));
-      agents = Array.from(agentSet).sort();
+      const agents = Array.from(agentSet).sort();
       document.getElementById('filterBar').style.display = 'flex';
       const select = document.getElementById('agentSelect');
       select.innerHTML = agents.map(a => `<option value="${a}">${a}</option>`).join('');
       select.value = agents[0];
-      select.addEventListener('change', () => renderDataForAgent(select.value));
-      document.getElementById('refreshBtn').addEventListener('click', async () => {
+      select.onchange = () => renderDataForAgent(select.value);
+      document.getElementById('refreshBtn').onclick = async () => {
         await loadData();
         renderDataForAgent(select.value);
-      });
+      };
       renderDataForAgent(agents[0]);
     } else {
       document.getElementById('filterBar').style.display = 'none';
-      renderDataForAgent(agentName);
+      if (agentName) {
+        renderDataForAgent(agentName);
+      } else {
+        document.getElementById('content').innerHTML = '<div class="empty-state">No agent name found in your profile. Contact admin.</div>';
+      }
     }
   }
 
@@ -228,11 +247,9 @@
       return;
     }
 
-    // Prepare chart data
-    const labels = agentStats.map(s => s.date.slice(5)); // mm-dd
+    const labels = agentStats.map(s => s.date.slice(5));
     const calls = agentStats.map(s => s.calls);
 
-    // Build table rows
     const tableRows = agentStats.map(s => `
       <tr>
         <td>${s.date}</td>
@@ -265,7 +282,6 @@
     `;
     document.getElementById('content').innerHTML = html;
 
-    // Render chart
     if (chartInstance) chartInstance.destroy();
     const ctx = document.getElementById('progressionChart').getContext('2d');
     chartInstance = new Chart(ctx, {
