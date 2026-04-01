@@ -6,133 +6,38 @@
 <title>ScoreDesk – Agent Progression</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-  /* (keep your existing styles, unchanged) */
-  :root {
-    --bg: #07080f;
-    --surface: #0e1018;
-    --surface2: #13161f;
-    --border: #1e2233;
-    --border2: #252a3a;
-    --accent: #4f8cff;
-    --accent2: #a78bfa;
-    --text: #e8ecf4;
-    --muted: #5a6285;
-    --muted2: #7b85a8;
-    --radius: 14px;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: 'Syne', sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    padding: 24px;
-  }
-  .container {
-    max-width: 1300px;
-    margin: 0 auto;
-  }
-  .page-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    margin-bottom: 28px;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 20px;
-  }
-  .title {
-    font-size: 28px;
-    font-weight: 800;
-    letter-spacing: -0.5px;
-  }
-  .sub {
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    color: var(--muted2);
-    margin-top: 4px;
-  }
-  .filter-bar {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 24px;
-    flex-wrap: wrap;
-  }
-  .filter-label {
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    color: var(--muted);
-  }
-  select, button {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 8px 14px;
-    border-radius: 8px;
-    font-family: 'Syne', sans-serif;
-    font-size: 13px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  select:focus, button:hover {
-    border-color: var(--accent);
-    outline: none;
-  }
-  .chart-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 22px;
-    margin-bottom: 28px;
-  }
-  .chart-title {
-    font-size: 16px;
-    font-weight: 700;
-    margin-bottom: 8px;
-  }
-  .table-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow-x: auto;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  th {
-    font-family: 'DM Mono', monospace;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--muted);
-    padding: 12px 16px;
-    text-align: left;
-    border-bottom: 1px solid var(--border);
-  }
-  td {
-    padding: 12px 16px;
-    font-size: 13px;
-    border-bottom: 1px solid var(--border);
-  }
-  tr:last-child td {
-    border-bottom: none;
-  }
-  .empty-state {
-    text-align: center;
-    padding: 60px;
-    color: var(--muted);
-  }
-  .error-message {
-    background: rgba(244,63,94,0.1);
-    border: 1px solid #f43f5e;
-    border-radius: var(--radius);
-    padding: 20px;
-    color: #f43f5e;
-    text-align: center;
-  }
+:root{--bg:#0b0d13;--surface:#12151e;--surface2:#191d28;--surface3:#1f2335;--border:#242938;--border2:#2e3448;--accent:#4f8cff;--accent2:#a78bfa;--pass:#22d3a0;--fail:#f43f5e;--warn:#f59e0b;--text:#e8ecf4;--muted:#6b7694;--muted2:#8a94b8;--radius:12px;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:24px;}
+.container{max-width:1300px;margin:0 auto;}
+.page-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:28px;border-bottom:1px solid var(--border);padding-bottom:20px;}
+.title{font-size:28px;font-weight:800;letter-spacing:-.5px;}
+.sub{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted2);margin-top:4px;}
+.upload-btn{background:var(--accent);border:none;color:white;padding:10px 20px;border-radius:8px;font-family:'Syne',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;position:relative;}
+.upload-btn:hover{background:#3d7ae8;transform:translateY(-1px);}
+.upload-btn:disabled{opacity:.5;cursor:not-allowed;}
+.upload-btn input[type="file"]{position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer;}
+.filter-bar{display:flex;align-items:center;gap:16px;margin-bottom:24px;flex-wrap:wrap;}
+.filter-label{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
+select,button{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:8px;font-family:'Syne',sans-serif;font-size:13px;cursor:pointer;transition:all .15s;}
+select:focus,button:hover{border-color:var(--accent);outline:none;}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:28px;}
+.chart-title{font-size:16px;font-weight:700;margin-bottom:8px;}
+.table-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow-x:auto;}
+table{width:100%;border-collapse:collapse;}
+th{font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);padding:12px 16px;text-align:left;border-bottom:1px solid var(--border);}
+td{padding:12px 16px;font-size:13px;border-bottom:1px solid var(--border);}
+tr:last-child td{border-bottom:none;}
+.empty-state{text-align:center;padding:60px;color:var(--muted);}
+.error-message{background:rgba(244,63,94,.1);border:1px solid var(--fail);border-radius:var(--radius);padding:20px;color:var(--fail);margin-bottom:20px;}
+.success-message{background:rgba(16,185,129,.1);border:1px solid var(--pass);border-radius:var(--radius);padding:20px;color:var(--pass);margin-bottom:20px;}
+.info-message{background:rgba(79,140,255,.1);border:1px solid var(--accent);border-radius:var(--radius);padding:20px;color:var(--accent);margin-bottom:20px;}
+.debug-panel{background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:16px;margin-bottom:20px;font-family:'DM Mono',monospace;font-size:11px;}
+.debug-title{color:var(--accent);font-weight:700;margin-bottom:8px;}
+.loader{text-align:center;color:var(--muted);padding:40px;}
 </style>
 </head>
 <body>
@@ -142,187 +47,376 @@
       <div class="title">Agent Progression</div>
       <div class="sub">Daily call volumes</div>
     </div>
+    <div id="uploadBtnContainer" style="display:none;">
+      <label class="upload-btn" id="uploadBtn">
+        📤 Upload Score Card
+        <input type="file" id="fileInput" accept=".xlsx,.xls"/>
+      </label>
+    </div>
   </div>
 
-  <div class="filter-bar" id="filterBar" style="display: none;">
+  <div id="debugPanel"></div>
+  <div id="messages"></div>
+
+  <div class="filter-bar" id="filterBar" style="display:none;">
     <span class="filter-label">Agent</span>
     <select id="agentSelect"></select>
     <button id="refreshBtn">↻ Refresh</button>
   </div>
 
-  <div id="content"><div class="loader">Loading...</div></div>
+  <div id="content"><div class="loader">Initializing...</div></div>
 </div>
 
 <script>
-  const SUPABASE_URL = 'https://qbvjgiamqzkscdykenvi.supabase.co';
-  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFidmpnaWFtcXprc2NkeWtlbnZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwMzUxMTIsImV4cCI6MjA5MDYxMTExMn0.OeV5qa9y_PCGw6nG0wbfPfiMBjYC_jvzsUXHOip1RTU';
+const SUPABASE_URL='https://qbvjgiamqzkscdykenvi.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFidmpnaWFtcXprc2NkeWtlbnZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwMzUxMTIsImV4cCI6MjA5MDYxMTExMn0.OeV5qa9y_PCGw6nG0wbfPfiMBjYC_jvzsUXHOip1RTU';
 
-  let sb = null;
-  let currentUser = null;
-  let isAdmin = false;
-  let agentName = null;
-  let allStats = [];
-  let chartInstance = null;
+let sb=null;
+let currentUser=null;
+let isAdmin=false;
+let agentName=null;
+let allStats=[];
+let chartInstance=null;
 
-  async function init() {
-    try {
-      if (typeof window.supabase === 'undefined') {
-        throw new Error('Supabase SDK not loaded.');
-      }
-      sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-        auth: { autoRefreshToken: true, persistSession: true }
-      });
-
-      const { data: { session }, error: sessionError } = await sb.auth.getSession();
-      if (sessionError) throw sessionError;
-      if (!session) {
-        document.getElementById('content').innerHTML = '<div class="empty-state">Please log in via the ScoreDesk portal.</div>';
-        return;
-      }
-
-      currentUser = session.user;
-      const meta = currentUser.user_metadata || {};
-      isAdmin = (currentUser.email === 'yassin.aitlehcen@market-wave.com') || (meta.role === 'admin');
-      agentName = meta.agent_name || null;
-
-      await loadData();
-      renderUI();
-    } catch (err) {
-      console.error('Init error:', err);
-      let errorMsg = err.message || 'Unknown error';
-      if (errorMsg.includes('Failed to fetch')) {
-        errorMsg = 'Cannot connect to Supabase. <br>Check that you are accessing the page via <strong>http://</strong> or <strong>https://</strong>, not file://. <br>If using a local server, make sure it is running.';
-      }
-      document.getElementById('content').innerHTML = `
-        <div class="error-message">
-          ⚠️ ${errorMsg}<br><br>
-          <button onclick="location.reload()" style="margin-top:12px;">Retry</button>
-        </div>`;
-    }
+function log(msg,data){
+  console.log('[ScoreDesk]',msg,data||'');
+  const panel=document.getElementById('debugPanel');
+  if(panel){
+    const entry=document.createElement('div');
+    entry.style.marginBottom='4px';
+    entry.innerHTML=`<span style="color:var(--muted2)">${new Date().toLocaleTimeString()}</span> ${msg}`;
+    panel.appendChild(entry);
   }
+}
 
-  async function loadData() {
-    try {
-      // First, test connectivity with a simple count
-      const { data, error, status } = await sb.from('agent_daily_stats').select('*').order('date', { ascending: true });
-      if (error) {
-        console.error('Supabase error:', error);
-        throw new Error(`${error.message} (HTTP ${status})`);
-      }
-      allStats = data || [];
-    } catch (err) {
-      console.error('Load data error:', err);
-      throw err;
+function showDebug(title,content){
+  const panel=document.getElementById('debugPanel');
+  panel.innerHTML=`<div class="debug-panel"><div class="debug-title">${title}</div>${content}</div>`;
+}
+
+async function init(){
+  try{
+    log('Starting initialization...');
+    
+    // Check if Supabase SDK loaded
+    if(typeof window.supabase==='undefined'){
+      throw new Error('Supabase SDK not loaded. Check internet connection.');
     }
-  }
+    log('Supabase SDK loaded ✓');
 
-  function renderUI() {
-    if (!allStats.length) {
-      document.getElementById('content').innerHTML = '<div class="empty-state">No progression data available yet. Upload some scorecards to populate stats.</div>';
-      document.getElementById('filterBar').style.display = 'none';
+    // Create Supabase client
+    sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{
+      auth:{autoRefreshToken:true,persistSession:true}
+    });
+    log('Supabase client created ✓');
+
+    // Get session
+    log('Checking authentication session...');
+    const{data:{session},error:sessionError}=await sb.auth.getSession();
+    
+    if(sessionError){
+      log('Session error:',sessionError);
+      throw sessionError;
+    }
+
+    if(!session){
+      log('No active session found');
+      showMessage('info','⚠️ Not logged in. Please log in via the ScoreDesk portal first.');
+      document.getElementById('content').innerHTML='<div class="empty-state">Please log in via the ScoreDesk portal to view your data.</div>';
       return;
     }
 
-    if (isAdmin) {
-      const agentSet = new Set(allStats.map(s => s.agent_name));
-      const agents = Array.from(agentSet).sort();
-      document.getElementById('filterBar').style.display = 'flex';
-      const select = document.getElementById('agentSelect');
-      select.innerHTML = agents.map(a => `<option value="${a}">${a}</option>`).join('');
-      select.value = agents[0];
-      select.onchange = () => renderDataForAgent(select.value);
-      document.getElementById('refreshBtn').onclick = async () => {
-        await loadData();
-        renderDataForAgent(select.value);
-      };
-      renderDataForAgent(agents[0]);
-    } else {
-      document.getElementById('filterBar').style.display = 'none';
-      if (agentName) {
-        renderDataForAgent(agentName);
-      } else {
-        document.getElementById('content').innerHTML = '<div class="empty-state">No agent name found in your profile. Contact admin.</div>';
+    currentUser=session.user;
+    log('User authenticated:',currentUser.email);
+
+    const meta=currentUser.user_metadata||{};
+    isAdmin=(currentUser.email==='yassin.aitlehcen@market-wave.com')||(meta.role==='admin');
+    agentName=meta.agent_name||null;
+
+    log('User role:',isAdmin?'Admin':'Agent');
+    if(agentName)log('Agent name:',agentName);
+
+    showDebug('Authentication Success',`
+      <div>Email: ${currentUser.email}</div>
+      <div>Role: ${isAdmin?'Admin':'Agent'}</div>
+      ${agentName?`<div>Agent: ${agentName}</div>`:''}
+    `);
+
+    if(isAdmin){
+      document.getElementById('uploadBtnContainer').style.display='block';
+      setupFileUpload();
+      log('Upload button enabled for admin');
+    }
+
+    await loadData();
+    renderUI();
+
+  }catch(err){
+    console.error('Init error:',err);
+    log('ERROR:',err.message);
+    showMessage('error',`Initialization failed: ${err.message}`);
+    showDebug('Error Details',`
+      <div style="color:var(--fail)">Message: ${err.message}</div>
+      <div>Stack: ${err.stack?err.stack.substring(0,200)+'...':'N/A'}</div>
+    `);
+  }
+}
+
+function setupFileUpload(){
+  const fileInput=document.getElementById('fileInput');
+  fileInput.addEventListener('change',async(e)=>{
+    const file=e.target.files[0];
+    if(!file)return;
+    try{
+      await processExcelFile(file);
+      fileInput.value='';
+    }catch(err){
+      console.error('Upload error:',err);
+      showMessage('error',`Upload failed: ${err.message}`);
+    }
+  });
+}
+
+async function processExcelFile(file){
+  log('Processing file:',file.name);
+  showMessage('info',`Processing ${file.name}...`);
+  
+  const data=await file.arrayBuffer();
+  const workbook=XLSX.read(data,{type:'array'});
+  log('Workbook loaded, sheets:',workbook.SheetNames.length);
+
+  const records=[];
+  let processedSheets=0;
+
+  for(const sheetName of workbook.SheetNames){
+    if(sheetName.toLowerCase().includes('template')){
+      log('Skipping template:',sheetName);
+      continue;
+    }
+
+    const agentMatch=sheetName.match(/^\d+\s+(.+)$/);
+    if(!agentMatch){
+      log('Skipping invalid sheet:',sheetName);
+      continue;
+    }
+    const agentName=agentMatch[1].trim();
+    log('Processing agent:',agentName);
+
+    const sheet=workbook.Sheets[sheetName];
+    const jsonData=XLSX.utils.sheet_to_json(sheet,{header:1});
+
+    let headerRowIndex=-1;
+    for(let i=0;i<Math.min(5,jsonData.length);i++){
+      const row=jsonData[i];
+      if(row&&row[0]==='Date'&&row[1]==='Calls'){
+        headerRowIndex=i;
+        break;
       }
     }
-  }
 
-  function renderDataForAgent(agent) {
-    const agentStats = allStats.filter(s => s.agent_name === agent).sort((a,b) => new Date(a.date) - new Date(b.date));
-    if (!agentStats.length) {
-      document.getElementById('content').innerHTML = `<div class="empty-state">No stats for ${agent}.</div>`;
-      return;
+    if(headerRowIndex===-1){
+      log('No header in:',sheetName);
+      continue;
     }
 
-    const labels = agentStats.map(s => s.date.slice(5));
-    const calls = agentStats.map(s => s.calls);
+    for(let i=headerRowIndex+1;i<jsonData.length;i++){
+      const row=jsonData[i];
+      if(!row||!row[0])continue;
 
-    const tableRows = agentStats.map(s => `
-      <tr>
-        <td>${s.date}</td>
-        <td>${s.calls}</td>
-        <td>${s.ignored}</td>
-        <td>${s.talk_time_minutes ? s.talk_time_minutes.toFixed(1) : '0'}</td>
-      </tr>
-    `).join('');
+      const dateStr=String(row[0]).trim();
+      const calls=parseInt(row[1])||0;
+      const ignored=parseInt(row[2])||0;
+      const talkTime=row[4];
 
-    const html = `
-      <div class="chart-card">
-        <div class="chart-title">Daily Calls – ${agent}</div>
-        <canvas id="progressionChart" height="80"></canvas>
-      </div>
-      <div class="table-card">
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Calls</th>
-              <th>Ignored</th>
-              <th>Talk Time (min)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${tableRows}
-          </tbody>
-        </table>
-      </div>
-    `;
-    document.getElementById('content').innerHTML = html;
+      if(dateStr.length!==8)continue;
+      const year=dateStr.substring(0,4);
+      const month=dateStr.substring(4,6);
+      const day=dateStr.substring(6,8);
+      const formattedDate=`${year}-${month}-${day}`;
 
-    if (chartInstance) chartInstance.destroy();
-    const ctx = document.getElementById('progressionChart').getContext('2d');
-    chartInstance = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Calls',
-          data: calls,
-          borderColor: '#4f8cff',
-          backgroundColor: 'rgba(79,140,255,0.05)',
-          tension: 0.3,
-          fill: true,
-          pointBackgroundColor: '#4f8cff',
-          pointBorderColor: '#fff',
-          pointRadius: 4,
-          pointHoverRadius: 6
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        plugins: {
-          legend: { labels: { color: '#7b85a8', font: { family: 'DM Mono' } } },
-          tooltip: { backgroundColor: '#13161f', titleColor: '#e8ecf4', bodyColor: '#7b85a8' }
-        },
-        scales: {
-          x: { ticks: { color: '#5a6285', font: { family: 'DM Mono' } }, grid: { color: 'rgba(255,255,255,0.05)' } },
-          y: { ticks: { color: '#5a6285', font: { family: 'DM Mono' }, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.05)' } }
+      let talkTimeMinutes=0;
+      if(talkTime&&typeof talkTime==='string'){
+        const timeMatch=talkTime.match(/(\d+):(\d+):(\d+)/);
+        if(timeMatch){
+          const hours=parseInt(timeMatch[1])||0;
+          const minutes=parseInt(timeMatch[2])||0;
+          const seconds=parseInt(timeMatch[3])||0;
+          talkTimeMinutes=hours*60+minutes+seconds/60;
         }
       }
-    });
+
+      records.push({
+        agent_name:agentName,
+        date:formattedDate,
+        calls:calls,
+        ignored:ignored,
+        talk_time_minutes:talkTimeMinutes
+      });
+    }
+    processedSheets++;
   }
 
-  init();
+  if(records.length===0){
+    throw new Error('No valid data found in Excel file');
+  }
+
+  log('Parsed records:',records.length);
+  showMessage('info',`Uploading ${records.length} records...`);
+
+  const{data,error}=await sb
+    .from('agent_daily_stats')
+    .upsert(records,{onConflict:'agent_name,date'});
+
+  if(error){
+    log('Supabase error:',error);
+    throw new Error(`Database error: ${error.message}`);
+  }
+
+  log('Upload complete ✓');
+  showMessage('success',`✓ Successfully uploaded ${records.length} records from ${processedSheets} sheets`);
+  
+  await loadData();
+  renderUI();
+}
+
+async function loadData(){
+  try{
+    log('Loading data from Supabase...');
+    const{data,error}=await sb
+      .from('agent_daily_stats')
+      .select('*')
+      .order('date',{ascending:true});
+    
+    if(error){
+      log('Load error:',error);
+      throw new Error(`Database error: ${error.message}`);
+    }
+    
+    allStats=data||[];
+    log('Loaded records:',allStats.length);
+  }catch(err){
+    log('Load error:',err.message);
+    throw err;
+  }
+}
+
+function renderUI(){
+  document.getElementById('debugPanel').innerHTML='';
+  
+  if(!allStats.length){
+    document.getElementById('content').innerHTML='<div class="empty-state">No progression data available. Upload scorecards to populate stats.</div>';
+    document.getElementById('filterBar').style.display='none';
+    return;
+  }
+
+  if(isAdmin){
+    const agentSet=new Set(allStats.map(s=>s.agent_name));
+    const agents=Array.from(agentSet).sort();
+    document.getElementById('filterBar').style.display='flex';
+    const select=document.getElementById('agentSelect');
+    select.innerHTML=agents.map(a=>`<option value="${a}">${a}</option>`).join('');
+    select.value=agents[0];
+    select.onchange=()=>renderDataForAgent(select.value);
+    document.getElementById('refreshBtn').onclick=async()=>{
+      await loadData();
+      renderDataForAgent(select.value);
+    };
+    renderDataForAgent(agents[0]);
+  }else{
+    document.getElementById('filterBar').style.display='none';
+    if(agentName){
+      renderDataForAgent(agentName);
+    }else{
+      document.getElementById('content').innerHTML='<div class="empty-state">No agent name in profile. Contact admin.</div>';
+    }
+  }
+}
+
+function renderDataForAgent(agent){
+  const agentStats=allStats.filter(s=>s.agent_name===agent).sort((a,b)=>new Date(a.date)-new Date(b.date));
+  if(!agentStats.length){
+    document.getElementById('content').innerHTML=`<div class="empty-state">No stats for ${agent}.</div>`;
+    return;
+  }
+
+  const labels=agentStats.map(s=>s.date.slice(5));
+  const calls=agentStats.map(s=>s.calls);
+
+  const tableRows=agentStats.map(s=>`
+    <tr>
+      <td>${s.date}</td>
+      <td>${s.calls}</td>
+      <td>${s.ignored}</td>
+      <td>${s.talk_time_minutes?s.talk_time_minutes.toFixed(1):'0'}</td>
+    </tr>
+  `).join('');
+
+  const html=`
+    <div class="chart-card">
+      <div class="chart-title">Daily Calls – ${agent}</div>
+      <canvas id="progressionChart" height="80"></canvas>
+    </div>
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Calls</th>
+            <th>Ignored</th>
+            <th>Talk Time (min)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows||'<tr><td colspan="4">No data</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+  document.getElementById('content').innerHTML=html;
+
+  if(chartInstance)chartInstance.destroy();
+  const ctx=document.getElementById('progressionChart').getContext('2d');
+  chartInstance=new Chart(ctx,{
+    type:'line',
+    data:{
+      labels:labels,
+      datasets:[{
+        label:'Calls',
+        data:calls,
+        borderColor:'#4f8cff',
+        backgroundColor:'rgba(79,140,255,0.05)',
+        tension:0.3,
+        fill:true,
+        pointBackgroundColor:'#4f8cff',
+        pointBorderColor:'#fff',
+        pointRadius:4,
+        pointHoverRadius:6
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:true,
+      plugins:{
+        legend:{labels:{color:'#7b85a8',font:{family:'DM Mono'}}},
+        tooltip:{backgroundColor:'#13161f',titleColor:'#e8ecf4',bodyColor:'#7b85a8'}
+      },
+      scales:{
+        x:{ticks:{color:'#5a6285',font:{family:'DM Mono'}},grid:{color:'rgba(255,255,255,0.05)'}},
+        y:{ticks:{color:'#5a6285',font:{family:'DM Mono'},stepSize:1},grid:{color:'rgba(255,255,255,0.05)'}}
+      }
+    }
+  });
+}
+
+function showMessage(type,msg){
+  const div=document.getElementById('messages');
+  const cls=type==='success'?'success-message':type==='error'?'error-message':'info-message';
+  div.innerHTML=`<div class="${cls}">${msg}</div>`;
+  if(type==='success')setTimeout(()=>{div.innerHTML='';},5000);
+  if(type==='error')setTimeout(()=>{div.innerHTML='';},8000);
+}
+
+init();
 </script>
 </body>
 </html>
