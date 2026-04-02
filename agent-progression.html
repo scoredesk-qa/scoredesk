@@ -337,11 +337,11 @@ function rAgent(name) {
 
 // ==================== LOAD DATA FROM SUPABASE WITH LARGE LIMIT ====================
 async function loadFromSupabase() {
-  const { data, error } = await supabase
-    .from('agent_daily_stats')
-    .select('*')
-    .order('date', { ascending: true })
-    .limit(1000000);  // ← CRITICAL FIX: removes the default 1000 row limit
+const { data, error } = await supabase
+  .from('agent_daily_stats')
+  .select('*')
+  .order('date', { ascending: true })
+  .range(0, 999999);   // alternative to limit
 
   if (error) {
     console.error('Supabase error:', error);
