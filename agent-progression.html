@@ -449,7 +449,7 @@ async function deleteAllData() {
   await loadFromSupabase();
 }
 
-// ==================== IMPROVED UPLOAD WITH DEBUGGING ====================
+// ==================== ULTRA‑VERBOSE PARSER ====================
 async function parseAndUpload(file) {
   const reader = new FileReader();
   reader.onload = async function(e) {
@@ -457,7 +457,7 @@ async function parseAndUpload(file) {
       const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
       const allDailyRows = [];
       let totalExcelCalls = 0;
-      let skippedRows = 0;
+      let totalParsedRows = 0;
 
       for (const sn of wb.SheetNames) {
         const ws = wb.Sheets[sn];
@@ -465,10 +465,41 @@ async function parseAndUpload(file) {
         const agentName = sn.replace(/^\d+\s*/, '').trim();
         if (!agentName) continue;
 
+        console.log(`\n📄 Sheet: ${sn} (${agentName}) – total rows in sheet: ${rows.length}`);
+
+        // Find first row with a valid date in column A
+        let dataStartRow = -1;
+        for (let i = 0; i < rows.length; i++) {
+          const r = rows[i];
+          if (!r || r[0] == null) continue;
+          const dv = r[0];
+          let isValid = false;
+          if (dv instanceof Date && !isNaN(dv.getTime())) isValid = true;
+          else if (typeof dv === 'number') {
+            if ((dv > 19000000 && dv < 21000000) || (dv > 40000 && dv < 50000)) isValid = true;
+          } else if (typeof dv === 'string' && dv.trim() !== '') {
+            const testDate = new Date(dv);
+            if (!isNaN(testDate.getTime())) isValid = true;
+          }
+          if (isValid) {
+            dataStartRow = i;
+            break;
+          }
+        }
+
+        if (dataStartRow === -1) {
+          console.warn(`⚠️ No valid date found in sheet ${sn}, skipping`);
+          continue;
+        }
+
+        console.log(`   Data starts at row ${dataStartRow + 1} (index ${dataStartRow})`);
+
         let agentCalls = 0;
         let agentRows = 0;
+        const lastRowsToShow = 10;
+        let lastRowsLog = [];
 
-        for (let i = 3; i < rows.length; i++) {
+        for (let i = dataStartRow; i < rows.length; i++) {
           const r = rows[i];
           if (!r || r[0] == null) continue;
 
@@ -476,26 +507,18 @@ async function parseAndUpload(file) {
           let date = null;
           const dv = r[0];
 
-          // 1. If it's already a Date object
           if (dv instanceof Date && !isNaN(dv.getTime())) {
             date = dv;
-          }
-          // 2. If it's a number (Excel serial or YYYYMMDD)
-          else if (typeof dv === 'number') {
+          } else if (typeof dv === 'number') {
             if (dv > 19000000 && dv < 21000000) {
-              // Format YYYYMMDD as number, e.g., 20260328
               const s = String(Math.round(dv));
               if (s.length === 8) {
                 date = new Date(parseInt(s.slice(0, 4)), parseInt(s.slice(4, 6)) - 1, parseInt(s.slice(6, 8)));
               }
             } else if (dv > 40000 && dv < 50000) {
-              // Excel serial date (days since 1900-01-01)
               date = new Date(Math.round((dv - 25569) * 86400 * 1000));
             }
-          }
-          // 3. If it's a string, try parsing
-          else if (typeof dv === 'string' && dv.trim() !== '') {
-            // Try common formats: YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY, YYYYMMDD
+          } else if (typeof dv === 'string' && dv.trim() !== '') {
             let str = dv.trim();
             let match;
             if ((match = str.match(/^(\d{4})-(\d{2})-(\d{2})$/))) {
@@ -513,20 +536,16 @@ async function parseAndUpload(file) {
           }
 
           if (!date) {
-            console.warn(`⚠️ Skipped row ${i+1} in sheet "${sn}": invalid date value:`, dv);
-            skippedRows++;
+            console.warn(`⚠️ Skipped row ${i+1}: invalid date value →`, dv);
             continue;
           }
 
           const calls = parseFloat(r[1]) || 0;
           const ignored = parseFloat(r[2]) || 0;
-          const avgMin = parseFloat(tm(r[5]).toFixed(1));
           const totalHrs = parseFloat(th(r[4]).toFixed(2));
           const talkMinutes = totalHrs * 60;
 
-          if (calls > 0) {
-            agentCalls += calls;
-          }
+          if (calls > 0) agentCalls += calls;
           agentRows++;
 
           allDailyRows.push({
@@ -536,37 +555,41 @@ async function parseAndUpload(file) {
             ignored,
             talk_time_minutes: talkMinutes
           });
+
+          // Store last few rows for logging
+          if (i >= rows.length - lastRowsToShow) {
+            lastRowsLog.push({ row: i+1, date: date.toISOString().slice(0,10), calls });
+          }
         }
-        console.log(`📊 Agent ${agentName}: ${agentRows} rows, ${agentCalls} calls (Excel total)`);
+
+        console.log(`   ✅ Parsed ${agentRows} rows, ${agentCalls} calls`);
+        if (lastRowsLog.length) {
+          console.log(`   📌 Last ${lastRowsLog.length} rows of this sheet:`);
+          lastRowsLog.forEach(log => console.log(`      Row ${log.row}: ${log.date} → ${log.calls} calls`));
+        }
         totalExcelCalls += agentCalls;
+        totalParsedRows += agentRows;
       }
 
-      console.log(`📈 TOTAL calls found in Excel: ${totalExcelCalls}`);
-      console.log(`⚠️ Skipped rows (invalid date): ${skippedRows}`);
+      console.log(`\n📊 TOTAL across all sheets: ${totalParsedRows} rows, ${totalExcelCalls} calls`);
+      console.log(`📁 Total rows to upsert: ${allDailyRows.length}`);
 
       if (allDailyRows.length === 0) {
         showToast('No valid agent data found in the Excel file.', false);
         return;
       }
 
-      // Get current user
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw new Error('Not authenticated');
 
-      // Upsert all rows
       const upsertPromises = allDailyRows.map(row =>
         supabase
           .from('agent_daily_stats')
-          .upsert({
-            ...row,
-            uploaded_by: user.id
-          }, { onConflict: 'agent_name, date', ignoreDuplicates: false })
+          .upsert({ ...row, uploaded_by: user.id }, { onConflict: 'agent_name, date', ignoreDuplicates: false })
       );
 
       await Promise.all(upsertPromises);
       showToast(`Uploaded ${allDailyRows.length} rows (${totalExcelCalls} calls)`, true);
-
-      // Reload data to refresh dashboard
       await loadFromSupabase();
 
     } catch (err) {
