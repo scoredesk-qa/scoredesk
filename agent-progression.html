@@ -333,9 +333,8 @@ function rAgent(name) {
   });
 }
 
-// ==================== LOAD FROM SUPABASE – rebuild ALL using original aggregation ====================
+// ==================== LOAD FROM SUPABASE – UTC date fix ====================
 async function loadFromSupabase() {
-  // Get total count
   const { count, error: countError } = await supabase
     .from('agent_daily_stats')
     .select('*', { count: 'exact', head: true });
@@ -355,7 +354,6 @@ async function loadFromSupabase() {
     return false;
   }
   
-  // Fetch all rows with pagination
   const PAGE_SIZE = 1000;
   let allData = [];
   let start = 0;
@@ -379,13 +377,17 @@ async function loadFromSupabase() {
   
   console.log(`Loaded ${allData.length} daily rows from Supabase`);
   
-  // Group by agent and convert to the format expected by aggregateAgentData
   const grouped = {};
   for (const row of allData) {
     const agent = row.agent_name;
     if (!grouped[agent]) grouped[agent] = [];
+    
+    // Parse date as UTC to avoid timezone shift (critical for week numbers)
+    const [year, month, day] = row.date.split('-').map(Number);
+    const utcDate = new Date(Date.UTC(year, month - 1, day));
+    
     grouped[agent].push({
-      date: new Date(row.date),
+      date: utcDate,
       calls: row.calls,
       ignored: row.ignored,
       avgMin: row.calls > 0 ? row.talk_time_minutes / row.calls : 0,
@@ -393,7 +395,6 @@ async function loadFromSupabase() {
     });
   }
   
-  // Run original aggregation on each agent
   const newALL = {};
   for (const agent in grouped) {
     const agg = aggregateAgentData(grouped[agent]);
@@ -407,7 +408,6 @@ async function loadFromSupabase() {
   
   ALL = newALL;
   
-  // Update UI
   document.getElementById('uploadZone').style.display = 'none';
   document.getElementById('fbar').classList.add('show');
   const totalCalls = Object.values(ALL).reduce((s, a) => s + a.totalCalls, 0);
@@ -424,7 +424,7 @@ async function loadFromSupabase() {
   return true;
 }
 
-// ==================== UPLOAD – uses original parsing, then batch upsert with deduplication ====================
+// ==================== UPLOAD – deduplication + batch upsert ====================
 async function parseAndUpload(file) {
   const reader = new FileReader();
   reader.onload = async function(e) {
@@ -432,7 +432,6 @@ async function parseAndUpload(file) {
       const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
       const allDailyRows = [];
       
-      // Same parsing loop as old hf()
       for (const sn of wb.SheetNames) {
         const ws = wb.Sheets[sn];
         const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
@@ -472,12 +471,11 @@ async function parseAndUpload(file) {
         return;
       }
       
-      // --- DEDUPLICATE: group by agent_name + date ---
+      // Deduplicate by agent_name + date
       const uniqueMap = new Map();
       for (const row of allDailyRows) {
         const key = `${row.agent_name}|${row.date}`;
         if (uniqueMap.has(key)) {
-          // If duplicate, sum the values (should not happen if Excel is clean, but safe)
           const existing = uniqueMap.get(key);
           existing.calls += row.calls;
           existing.ignored += row.ignored;
@@ -492,10 +490,8 @@ async function parseAndUpload(file) {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw new Error('Not authenticated');
       
-      // Add uploaded_by to each row
       const rowsWithUser = uniqueRows.map(row => ({ ...row, uploaded_by: user.id }));
       
-      // Batch upsert – send all rows in one request
       const { error: upsertError } = await supabase
         .from('agent_daily_stats')
         .upsert(rowsWithUser, { onConflict: 'agent_name, date', ignoreDuplicates: false });
