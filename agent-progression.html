@@ -108,7 +108,6 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <div class="page-sub">Upload a ZZPS 3CX CallStats Excel — data stored in Supabase</div>
   </div>
 
-  <!-- Upload zone – visibility controlled by data presence -->
   <div class="upload-zone" id="uploadZone" style="display:none;">
     <input type="file" id="fileInput" accept=".xlsx,.xls">
     <span class="upload-icon">📊</span>
@@ -199,7 +198,7 @@ function aggregateFromDailyRows(dr) {
   const dateRange = sd.length ? fmt(sd[0]) + ' – ' + fmt(sd[sd.length - 1]) : 'No data';
   const avgPerDay = act.length > 0 ? parseFloat((tc2 / act.length).toFixed(1)) : 0;
 
-  // Weekly (original logic)
+  // Weekly
   const wm = {};
   dr.forEach(r => {
     const day = r.date.getDay();
@@ -225,7 +224,7 @@ function aggregateFromDailyRows(dr) {
     totalHrs: parseFloat(w.totalHrs.toFixed(1))
   }));
 
-  // Monthly (original logic)
+  // Monthly
   const mm = {};
   dr.forEach(r => {
     const k = r.date.getFullYear() * 100 + r.date.getMonth();
@@ -335,9 +334,9 @@ function rAgent(name) {
   });
 }
 
-// ==================== LOAD DATA FROM SUPABASE WITH LARGE LIMIT ====================
+// ==================== PAGINATED LOAD FROM SUPABASE ====================
 async function loadFromSupabase() {
-  // First, get the total count of rows
+  // Get total count first
   const { count, error: countError } = await supabase
     .from('agent_daily_stats')
     .select('*', { count: 'exact', head: true });
@@ -358,7 +357,7 @@ async function loadFromSupabase() {
     return false;
   }
   
-  // Fetch all rows using pagination (range)
+  // Fetch all rows using pagination
   const PAGE_SIZE = 1000;
   let allData = [];
   let start = 0;
@@ -430,6 +429,7 @@ async function loadFromSupabase() {
   rAgent(CA);
   return true;
 }
+
 // ==================== DELETE ALL DATA ====================
 async function deleteAllData() {
   if (!isAdmin) return;
@@ -440,34 +440,27 @@ async function deleteAllData() {
   const { error } = await supabase
     .from('agent_daily_stats')
     .delete()
-    .neq('id', 0); // delete all rows
-
+    .neq('id', 0);
   if (error) {
     showToast('Delete failed: ' + error.message, false);
     return;
   }
-
   showToast('All data deleted successfully.', true);
   await loadFromSupabase();
 }
 
-// ==================== UPLOAD & STORE TO SUPABASE WITH DEBUG LOGGING ====================
+// ==================== UPLOAD & STORE TO SUPABASE ====================
 async function parseAndUpload(file) {
   const reader = new FileReader();
   reader.onload = async function(e) {
     try {
       const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
       const allDailyRows = [];
-      let totalRowsFound = 0;   // 👈 DEBUG counter
-
       for (const sn of wb.SheetNames) {
         const ws = wb.Sheets[sn];
         const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
         const agentName = sn.replace(/^\d+\s*/, '').trim();
         if (!agentName) continue;
-
-        let agentRowCount = 0;   // 👈 DEBUG counter per agent
-
         for (let i = 3; i < rows.length; i++) {
           const r = rows[i];
           if (!r || r[0] == null) continue;
@@ -480,13 +473,11 @@ async function parseAndUpload(file) {
             date = dv;
           }
           if (!date || isNaN(date.getTime())) continue;
-
           const calls = parseFloat(r[1]) || 0;
           const ignored = parseFloat(r[2]) || 0;
           const avgMin = parseFloat(tm(r[5]).toFixed(1));
           const totalHrs = parseFloat(th(r[4]).toFixed(2));
           const talkMinutes = totalHrs * 60;
-
           allDailyRows.push({
             agent_name: agentName,
             date: date.toISOString().slice(0, 10),
@@ -494,38 +485,22 @@ async function parseAndUpload(file) {
             ignored,
             talk_time_minutes: talkMinutes
           });
-          agentRowCount++;   // 👈 increment per row
         }
-        console.log(`[DEBUG] Agent ${agentName}: found ${agentRowCount} daily rows`);   // 👈 DEBUG
-        totalRowsFound += agentRowCount;
       }
-      console.log(`[DEBUG] Total rows parsed from Excel: ${totalRowsFound}`);   // 👈 DEBUG
-
       if (allDailyRows.length === 0) {
         showToast('No valid agent data found in the Excel file.', false);
         return;
       }
-
-      // Get current user
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw new Error('Not authenticated');
-
-      // Upsert all rows
       const upsertPromises = allDailyRows.map(row =>
         supabase
           .from('agent_daily_stats')
-          .upsert({
-            ...row,
-            uploaded_by: user.id
-          }, { onConflict: 'agent_name, date', ignoreDuplicates: false })
+          .upsert({ ...row, uploaded_by: user.id }, { onConflict: 'agent_name, date', ignoreDuplicates: false })
       );
-
       await Promise.all(upsertPromises);
       showToast('Data uploaded successfully', true);
-
-      // Reload data to refresh dashboard
       await loadFromSupabase();
-
     } catch (err) {
       console.error(err);
       showToast('Upload error: ' + err.message, false);
@@ -544,13 +519,10 @@ async function init() {
   currentUser = user;
   const meta = user.user_metadata || {};
   isAdmin = (user.email === 'admin@scoredesk.com') || (meta.role === 'admin');
-
-  // Hide admin-only buttons for non-admins
   if (!isAdmin) {
     document.getElementById('deleteAllBtn').style.display = 'none';
     document.getElementById('addFilesBtn').style.display = 'none';
   }
-
   await loadFromSupabase();
 }
 
@@ -567,19 +539,15 @@ document.getElementById('fileInput').addEventListener('change', e => {
   if (e.target.files[0]) parseAndUpload(e.target.files[0]);
   e.target.value = '';
 });
-
 document.getElementById('addFilesBtn').addEventListener('click', () => {
   document.getElementById('uploadZone').style.display = 'block';
 });
-
 document.getElementById('refreshBtn').addEventListener('click', () => {
   loadFromSupabase();
   showToast('Data refreshed', true);
 });
-
 document.getElementById('deleteAllBtn').addEventListener('click', deleteAllData);
 
-// Helper toast
 function showToast(msg, ok) {
   const toast = document.createElement('div');
   toast.className = 'toast' + (ok === true ? ' ok' : ok === false ? ' err' : '');
@@ -592,7 +560,6 @@ function showToast(msg, ok) {
   }, 3000);
 }
 
-// Start
 init();
 </script>
 </body>
