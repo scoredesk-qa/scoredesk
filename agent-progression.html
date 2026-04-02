@@ -506,6 +506,19 @@ async function parseAndUpload(file) {
         return;
       }
 
+      // Deduplicate rows (keep last occurrence for each agent+date combination)
+      const uniqueRows = new Map();
+      for (const row of allDailyRows) {
+        const key = `${row.agent_name}|${row.date}`;
+        uniqueRows.set(key, row);
+      }
+      const deduplicatedRows = Array.from(uniqueRows.values());
+      
+      if (deduplicatedRows.length < allDailyRows.length) {
+        const duplicates = allDailyRows.length - deduplicatedRows.length;
+        console.log(`[DEBUG] Removed ${duplicates} duplicate rows`);
+      }
+
       // Get current user
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw new Error('Not authenticated');
@@ -514,8 +527,8 @@ async function parseAndUpload(file) {
       const BATCH_SIZE = 1000;
       let uploadedCount = 0;
       
-      for (let i = 0; i < allDailyRows.length; i += BATCH_SIZE) {
-        const batch = allDailyRows.slice(i, i + BATCH_SIZE).map(row => ({
+      for (let i = 0; i < deduplicatedRows.length; i += BATCH_SIZE) {
+        const batch = deduplicatedRows.slice(i, i + BATCH_SIZE).map(row => ({
           ...row,
           uploaded_by: user.id
         }));
@@ -530,7 +543,7 @@ async function parseAndUpload(file) {
         }
         
         uploadedCount += batch.length;
-        console.log(`[DEBUG] Uploaded ${uploadedCount} / ${allDailyRows.length} rows`);
+        console.log(`[DEBUG] Uploaded ${uploadedCount} / ${deduplicatedRows.length} rows`);
       }
       
       showToast(`Data uploaded successfully (${uploadedCount} rows)`, true);
