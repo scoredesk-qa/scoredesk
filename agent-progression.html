@@ -1,4 +1,4 @@
-<<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -187,12 +187,19 @@ function ibadge(r) {
 
 // ==================== AGGREGATION (exact copy from old version) ====================
 function buildAllFromParsedRows(parsedRows) {
-  // parsedRows: { agent_name, rows: [ {date, calls, ignored, avgMin, totalHrs} ] }
   const result = {};
   for (const agentName in parsedRows) {
-    const dr = parsedRows[agentName];
+    const dr = parsedRows[agentName].map(r => ({
+      date: r.date,
+      calls: r.calls,
+      ignored: r.ignored,
+      avgMin: r.calls > 0 ? r.talk_time_minutes / r.calls : 0,
+      totalHrs: r.talk_time_minutes / 60
+    }));
+    
     const act = dr.filter(r => r.calls > 0);
     if (!act.length) continue;
+    
     const tc2 = dr.reduce((s, r) => s + r.calls, 0);
     const ti = dr.reduce((s, r) => s + r.ignored, 0);
     const ir = tc2 > 0 ? parseFloat((ti / tc2 * 100).toFixed(2)) : 0;
@@ -200,7 +207,7 @@ function buildAllFromParsedRows(parsedRows) {
     const at = tc2 > 0 ? parseFloat((ws2 / tc2).toFixed(1)) : 0;
     const sd = dr.map(r => r.date).sort((a, b) => a - b);
     const fmt = d => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    const dateRange = fmt(sd[0]) + ' – ' + fmt(sd[sd.length - 1]);
+    const dateRange = sd.length ? fmt(sd[0]) + ' – ' + fmt(sd[sd.length - 1]) : 'No data';
     const avgPerDay = act.length > 0 ? parseFloat((tc2 / act.length).toFixed(1)) : 0;
 
     // Weekly
@@ -343,7 +350,6 @@ function rAgent(name) {
 
 // ==================== LOAD FROM SUPABASE WITH PAGINATION ====================
 async function loadFromSupabase() {
-  // Get total count first
   const { count, error: countError } = await supabase
     .from('agent_daily_stats')
     .select('*', { count: 'exact', head: true });
@@ -385,15 +391,18 @@ async function loadFromSupabase() {
     
     if (data && data.length > 0) {
       allData = allData.concat(data);
-      console.log(`Fetched rows ${start} to ${end}, total so far: ${allData.length}`);
     }
     start += PAGE_SIZE;
     end += PAGE_SIZE;
   }
   
-  console.log(`Loaded ${allData.length} daily rows from Supabase (expected ${count})`);
+  console.log(`Loaded ${allData.length} daily rows from Supabase`);
   
-  // Rebuild the parsed rows structure
+  // Direct sum of calls
+  const directSum = allData.reduce((sum, row) => sum + (row.calls || 0), 0);
+  console.log(`Direct sum of calls from loaded rows: ${directSum}`);
+  
+  // Rebuild parsed rows
   const parsedRows = {};
   for (const row of allData) {
     const agent = row.agent_name;
@@ -402,20 +411,23 @@ async function loadFromSupabase() {
       date: new Date(row.date),
       calls: row.calls,
       ignored: row.ignored,
-      avgMin: row.calls > 0 ? row.talk_time_minutes / row.calls : 0,
-      totalHrs: row.talk_time_minutes / 60
+      talk_time_minutes: row.talk_time_minutes
     });
   }
   
-  // Use the exact same aggregation as the old version
   ALL = buildAllFromParsedRows(parsedRows);
+  const aggSum = Object.values(ALL).reduce((s, a) => s + a.totalCalls, 0);
+  console.log(`Aggregated sum from ALL: ${aggSum}`);
+  
+  if (directSum !== aggSum) {
+    console.warn(`Mismatch! Direct: ${directSum}, Aggregated: ${aggSum}`);
+  }
   
   // Update UI
   document.getElementById('uploadZone').style.display = 'none';
   document.getElementById('fbar').classList.add('show');
-  const totalCalls = Object.values(ALL).reduce((s, a) => s + a.totalCalls, 0);
   document.getElementById('fName').textContent = 'Data from Supabase';
-  document.getElementById('fMeta').textContent = Object.keys(ALL).length + ' agents · ' + totalCalls.toLocaleString() + ' total calls';
+  document.getElementById('fMeta').textContent = Object.keys(ALL).length + ' agents · ' + directSum.toLocaleString() + ' total calls';
   document.getElementById('agCnt').textContent = Object.keys(ALL).length + ' agents';
   document.getElementById('mainContent').classList.remove('hidden');
   document.getElementById('emptyState').classList.add('hidden');
@@ -426,7 +438,6 @@ async function loadFromSupabase() {
   rAgent(CA);
   return true;
 }
-
 // ==================== UPLOAD (exact same parsing as old version) ====================
 async function parseAndUpload(file) {
   const reader = new FileReader();
