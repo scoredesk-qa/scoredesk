@@ -9,7 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-/* ===== ORIGINAL CSS – unchanged ===== */
+/* ========== ALL ORIGINAL CSS – unchanged ========== */
 :root{--bg:#0b0d13;--surface:#12151e;--surface2:#191d28;--surface3:#1f2335;--border:#242938;--border2:#2e3448;--accent:#4f8cff;--accent2:#a78bfa;--pass:#22d3a0;--fail:#f43f5e;--warn:#f59e0b;--text:#e8ecf4;--muted:#6b7694;--muted2:#8a94b8;--radius:12px;}
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
@@ -142,8 +142,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 
 <script>
 // ==================== SUPABASE SETUP ====================
-const SUPABASE_URL = 'https://qbvjgiamqzkscdykenvi.supabase.co';   // <-- REPLACE
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFidmpnaWFtcXprc2NkeWtlbnZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwMzUxMTIsImV4cCI6MjA5MDYxMTExMn0.OeV5qa9y_PCGw6nG0wbfPfiMBjYC_jvzsUXHOip1RTU';                // <-- REPLACE
+const SUPABASE_URL = 'https://qbvjgiamqzkscdykenvi.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFidmpnaWFtcXprc2NkeWtlbnZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwMzUxMTIsImV4cCI6MjA5MDYxMTExMn0.OeV5qa9y_PCGw6nG0wbfPfiMBjYC_jvzsUXHOip1RTU';
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { autoRefreshToken: true, persistSession: true }
 });
@@ -329,7 +329,7 @@ function rAgent(name) {
   tbody.innerHTML = '';
   wks.forEach(w => {
     const flag = w.ignRate >= 5 ? '<span style="font-size:10px;background:rgba(244,63,94,.1);color:var(--fail);padding:1px 6px;border-radius:4px;margin-left:4px;font-family:\'DM Mono\',monospace">high</span>' : '';
-    tbody.innerHTML += '<tr><td style="font-family:\'DM Mono\',monospace">' + w.label + '</td><td style="color:var(--muted);font-family:\'DM Mono\',monospace">' + w.monthShort + '</td><td>' + w.calls + '</td><td style="color:var(--muted)">' + w.ignored + '</td><a style="font-family:monospace">' + ibadge(w.ignRate) + flag + '</a></td><td style="font-family:\'DM Mono\',monospace">' + w.avgMin + ' min</td><td style="font-family:\'DM Mono\',monospace;color:var(--muted)">' + w.totalHrs + ' hrs</td></tr>';
+    tbody.innerHTML += '<tr><td style="font-family:\'DM Mono\',monospace">' + w.label + '</td><td style="color:var(--muted);font-family:\'DM Mono\',monospace">' + w.monthShort + '</td><td>' + w.calls + '</td><td style="color:var(--muted)">' + w.ignored + '<td>' + ibadge(w.ignRate) + flag + '</td><td style="font-family:\'DM Mono\',monospace">' + w.avgMin + ' min</td><td style="font-family:\'DM Mono\',monospace;color:var(--muted)">' + w.totalHrs + ' hrs</td></tr>';
   });
 }
 
@@ -424,7 +424,7 @@ async function loadFromSupabase() {
   return true;
 }
 
-// ==================== UPLOAD – uses original parsing, then batch upsert ====================
+// ==================== UPLOAD – uses original parsing, then batch upsert with deduplication ====================
 async function parseAndUpload(file) {
   const reader = new FileReader();
   reader.onload = async function(e) {
@@ -454,7 +454,6 @@ async function parseAndUpload(file) {
           
           const calls = parseFloat(r[1]) || 0;
           const ignored = parseFloat(r[2]) || 0;
-          const avgMin = parseFloat(tm(r[5]).toFixed(1));
           const totalHrs = parseFloat(th(r[4]).toFixed(2));
           const talkMinutes = totalHrs * 60;
           
@@ -473,20 +472,37 @@ async function parseAndUpload(file) {
         return;
       }
       
+      // --- DEDUPLICATE: group by agent_name + date ---
+      const uniqueMap = new Map();
+      for (const row of allDailyRows) {
+        const key = `${row.agent_name}|${row.date}`;
+        if (uniqueMap.has(key)) {
+          // If duplicate, sum the values (should not happen if Excel is clean, but safe)
+          const existing = uniqueMap.get(key);
+          existing.calls += row.calls;
+          existing.ignored += row.ignored;
+          existing.talk_time_minutes += row.talk_time_minutes;
+        } else {
+          uniqueMap.set(key, { ...row });
+        }
+      }
+      const uniqueRows = Array.from(uniqueMap.values());
+      console.log(`Deduplicated: ${allDailyRows.length} rows → ${uniqueRows.length} unique rows`);
+      
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw new Error('Not authenticated');
       
       // Add uploaded_by to each row
-      const rowsWithUser = allDailyRows.map(row => ({ ...row, uploaded_by: user.id }));
+      const rowsWithUser = uniqueRows.map(row => ({ ...row, uploaded_by: user.id }));
       
-      // Batch upsert – send all rows in one request (avoids ERR_INSUFFICIENT_RESOURCES)
+      // Batch upsert – send all rows in one request
       const { error: upsertError } = await supabase
         .from('agent_daily_stats')
         .upsert(rowsWithUser, { onConflict: 'agent_name, date', ignoreDuplicates: false });
       
       if (upsertError) throw upsertError;
       
-      showToast(`Uploaded ${allDailyRows.length} rows`, true);
+      showToast(`Uploaded ${uniqueRows.length} unique rows (${allDailyRows.length} total rows deduplicated)`, true);
       await loadFromSupabase();
       
     } catch (err) {
