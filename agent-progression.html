@@ -378,12 +378,17 @@ async function loadFromSupabase() {
     
     if (data && data.length > 0) {
       allData = allData.concat(data);
+      console.log(`Fetched rows ${start} to ${end}, total so far: ${allData.length}`);
     }
     start += PAGE_SIZE;
     end += PAGE_SIZE;
   }
   
-  console.log(`Loaded ${allData.length} daily rows from Supabase (total count: ${count})`);
+  console.log(`Loaded ${allData.length} daily rows from Supabase (expected ${count})`);
+  
+  // Direct sum of calls from the loaded rows
+  const directCallSum = allData.reduce((sum, row) => sum + (row.calls || 0), 0);
+  console.log(`Direct sum of calls from loaded rows: ${directCallSum}`);
   
   if (allData.length === 0) {
     document.getElementById('uploadZone').style.display = 'block';
@@ -412,13 +417,20 @@ async function loadFromSupabase() {
     ALL[agentName] = aggregateFromDailyRows(dr);
   }
   
+  // Verify total calls from aggregation
+  const aggCallSum = Object.values(ALL).reduce((sum, a) => sum + a.totalCalls, 0);
+  console.log(`Aggregated total calls: ${aggCallSum}`);
+  
+  if (directCallSum !== aggCallSum) {
+    console.warn(`Mismatch: direct sum ${directCallSum} vs aggregated ${aggCallSum}`);
+  }
+  
   // Data exists – hide upload zone, show dashboard
   document.getElementById('uploadZone').style.display = 'none';
   document.getElementById('fbar').classList.add('show');
-  const totalCalls = Object.values(ALL).reduce((s, a) => s + a.totalCalls, 0);
   document.getElementById('fName').textContent = 'Data from Supabase';
   document.getElementById('fMeta').textContent = Object.keys(ALL).length + ' agents · ' +
-    totalCalls.toLocaleString() + ' total calls';
+    directCallSum.toLocaleString() + ' total calls';
   document.getElementById('agCnt').textContent = Object.keys(ALL).length + ' agents';
   document.getElementById('mainContent').classList.remove('hidden');
   document.getElementById('emptyState').classList.add('hidden');
