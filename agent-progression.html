@@ -337,15 +337,20 @@ function rAgent(name) {
 
 // ==================== LOAD DATA FROM SUPABASE ====================
 async function loadFromSupabase() {
-  const { data, error } = await supabase
+  // Fetch all rows – use a very large limit to avoid the default 1000 limit
+  const { data, error, count } = await supabase
     .from('agent_daily_stats')
-    .select('*')
-    .order('date', { ascending: true });
+    .select('*', { count: 'exact' })
+    .order('date', { ascending: true })
+    .limit(1000000);  // ← critical fix
 
   if (error) {
+    console.error('Supabase error:', error);
     showToast('Could not load data from database.', false);
     return false;
   }
+
+  console.log(`Loaded ${data?.length || 0} daily rows from Supabase`); // debug
 
   if (!data || data.length === 0) {
     // No data – show empty state and upload zone
@@ -379,9 +384,10 @@ async function loadFromSupabase() {
   // Data exists – hide upload zone, show dashboard
   document.getElementById('uploadZone').style.display = 'none';
   document.getElementById('fbar').classList.add('show');
+  const totalCalls = Object.values(ALL).reduce((s, a) => s + a.totalCalls, 0);
   document.getElementById('fName').textContent = 'Data from Supabase';
   document.getElementById('fMeta').textContent = Object.keys(ALL).length + ' agents · ' +
-    Object.values(ALL).reduce((s, a) => s + a.totalCalls, 0).toLocaleString() + ' total calls';
+    totalCalls.toLocaleString() + ' total calls';
   document.getElementById('agCnt').textContent = Object.keys(ALL).length + ' agents';
   document.getElementById('mainContent').classList.remove('hidden');
   document.getElementById('emptyState').classList.add('hidden');
