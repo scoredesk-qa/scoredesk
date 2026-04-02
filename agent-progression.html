@@ -108,7 +108,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <div class="page-sub">Upload a ZZPS 3CX CallStats Excel — data stored in Supabase</div>
   </div>
 
-  <!-- Upload zone – initially hidden; shown via "Add Files" button -->
+  <!-- Upload zone – visibility controlled by data presence -->
   <div class="upload-zone" id="uploadZone" style="display:none;">
     <input type="file" id="fileInput" accept=".xlsx,.xls">
     <span class="upload-icon">📊</span>
@@ -133,7 +133,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     </div>
     <div class="team-strip" id="teamStrip"></div>
     <div class="shdr"><div><div class="slabel">Ranked by Volume</div><div class="stitle">Agent Leaderboard</div></div></div>
-    <div class="tcard"><table class="dt"><thead> Bonn<th>#</th><th>Agent</th><th>Total Calls</th><th>Ignored</th><th>Ignore Rate</th><th>Avg Talk</th><th>Active Days</th><th>Volume</th> </thead><tbody id="teamTbody"></tbody> </table></div>
+    <div class="tcard"><table class="dt"><thead> Bonn<th>#</th><th>Agent</th><th>Total Calls</th><th>Ignored</th><th>Ignore Rate</th><th>Avg Talk</th><th>Active Days</th><th>Volume</th> </thead><tbody id="teamTbody"></tbody>  </table></div>
     <div class="shdr"><div><div class="slabel">Drill Down</div><div class="stitle">Per-Agent Analysis</div></div></div>
     <div class="agtabs" id="agTabs"></div>
     <div id="agView"></div>
@@ -313,7 +313,7 @@ function bTable() {
     const d = ALL[n];
     const pct = Math.round(d.totalCalls / max * 100);
     const rc = i === 0 ? 't1' : i === 1 ? 't2' : i === 2 ? 't3' : '';
-    return `<tr>
+    return `    <tr>
       <td><span class="rb ${rc}">${i + 1}</span></td>
       <td style="font-weight:700;cursor:pointer;color:var(--accent)" onclick="selAg('${n.replace(/'/g, "\\'")}')">${d.ignRate >= 5 ? '🔴 ' : ''}${n}</td>
       <td style="font-family:'DM Mono',monospace">${d.totalCalls.toLocaleString()}</td>
@@ -354,7 +354,7 @@ function rAgent(name) {
   const wks = d.weekly, labels = wks.map(w => w.label), calls = wks.map(w => w.calls), ignored = wks.map(w => w.ignored), avgMin = wks.map(w => w.avgMin);
   const hasCrisis = d.ignRate >= 5, isNew = d.days <= 25;
   const banner = hasCrisis ? '<div class="abanner">⚠️ <strong>Overall ignore rate is ' + d.ignRate.toFixed(2) + '%</strong> — requires immediate attention.</div>' : isNew ? '<div class="ibanner">ℹ️ New agent — limited data (' + d.dateRange + ').</div>' : '';
-  document.getElementById('agView').innerHTML = '<p class="ameta">' + name + ' · ' + d.dateRange + ' · ' + d.days + ' active days · avg ' + d.avgPerDay + ' calls/day</p>' + banner + '<div class="krow"><div class="kcard"><div class="klbl">Total Calls</div><div class="kval cb">' + d.totalCalls.toLocaleString() + '</div><div class="ksub">over ' + d.days + ' active days</div></div><div class="kcard"><div class="klbl">Avg Calls / Day</div><div class="kval">' + d.avgPerDay + '</div><div class="ksub">range: ' + (Math.min(...calls.filter(c => c > 0)) || 0) + ' – ' + Math.max(...calls) + '</div></div><div class="kcard"><div class="klbl">Avg Talk Time</div><div class="kval cg">' + d.avgTalk + '<span style="font-size:16px"> min</span></div><div class="ksub">per call (weighted)</div></div><div class="kcard' + (hasCrisis ? ' danger' : '') + '"><div class="klbl">Ignore Rate</div><div class="kval' + (hasCrisis ? ' cr' : '') + '">' + d.ignRate.toFixed(2) + '<span style="font-size:16px">%</span></div><div class="ksub">' + d.totalIgnored + ' of ' + d.totalCalls.toLocaleString() + ' calls</div></div></div><div class="crow"><div class="cc"><div class="clbl">Calls per week</div><div class="leg"><span class="li"><span class="ld" style="background:var(--accent)"></span>Answered</span><span class="li"><span class="ld" style="background:var(--fail)"></span>Ignored</span></div><div style="position:relative;height:200px"><canvas id="cC"></canvas></div></div><div class="cc"><div class="clbl">Avg talk time / week</div><div class="leg"><span class="li"><span class="ld" style="background:var(--pass)"></span>Avg talk</span><span class="li"><span class="ldash"></span>Overall avg</span></div><div style="position:relative;height:200px"><canvas id="cT"></canvas></div></div></div><div class="cc full" style="margin-bottom:16px"><div class="clbl">Monthly summary</div><div style="position:relative;height:190px"><canvas id="cM"></canvas></div></div><div class="cc"><div class="clbl">Weekly breakdown</div><table class="dt"><thead><tr><th>Week</th><th>Month</th><th>Calls</th><th>Ignored</th><th>Ignore %</th><th>Avg Talk</th><th>Total Talk</th></tr></thead><tbody id="cTbl"></tbody></table></div>';
+  document.getElementById('agView').innerHTML = '<p class="ameta">' + name + ' · ' + d.dateRange + ' · ' + d.days + ' active days · avg ' + d.avgPerDay + ' calls/day</p>' + banner + '<div class="krow"><div class="kcard"><div class="klbl">Total Calls</div><div class="kval cb">' + d.totalCalls.toLocaleString() + '</div><div class="ksub">over ' + d.days + ' active days</div></div><div class="kcard"><div class="klbl">Avg Calls / Day</div><div class="kval">' + d.avgPerDay + '</div><div class="ksub">range: ' + (Math.min(...calls.filter(c => c > 0)) || 0) + ' – ' + Math.max(...calls) + '</div></div><div class="kcard"><div class="klbl">Avg Talk Time</div><div class="kval cg">' + d.avgTalk + '<span style="font-size:16px"> min</span></div><div class="ksub">per call (weighted)</div></div><div class="kcard' + (hasCrisis ? ' danger' : '') + '"><div class="klbl">Ignore Rate</div><div class="kval' + (hasCrisis ? ' cr' : '') + '">' + d.ignRate.toFixed(2) + '<span style="font-size:16px">%</span></div><div class="ksub">' + d.totalIgnored + ' of ' + d.totalCalls.toLocaleString() + ' calls</div></div></div><div class="crow"><div class="cc"><div class="clbl">Calls per week</div><div class="leg"><span class="li"><span class="ld" style="background:var(--accent)"></span>Answered</span><span class="li"><span class="ld" style="background:var(--fail)"></span>Ignored</span></div><div style="position:relative;height:200px"><canvas id="cC"></canvas></div></div><div class="cc"><div class="clbl">Avg talk time / week</div><div class="leg"><span class="li"><span class="ld" style="background:var(--pass)"></span>Avg talk</span><span class="li"><span class="ldash"></span>Overall avg</span></div><div style="position:relative;height:200px"><canvas id="cT"></canvas></div></div></div><div class="cc full" style="margin-bottom:16px"><div class="clbl">Monthly summary</div><div style="position:relative;height:190px"><canvas id="cM"></canvas></div></div><div class="cc"><div class="clbl">Weekly breakdown</div><table class="dt"><thead>    <tr><th>Week</th><th>Month</th><th>Calls</th><th>Ignored</th><th>Ignore %</th><th>Avg Talk</th><th>Total Talk</th></tr></thead><tbody id="cTbl"></tbody></table></div>';
   AC.push(new Chart(document.getElementById('cC'), { type: 'bar', data: { labels, datasets: [{ label: 'Answered', data: calls, backgroundColor: 'rgba(79,140,255,.75)', borderRadius: 3, stack: 'a' }, { label: 'Ignored', data: ignored, backgroundColor: 'rgba(244,63,94,.75)', borderRadius: 3, stack: 'a' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { mode: 'index', ...tc() } }, scales: { x: { stacked: true, grid: { display: false }, ticks: TK }, y: { stacked: true, grid: { color: GC }, ticks: TK } } } }));
   AC.push(new Chart(document.getElementById('cT'), { type: 'line', data: { labels, datasets: [{ label: 'Avg talk', data: avgMin, borderColor: '#22d3a0', backgroundColor: 'rgba(34,211,160,.07)', fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: '#22d3a0', order: 2 }, { label: 'Overall', data: Array(labels.length).fill(d.avgTalk), borderColor: 'rgba(244,63,94,.6)', borderDash: [5, 4], borderWidth: 2, pointRadius: 0, fill: false, order: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { ...tc() } }, scales: { x: { grid: { display: false }, ticks: TK }, y: { grid: { color: GC }, ticks: { ...TK, callback: v => v + 'm' }, min: 0 } } } }));
   AC.push(new Chart(document.getElementById('cM'), { type: 'bar', data: { labels: d.monthly.map(m => m.month), datasets: [{ label: 'Calls', data: d.monthly.map(m => m.calls), backgroundColor: 'rgba(79,140,255,.7)', borderRadius: 3, yAxisID: 'y' }, { label: 'Avg talk', data: d.monthly.map(m => m.avgMin), backgroundColor: 'rgba(34,211,160,.5)', borderRadius: 3, yAxisID: 'y2' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { mode: 'index', ...tc() } }, scales: { x: { grid: { display: false }, ticks: TK }, y: { position: 'left', grid: { color: GC }, ticks: { ...TK, color: '#4f8cff' }, title: { display: true, text: 'Calls', color: '#4f8cff', font: { size: 10 } } }, y2: { position: 'right', grid: { display: false }, ticks: { ...TK, color: '#22d3a0', callback: v => v + 'm' }, title: { display: true, text: 'Avg talk', color: '#22d3a0', font: { size: 10 } }, min: 0 } } } }));
@@ -379,8 +379,8 @@ async function loadFromSupabase() {
   }
 
   if (!data || data.length === 0) {
-    // No data – show empty state, hide upload zone initially
-    document.getElementById('uploadZone').style.display = 'none';
+    // No data – show empty state and show upload zone
+    document.getElementById('uploadZone').style.display = 'block';
     document.getElementById('fbar').classList.remove('show');
     document.getElementById('mainContent').classList.add('hidden');
     document.getElementById('emptyState').classList.remove('hidden');
@@ -399,7 +399,7 @@ async function loadFromSupabase() {
     ALL[agentName] = aggregateAgentData(groups[agentName]);
   }
 
-  // Update UI: hide upload zone (it will be shown only via "Add Files" button)
+  // Data exists – hide upload zone, show dashboard
   document.getElementById('uploadZone').style.display = 'none';
   document.getElementById('fbar').classList.add('show');
   document.getElementById('fName').textContent = 'Data from Supabase';
@@ -434,7 +434,7 @@ async function deleteAllData() {
   }
 
   showToast('All data deleted successfully.', true);
-  // Reload empty state
+  // Reload – will show empty state and upload zone
   await loadFromSupabase();
 }
 
@@ -510,7 +510,7 @@ async function parseAndUpload(file) {
       await Promise.all(upsertPromises);
       showToast('Data uploaded successfully', true);
 
-      // Reload data to refresh dashboard
+      // Reload data to refresh dashboard – this will hide the upload zone again
       await loadFromSupabase();
 
     } catch (err) {
@@ -532,9 +532,10 @@ async function init() {
   const meta = user.user_metadata || {};
   isAdmin = (user.email === 'admin@scoredesk.com') || (meta.role === 'admin');
 
-  // Hide delete button for non-admins
+  // Hide admin-only buttons for non-admins
   if (!isAdmin) {
     document.getElementById('deleteAllBtn').style.display = 'none';
+    document.getElementById('addFilesBtn').style.display = 'none';
   }
 
   await loadFromSupabase();
@@ -555,6 +556,7 @@ document.getElementById('fileInput').addEventListener('change', e => {
 });
 
 document.getElementById('addFilesBtn').addEventListener('click', () => {
+  // Show the upload zone when user wants to add more files (only if admin)
   document.getElementById('uploadZone').style.display = 'block';
 });
 
