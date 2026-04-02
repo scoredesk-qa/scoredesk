@@ -108,7 +108,6 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <div class="page-sub">Upload a ZZPS 3CX CallStats Excel — data stored in Supabase</div>
   </div>
 
-  <!-- Upload zone – visibility controlled by data presence -->
   <div class="upload-zone" id="uploadZone" style="display:none;">
     <input type="file" id="fileInput" accept=".xlsx,.xls">
     <span class="upload-icon">📊</span>
@@ -143,8 +142,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 
 <script>
 // ==================== SUPABASE SETUP ====================
-const SUPABASE_URL = 'https://qbvjgiamqzkscdykenvi.supabase.co';   // <-- REPLACE
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFidmpnaWFtcXprc2NkeWtlbnZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwMzUxMTIsImV4cCI6MjA5MDYxMTExMn0.OeV5qa9y_PCGw6nG0wbfPfiMBjYC_jvzsUXHOip1RTU';                // <-- REPLACE
+const SUPABASE_URL = 'https://your-project.supabase.co';   // <-- REPLACE
+const SUPABASE_ANON_KEY = 'your-anon-key';                // <-- REPLACE
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { autoRefreshToken: true, persistSession: true }
 });
@@ -199,7 +198,7 @@ function aggregateFromDailyRows(dr) {
   const dateRange = sd.length ? fmt(sd[0]) + ' – ' + fmt(sd[sd.length - 1]) : 'No data';
   const avgPerDay = act.length > 0 ? parseFloat((tc2 / act.length).toFixed(1)) : 0;
 
-  // Weekly (original logic)
+  // Weekly
   const wm = {};
   dr.forEach(r => {
     const day = r.date.getDay();
@@ -225,7 +224,7 @@ function aggregateFromDailyRows(dr) {
     totalHrs: parseFloat(w.totalHrs.toFixed(1))
   }));
 
-  // Monthly (original logic)
+  // Monthly
   const mm = {};
   dr.forEach(r => {
     const k = r.date.getFullYear() * 100 + r.date.getMonth();
@@ -335,9 +334,9 @@ function rAgent(name) {
   });
 }
 
-// ==================== LOAD DATA FROM SUPABASE WITH LARGE LIMIT ====================
+// ==================== PAGINATED LOAD FROM SUPABASE ====================
 async function loadFromSupabase() {
-  // First, get the total count of rows
+  // Get total count first
   const { count, error: countError } = await supabase
     .from('agent_daily_stats')
     .select('*', { count: 'exact', head: true });
@@ -358,7 +357,7 @@ async function loadFromSupabase() {
     return false;
   }
   
-  // Fetch all rows using pagination (range)
+  // Fetch all rows using pagination
   const PAGE_SIZE = 1000;
   let allData = [];
   let start = 0;
@@ -430,6 +429,7 @@ async function loadFromSupabase() {
   rAgent(CA);
   return true;
 }
+
 // ==================== DELETE ALL DATA ====================
 async function deleteAllData() {
   if (!isAdmin) return;
@@ -440,25 +440,24 @@ async function deleteAllData() {
   const { error } = await supabase
     .from('agent_daily_stats')
     .delete()
-    .neq('id', 0); // delete all rows
-
+    .neq('id', 0);
   if (error) {
     showToast('Delete failed: ' + error.message, false);
     return;
   }
-
   showToast('All data deleted successfully.', true);
   await loadFromSupabase();
 }
 
-// ==================== UPLOAD & STORE TO SUPABASE WITH DEBUG LOGGING ====================
+// ==================== IMPROVED UPLOAD WITH DEBUGGING ====================
 async function parseAndUpload(file) {
   const reader = new FileReader();
   reader.onload = async function(e) {
     try {
       const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
       const allDailyRows = [];
-      let totalRowsFound = 0;   // 👈 DEBUG counter
+      let totalExcelCalls = 0;
+      let skippedRows = 0;
 
       for (const sn of wb.SheetNames) {
         const ws = wb.Sheets[sn];
@@ -466,26 +465,69 @@ async function parseAndUpload(file) {
         const agentName = sn.replace(/^\d+\s*/, '').trim();
         if (!agentName) continue;
 
-        let agentRowCount = 0;   // 👈 DEBUG counter per agent
+        let agentCalls = 0;
+        let agentRows = 0;
 
         for (let i = 3; i < rows.length; i++) {
           const r = rows[i];
           if (!r || r[0] == null) continue;
-          let date;
+
+          // ----- DATE PARSING (robust) -----
+          let date = null;
           const dv = r[0];
-          if (typeof dv === 'number' && dv > 19000000) {
-            const s = String(Math.round(dv));
-            if (s.length === 8) date = new Date(parseInt(s.slice(0, 4)), parseInt(s.slice(4, 6)) - 1, parseInt(s.slice(6, 8)));
-          } else if (dv instanceof Date) {
+
+          // 1. If it's already a Date object
+          if (dv instanceof Date && !isNaN(dv.getTime())) {
             date = dv;
           }
-          if (!date || isNaN(date.getTime())) continue;
+          // 2. If it's a number (Excel serial or YYYYMMDD)
+          else if (typeof dv === 'number') {
+            if (dv > 19000000 && dv < 21000000) {
+              // Format YYYYMMDD as number, e.g., 20260328
+              const s = String(Math.round(dv));
+              if (s.length === 8) {
+                date = new Date(parseInt(s.slice(0, 4)), parseInt(s.slice(4, 6)) - 1, parseInt(s.slice(6, 8)));
+              }
+            } else if (dv > 40000 && dv < 50000) {
+              // Excel serial date (days since 1900-01-01)
+              date = new Date(Math.round((dv - 25569) * 86400 * 1000));
+            }
+          }
+          // 3. If it's a string, try parsing
+          else if (typeof dv === 'string' && dv.trim() !== '') {
+            // Try common formats: YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY, YYYYMMDD
+            let str = dv.trim();
+            let match;
+            if ((match = str.match(/^(\d{4})-(\d{2})-(\d{2})$/))) {
+              date = new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
+            } else if ((match = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/))) {
+              date = new Date(parseInt(match[3]), parseInt(match[2]) - 1, parseInt(match[1]));
+            } else if ((match = str.match(/^(\d{2})-(\d{2})-(\d{4})$/))) {
+              date = new Date(parseInt(match[3]), parseInt(match[2]) - 1, parseInt(match[1]));
+            } else if ((match = str.match(/^(\d{8})$/))) {
+              date = new Date(parseInt(match[1].slice(0,4)), parseInt(match[1].slice(4,6)) - 1, parseInt(match[1].slice(6,8)));
+            } else {
+              date = new Date(str);
+            }
+            if (isNaN(date.getTime())) date = null;
+          }
+
+          if (!date) {
+            console.warn(`⚠️ Skipped row ${i+1} in sheet "${sn}": invalid date value:`, dv);
+            skippedRows++;
+            continue;
+          }
 
           const calls = parseFloat(r[1]) || 0;
           const ignored = parseFloat(r[2]) || 0;
           const avgMin = parseFloat(tm(r[5]).toFixed(1));
           const totalHrs = parseFloat(th(r[4]).toFixed(2));
           const talkMinutes = totalHrs * 60;
+
+          if (calls > 0) {
+            agentCalls += calls;
+          }
+          agentRows++;
 
           allDailyRows.push({
             agent_name: agentName,
@@ -494,59 +536,35 @@ async function parseAndUpload(file) {
             ignored,
             talk_time_minutes: talkMinutes
           });
-          agentRowCount++;   // 👈 increment per row
         }
-        console.log(`[DEBUG] Agent ${agentName}: found ${agentRowCount} daily rows`);   // 👈 DEBUG
-        totalRowsFound += agentRowCount;
+        console.log(`📊 Agent ${agentName}: ${agentRows} rows, ${agentCalls} calls (Excel total)`);
+        totalExcelCalls += agentCalls;
       }
-      console.log(`[DEBUG] Total rows parsed from Excel: ${totalRowsFound}`);   // 👈 DEBUG
+
+      console.log(`📈 TOTAL calls found in Excel: ${totalExcelCalls}`);
+      console.log(`⚠️ Skipped rows (invalid date): ${skippedRows}`);
 
       if (allDailyRows.length === 0) {
         showToast('No valid agent data found in the Excel file.', false);
         return;
       }
 
-      // Deduplicate rows (keep last occurrence for each agent+date combination)
-      const uniqueRows = new Map();
-      for (const row of allDailyRows) {
-        const key = `${row.agent_name}|${row.date}`;
-        uniqueRows.set(key, row);
-      }
-      const deduplicatedRows = Array.from(uniqueRows.values());
-      
-      if (deduplicatedRows.length < allDailyRows.length) {
-        const duplicates = allDailyRows.length - deduplicatedRows.length;
-        console.log(`[DEBUG] Removed ${duplicates} duplicate rows`);
-      }
-
       // Get current user
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw new Error('Not authenticated');
 
-      // Batch upsert to avoid rate limits (1000 rows at a time)
-      const BATCH_SIZE = 1000;
-      let uploadedCount = 0;
-      
-      for (let i = 0; i < deduplicatedRows.length; i += BATCH_SIZE) {
-        const batch = deduplicatedRows.slice(i, i + BATCH_SIZE).map(row => ({
-          ...row,
-          uploaded_by: user.id
-        }));
-        
-        const { error: upsertError } = await supabase
+      // Upsert all rows
+      const upsertPromises = allDailyRows.map(row =>
+        supabase
           .from('agent_daily_stats')
-          .upsert(batch, { onConflict: 'agent_name,date', ignoreDuplicates: false });
-        
-        if (upsertError) {
-          console.error('Batch upsert error:', upsertError);
-          throw new Error(`Upload failed at row ${i}: ${upsertError.message}`);
-        }
-        
-        uploadedCount += batch.length;
-        console.log(`[DEBUG] Uploaded ${uploadedCount} / ${deduplicatedRows.length} rows`);
-      }
-      
-      showToast(`Data uploaded successfully (${uploadedCount} rows)`, true);
+          .upsert({
+            ...row,
+            uploaded_by: user.id
+          }, { onConflict: 'agent_name, date', ignoreDuplicates: false })
+      );
+
+      await Promise.all(upsertPromises);
+      showToast(`Uploaded ${allDailyRows.length} rows (${totalExcelCalls} calls)`, true);
 
       // Reload data to refresh dashboard
       await loadFromSupabase();
@@ -569,13 +587,10 @@ async function init() {
   currentUser = user;
   const meta = user.user_metadata || {};
   isAdmin = (user.email === 'admin@scoredesk.com') || (meta.role === 'admin');
-
-  // Hide admin-only buttons for non-admins
   if (!isAdmin) {
     document.getElementById('deleteAllBtn').style.display = 'none';
     document.getElementById('addFilesBtn').style.display = 'none';
   }
-
   await loadFromSupabase();
 }
 
@@ -592,19 +607,15 @@ document.getElementById('fileInput').addEventListener('change', e => {
   if (e.target.files[0]) parseAndUpload(e.target.files[0]);
   e.target.value = '';
 });
-
 document.getElementById('addFilesBtn').addEventListener('click', () => {
   document.getElementById('uploadZone').style.display = 'block';
 });
-
 document.getElementById('refreshBtn').addEventListener('click', () => {
   loadFromSupabase();
   showToast('Data refreshed', true);
 });
-
 document.getElementById('deleteAllBtn').addEventListener('click', deleteAllData);
 
-// Helper toast
 function showToast(msg, ok) {
   const toast = document.createElement('div');
   toast.className = 'toast' + (ok === true ? ' ok' : ok === false ? ' err' : '');
@@ -617,7 +628,6 @@ function showToast(msg, ok) {
   }, 3000);
 }
 
-// Start
 init();
 </script>
 </body>
