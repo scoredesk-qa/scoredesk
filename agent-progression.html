@@ -108,6 +108,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <div class="page-sub">Upload a ZZPS 3CX CallStats Excel — data stored in Supabase</div>
   </div>
 
+  <!-- Upload zone – visibility controlled by data presence -->
   <div class="upload-zone" id="uploadZone" style="display:none;">
     <input type="file" id="fileInput" accept=".xlsx,.xls">
     <span class="upload-icon">📊</span>
@@ -198,7 +199,7 @@ function aggregateFromDailyRows(dr) {
   const dateRange = sd.length ? fmt(sd[0]) + ' – ' + fmt(sd[sd.length - 1]) : 'No data';
   const avgPerDay = act.length > 0 ? parseFloat((tc2 / act.length).toFixed(1)) : 0;
 
-  // Weekly
+  // Weekly (original logic)
   const wm = {};
   dr.forEach(r => {
     const day = r.date.getDay();
@@ -224,7 +225,7 @@ function aggregateFromDailyRows(dr) {
     totalHrs: parseFloat(w.totalHrs.toFixed(1))
   }));
 
-  // Monthly
+  // Monthly (original logic)
   const mm = {};
   dr.forEach(r => {
     const k = r.date.getFullYear() * 100 + r.date.getMonth();
@@ -334,9 +335,9 @@ function rAgent(name) {
   });
 }
 
-// ==================== PAGINATED LOAD FROM SUPABASE ====================
+// ==================== LOAD DATA FROM SUPABASE WITH LARGE LIMIT ====================
 async function loadFromSupabase() {
-  // Get total count first
+  // First, get the total count of rows
   const { count, error: countError } = await supabase
     .from('agent_daily_stats')
     .select('*', { count: 'exact', head: true });
@@ -357,7 +358,7 @@ async function loadFromSupabase() {
     return false;
   }
   
-  // Fetch all rows using pagination
+  // Fetch all rows using pagination (range)
   const PAGE_SIZE = 1000;
   let allData = [];
   let start = 0;
@@ -378,17 +379,12 @@ async function loadFromSupabase() {
     
     if (data && data.length > 0) {
       allData = allData.concat(data);
-      console.log(`Fetched rows ${start} to ${end}, total so far: ${allData.length}`);
     }
     start += PAGE_SIZE;
     end += PAGE_SIZE;
   }
   
-  console.log(`Loaded ${allData.length} daily rows from Supabase (expected ${count})`);
-  
-  // Direct sum of calls from the loaded rows
-  const directCallSum = allData.reduce((sum, row) => sum + (row.calls || 0), 0);
-  console.log(`Direct sum of calls from loaded rows: ${directCallSum}`);
+  console.log(`Loaded ${allData.length} daily rows from Supabase (total count: ${count})`);
   
   if (allData.length === 0) {
     document.getElementById('uploadZone').style.display = 'block';
@@ -417,20 +413,13 @@ async function loadFromSupabase() {
     ALL[agentName] = aggregateFromDailyRows(dr);
   }
   
-  // Verify total calls from aggregation
-  const aggCallSum = Object.values(ALL).reduce((sum, a) => sum + a.totalCalls, 0);
-  console.log(`Aggregated total calls: ${aggCallSum}`);
-  
-  if (directCallSum !== aggCallSum) {
-    console.warn(`Mismatch: direct sum ${directCallSum} vs aggregated ${aggCallSum}`);
-  }
-  
   // Data exists – hide upload zone, show dashboard
   document.getElementById('uploadZone').style.display = 'none';
   document.getElementById('fbar').classList.add('show');
+  const totalCalls = Object.values(ALL).reduce((s, a) => s + a.totalCalls, 0);
   document.getElementById('fName').textContent = 'Data from Supabase';
   document.getElementById('fMeta').textContent = Object.keys(ALL).length + ' agents · ' +
-    directCallSum.toLocaleString() + ' total calls';
+    totalCalls.toLocaleString() + ' total calls';
   document.getElementById('agCnt').textContent = Object.keys(ALL).length + ' agents';
   document.getElementById('mainContent').classList.remove('hidden');
   document.getElementById('emptyState').classList.add('hidden');
@@ -441,7 +430,6 @@ async function loadFromSupabase() {
   rAgent(CA);
   return true;
 }
-
 // ==================== DELETE ALL DATA ====================
 async function deleteAllData() {
   if (!isAdmin) return;
@@ -452,24 +440,25 @@ async function deleteAllData() {
   const { error } = await supabase
     .from('agent_daily_stats')
     .delete()
-    .neq('id', 0);
+    .neq('id', 0); // delete all rows
+
   if (error) {
     showToast('Delete failed: ' + error.message, false);
     return;
   }
+
   showToast('All data deleted successfully.', true);
   await loadFromSupabase();
 }
 
-// ==================== ULTRA‑VERBOSE PARSER ====================
+// ==================== UPLOAD & STORE TO SUPABASE WITH DEBUG LOGGING ====================
 async function parseAndUpload(file) {
   const reader = new FileReader();
   reader.onload = async function(e) {
     try {
       const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
       const allDailyRows = [];
-      let totalExcelCalls = 0;
-      let totalParsedRows = 0;
+      let totalRowsFound = 0;   // 👈 DEBUG counter
 
       for (const sn of wb.SheetNames) {
         const ws = wb.Sheets[sn];
@@ -477,88 +466,26 @@ async function parseAndUpload(file) {
         const agentName = sn.replace(/^\d+\s*/, '').trim();
         if (!agentName) continue;
 
-        console.log(`\n📄 Sheet: ${sn} (${agentName}) – total rows in sheet: ${rows.length}`);
+        let agentRowCount = 0;   // 👈 DEBUG counter per agent
 
-        // Find first row with a valid date in column A
-        let dataStartRow = -1;
-        for (let i = 0; i < rows.length; i++) {
+        for (let i = 3; i < rows.length; i++) {
           const r = rows[i];
           if (!r || r[0] == null) continue;
+          let date;
           const dv = r[0];
-          let isValid = false;
-          if (dv instanceof Date && !isNaN(dv.getTime())) isValid = true;
-          else if (typeof dv === 'number') {
-            if ((dv > 19000000 && dv < 21000000) || (dv > 40000 && dv < 50000)) isValid = true;
-          } else if (typeof dv === 'string' && dv.trim() !== '') {
-            const testDate = new Date(dv);
-            if (!isNaN(testDate.getTime())) isValid = true;
-          }
-          if (isValid) {
-            dataStartRow = i;
-            break;
-          }
-        }
-
-        if (dataStartRow === -1) {
-          console.warn(`⚠️ No valid date found in sheet ${sn}, skipping`);
-          continue;
-        }
-
-        console.log(`   Data starts at row ${dataStartRow + 1} (index ${dataStartRow})`);
-
-        let agentCalls = 0;
-        let agentRows = 0;
-        const lastRowsToShow = 10;
-        let lastRowsLog = [];
-
-        for (let i = dataStartRow; i < rows.length; i++) {
-          const r = rows[i];
-          if (!r || r[0] == null) continue;
-
-          // ----- DATE PARSING (robust) -----
-          let date = null;
-          const dv = r[0];
-
-          if (dv instanceof Date && !isNaN(dv.getTime())) {
+          if (typeof dv === 'number' && dv > 19000000) {
+            const s = String(Math.round(dv));
+            if (s.length === 8) date = new Date(parseInt(s.slice(0, 4)), parseInt(s.slice(4, 6)) - 1, parseInt(s.slice(6, 8)));
+          } else if (dv instanceof Date) {
             date = dv;
-          } else if (typeof dv === 'number') {
-            if (dv > 19000000 && dv < 21000000) {
-              const s = String(Math.round(dv));
-              if (s.length === 8) {
-                date = new Date(parseInt(s.slice(0, 4)), parseInt(s.slice(4, 6)) - 1, parseInt(s.slice(6, 8)));
-              }
-            } else if (dv > 40000 && dv < 50000) {
-              date = new Date(Math.round((dv - 25569) * 86400 * 1000));
-            }
-          } else if (typeof dv === 'string' && dv.trim() !== '') {
-            let str = dv.trim();
-            let match;
-            if ((match = str.match(/^(\d{4})-(\d{2})-(\d{2})$/))) {
-              date = new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
-            } else if ((match = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/))) {
-              date = new Date(parseInt(match[3]), parseInt(match[2]) - 1, parseInt(match[1]));
-            } else if ((match = str.match(/^(\d{2})-(\d{2})-(\d{4})$/))) {
-              date = new Date(parseInt(match[3]), parseInt(match[2]) - 1, parseInt(match[1]));
-            } else if ((match = str.match(/^(\d{8})$/))) {
-              date = new Date(parseInt(match[1].slice(0,4)), parseInt(match[1].slice(4,6)) - 1, parseInt(match[1].slice(6,8)));
-            } else {
-              date = new Date(str);
-            }
-            if (isNaN(date.getTime())) date = null;
           }
-
-          if (!date) {
-            console.warn(`⚠️ Skipped row ${i+1}: invalid date value →`, dv);
-            continue;
-          }
+          if (!date || isNaN(date.getTime())) continue;
 
           const calls = parseFloat(r[1]) || 0;
           const ignored = parseFloat(r[2]) || 0;
+          const avgMin = parseFloat(tm(r[5]).toFixed(1));
           const totalHrs = parseFloat(th(r[4]).toFixed(2));
           const talkMinutes = totalHrs * 60;
-
-          if (calls > 0) agentCalls += calls;
-          agentRows++;
 
           allDailyRows.push({
             agent_name: agentName,
@@ -567,41 +494,77 @@ async function parseAndUpload(file) {
             ignored,
             talk_time_minutes: talkMinutes
           });
-
-          // Store last few rows for logging
-          if (i >= rows.length - lastRowsToShow) {
-            lastRowsLog.push({ row: i+1, date: date.toISOString().slice(0,10), calls });
-          }
+          agentRowCount++;   // 👈 increment per row
         }
-
-        console.log(`   ✅ Parsed ${agentRows} rows, ${agentCalls} calls`);
-        if (lastRowsLog.length) {
-          console.log(`   📌 Last ${lastRowsLog.length} rows of this sheet:`);
-          lastRowsLog.forEach(log => console.log(`      Row ${log.row}: ${log.date} → ${log.calls} calls`));
-        }
-        totalExcelCalls += agentCalls;
-        totalParsedRows += agentRows;
+        console.log(`[DEBUG] Agent ${agentName}: found ${agentRowCount} daily rows`);   // 👈 DEBUG
+        totalRowsFound += agentRowCount;
       }
-
-      console.log(`\n📊 TOTAL across all sheets: ${totalParsedRows} rows, ${totalExcelCalls} calls`);
-      console.log(`📁 Total rows to upsert: ${allDailyRows.length}`);
+      console.log(`[DEBUG] Total rows parsed from Excel: ${totalRowsFound}`);   // 👈 DEBUG
 
       if (allDailyRows.length === 0) {
         showToast('No valid agent data found in the Excel file.', false);
         return;
       }
 
+      // Deduplicate rows (keep last occurrence for each agent+date combination)
+      const uniqueRows = new Map();
+      for (const row of allDailyRows) {
+        const key = `${row.agent_name}|${row.date}`;
+        uniqueRows.set(key, row);
+      }
+      const deduplicatedRows = Array.from(uniqueRows.values());
+      
+      if (deduplicatedRows.length < allDailyRows.length) {
+        const duplicates = allDailyRows.length - deduplicatedRows.length;
+        console.log(`[DEBUG] Removed ${duplicates} duplicate rows`);
+      }
+
+      // Get current user
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw new Error('Not authenticated');
 
-      const upsertPromises = allDailyRows.map(row =>
-        supabase
-          .from('agent_daily_stats')
-          .upsert({ ...row, uploaded_by: user.id }, { onConflict: 'agent_name, date', ignoreDuplicates: false })
-      );
+      // Get list of agents in this upload
+      const agentNames = [...new Set(deduplicatedRows.map(r => r.agent_name))];
+      console.log(`[DEBUG] Uploading data for ${agentNames.length} agents`);
 
-      await Promise.all(upsertPromises);
-      showToast(`Uploaded ${allDailyRows.length} rows (${totalExcelCalls} calls)`, true);
+      // Delete existing data for these agents to avoid conflicts
+      const { error: deleteError } = await supabase
+        .from('agent_daily_stats')
+        .delete()
+        .in('agent_name', agentNames);
+      
+      if (deleteError) {
+        console.error('Delete error:', deleteError);
+        showToast('Could not clear existing data: ' + deleteError.message, false);
+        return;
+      }
+
+      // Insert all rows in batches
+      const BATCH_SIZE = 1000;
+      let uploadedCount = 0;
+      
+      for (let i = 0; i < deduplicatedRows.length; i += BATCH_SIZE) {
+        const batch = deduplicatedRows.slice(i, i + BATCH_SIZE).map(row => ({
+          ...row,
+          uploaded_by: user.id
+        }));
+        
+        const { error: insertError } = await supabase
+          .from('agent_daily_stats')
+          .insert(batch);
+        
+        if (insertError) {
+          console.error('Batch insert error:', insertError);
+          throw new Error(`Upload failed at row ${i}: ${insertError.message}`);
+        }
+        
+        uploadedCount += batch.length;
+        console.log(`[DEBUG] Uploaded ${uploadedCount} / ${deduplicatedRows.length} rows`);
+      }
+      
+      showToast(`Data uploaded successfully (${uploadedCount} rows for ${agentNames.length} agents)`, true);
+
+      // Reload data to refresh dashboard
       await loadFromSupabase();
 
     } catch (err) {
@@ -622,10 +585,13 @@ async function init() {
   currentUser = user;
   const meta = user.user_metadata || {};
   isAdmin = (user.email === 'admin@scoredesk.com') || (meta.role === 'admin');
+
+  // Hide admin-only buttons for non-admins
   if (!isAdmin) {
     document.getElementById('deleteAllBtn').style.display = 'none';
     document.getElementById('addFilesBtn').style.display = 'none';
   }
+
   await loadFromSupabase();
 }
 
@@ -642,15 +608,19 @@ document.getElementById('fileInput').addEventListener('change', e => {
   if (e.target.files[0]) parseAndUpload(e.target.files[0]);
   e.target.value = '';
 });
+
 document.getElementById('addFilesBtn').addEventListener('click', () => {
   document.getElementById('uploadZone').style.display = 'block';
 });
+
 document.getElementById('refreshBtn').addEventListener('click', () => {
   loadFromSupabase();
   showToast('Data refreshed', true);
 });
+
 document.getElementById('deleteAllBtn').addEventListener('click', deleteAllData);
 
+// Helper toast
 function showToast(msg, ok) {
   const toast = document.createElement('div');
   toast.className = 'toast' + (ok === true ? ' ok' : ok === false ? ' err' : '');
@@ -663,6 +633,7 @@ function showToast(msg, ok) {
   }, 3000);
 }
 
+// Start
 init();
 </script>
 </body>
