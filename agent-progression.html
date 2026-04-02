@@ -155,90 +155,67 @@ let CA = null;
 let currentUser = null;
 let isAdmin = false;
 
-// ==================== ROBUST TIME PARSING ====================
-function toHours(value) {
-  if (value === undefined || value === null || value === '') return 0;
-  if (value instanceof Date) {
-    return value.getHours() + value.getMinutes() / 60 + value.getSeconds() / 3600;
-  }
-  if (typeof value === 'number') {
-    // Excel serial time (fraction of day)
-    return value * 24;
-  }
-  if (typeof value === 'string') {
-    const parts = value.split(':');
-    if (parts.length >= 2) {
-      const hours = parseInt(parts[0]) || 0;
-      const minutes = parseInt(parts[1]) || 0;
-      const seconds = parts[2] ? parseFloat(parts[2]) : 0;
-      return hours + minutes / 60 + seconds / 3600;
-    }
+// ==================== ORIGINAL WORKING HELPERS ====================
+function gwk(d) {
+  const dt = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = dt.getUTCDay() || 7;
+  dt.setUTCDate(dt.getUTCDate() + 4 - day);
+  const ys = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1));
+  return Math.ceil((((dt - ys) / 86400000) + 1) / 7);
+}
+
+function tm(v) {
+  if (v instanceof Date) return v.getHours() * 60 + v.getMinutes() + v.getSeconds() / 60;
+  if (typeof v === 'number') return v * 24 * 60;
+  if (typeof v === 'string') {
+    const p = v.split(':');
+    if (p.length >= 2) return parseInt(p[0]) * 60 + parseInt(p[1]) + (parseInt(p[2] || 0) / 60);
   }
   return 0;
 }
 
-function toMinutes(value) {
-  return toHours(value) * 60;
+function th(v) {
+  if (v instanceof Date) return v.getHours() + v.getMinutes() / 60 + v.getSeconds() / 3600;
+  if (typeof v === 'number') return v * 24;
+  return 0;
 }
 
-// ==================== WEEK NUMBER (ISO, Monday first) ====================
-function getWeekNumber(date) {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const day = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - day);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+function ibadge(r) {
+  if (r >= 5) return '<span class="ib ibbad">' + r.toFixed(1) + '%</span>';
+  if (r >= 2) return '<span class="ib ibw">' + r.toFixed(1) + '%</span>';
+  return '<span class="ib ibok">' + r.toFixed(1) + '%</span>';
 }
 
-// ==================== AGGREGATION ====================
-function aggregateAgentData(rows) {
-  // rows: { date, calls, ignored, talk_time_minutes }
-  const dr = rows.map(r => ({
-    date: new Date(r.date),
-    calls: r.calls,
-    ignored: r.ignored,
-    avgMin: r.calls > 0 ? r.talk_time_minutes / r.calls : 0,
-    totalHrs: r.talk_time_minutes / 60
-  }));
-
-  const totalCalls = dr.reduce((s, r) => s + r.calls, 0);
-  const totalIgnored = dr.reduce((s, r) => s + r.ignored, 0);
-  const ignRate = totalCalls > 0 ? parseFloat((totalIgnored / totalCalls * 100).toFixed(2)) : 0;
-  const weightedTalkSum = dr.reduce((s, r) => s + r.avgMin * r.calls, 0);
-  const avgTalk = totalCalls > 0 ? parseFloat((weightedTalkSum / totalCalls).toFixed(1)) : 0;
-  const activeDays = dr.filter(r => r.calls > 0).length;
-  const sortedDates = dr.map(r => r.date).sort((a, b) => a - b);
+// ==================== AGGREGATION (exactly as original) ====================
+function aggregateFromDailyRows(dr) {
+  const act = dr.filter(r => r.calls > 0);
+  const tc2 = dr.reduce((s, r) => s + r.calls, 0);
+  const ti = dr.reduce((s, r) => s + r.ignored, 0);
+  const ir = tc2 > 0 ? parseFloat((ti / tc2 * 100).toFixed(2)) : 0;
+  const ws2 = dr.reduce((s, r) => s + r.avgMin * r.calls, 0);
+  const at = tc2 > 0 ? parseFloat((ws2 / tc2).toFixed(1)) : 0;
+  const sd = dr.map(r => r.date).sort((a, b) => a - b);
   const fmt = d => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  const dateRange = sortedDates.length ? fmt(sortedDates[0]) + ' – ' + fmt(sortedDates[sortedDates.length - 1]) : 'No data';
-  const avgPerDay = activeDays > 0 ? parseFloat((totalCalls / activeDays).toFixed(1)) : 0;
+  const dateRange = sd.length ? fmt(sd[0]) + ' – ' + fmt(sd[sd.length - 1]) : 'No data';
+  const avgPerDay = act.length > 0 ? parseFloat((tc2 / act.length).toFixed(1)) : 0;
 
-  // Weekly grouping (Monday start)
-  const weekMap = {};
+  // Weekly (original logic)
+  const wm = {};
   dr.forEach(r => {
     const day = r.date.getDay();
     const diff = day === 0 ? -6 : 1 - day;
-    const monday = new Date(r.date);
-    monday.setDate(r.date.getDate() + diff);
-    const weekNum = getWeekNumber(r.date);
-    const monthShort = r.date.toLocaleDateString('en-GB', { month: 'short' });
-    const key = monday.toISOString().slice(0, 10);
-    if (!weekMap[key]) {
-      weekMap[key] = {
-        label: 'W' + weekNum,
-        monthShort,
-        calls: 0,
-        ignored: 0,
-        totalHrs: 0,
-        talkSum: 0,
-        mon: monday
-      };
-    }
-    weekMap[key].calls += r.calls;
-    weekMap[key].ignored += r.ignored;
-    weekMap[key].totalHrs += r.totalHrs;
-    weekMap[key].talkSum += r.avgMin * r.calls;
+    const mon = new Date(r.date);
+    mon.setDate(r.date.getDate() + diff);
+    const wk = 'W' + gwk(r.date);
+    const ms = r.date.toLocaleDateString('en-GB', { month: 'short' });
+    const k = mon.toISOString().slice(0, 10);
+    if (!wm[k]) wm[k] = { label: wk, monthShort: ms, calls: 0, ignored: 0, totalHrs: 0, talkSum: 0, mon };
+    wm[k].calls += r.calls;
+    wm[k].ignored += r.ignored;
+    wm[k].totalHrs += r.totalHrs;
+    wm[k].talkSum += r.avgMin * r.calls;
   });
-  const weekly = Object.values(weekMap).sort((a, b) => a.mon - b.mon).map(w => ({
+  const weekly = Object.values(wm).sort((a, b) => a.mon - b.mon).map(w => ({
     label: w.label,
     monthShort: w.monthShort,
     calls: w.calls,
@@ -248,21 +225,19 @@ function aggregateAgentData(rows) {
     totalHrs: parseFloat(w.totalHrs.toFixed(1))
   }));
 
-  // Monthly grouping
-  const monthMap = {};
+  // Monthly (original logic)
+  const mm = {};
   dr.forEach(r => {
-    const key = r.date.getFullYear() * 100 + r.date.getMonth();
-    const monthName = r.date.toLocaleDateString('en-GB', { month: 'long' });
-    if (!monthMap[key]) {
-      monthMap[key] = { month: monthName, calls: 0, ignored: 0, totalHrs: 0, talkSum: 0 };
-    }
-    monthMap[key].calls += r.calls;
-    monthMap[key].ignored += r.ignored;
-    monthMap[key].totalHrs += r.totalHrs;
-    monthMap[key].talkSum += r.avgMin * r.calls;
+    const k = r.date.getFullYear() * 100 + r.date.getMonth();
+    const mo = r.date.toLocaleDateString('en-GB', { month: 'long' });
+    if (!mm[k]) mm[k] = { month: mo, calls: 0, ignored: 0, totalHrs: 0, talkSum: 0 };
+    mm[k].calls += r.calls;
+    mm[k].ignored += r.ignored;
+    mm[k].totalHrs += r.totalHrs;
+    mm[k].talkSum += r.avgMin * r.calls;
   });
-  const monthly = Object.keys(monthMap).sort().map(k => {
-    const m = monthMap[k];
+  const monthly = Object.keys(mm).sort().map(k => {
+    const m = mm[k];
     return {
       month: m.month,
       calls: m.calls,
@@ -274,11 +249,11 @@ function aggregateAgentData(rows) {
   });
 
   return {
-    totalCalls,
-    totalIgnored,
-    ignRate,
-    avgTalk,
-    days: activeDays,
+    totalCalls: tc2,
+    totalIgnored: ti,
+    ignRate: ir,
+    avgTalk: at,
+    days: act.length,
     dateRange,
     avgPerDay,
     weekly,
@@ -286,16 +261,10 @@ function aggregateAgentData(rows) {
   };
 }
 
-// ==================== UI RENDERING (unchanged) ====================
+// ==================== UI RENDERING (unchanged from original) ====================
 const GC = 'rgba(255,255,255,0.05)';
 const TK = { color: '#6b7694', font: { family: 'DM Mono, monospace', size: 10 } };
 function tc() { return { backgroundColor: '#191d28', borderColor: '#242938', borderWidth: 1, titleColor: '#e8ecf4', bodyColor: '#6b7694' }; }
-
-function ibadge(r) {
-  if (r >= 5) return '<span class="ib ibbad">' + r.toFixed(1) + '%</span>';
-  if (r >= 2) return '<span class="ib ibw">' + r.toFixed(1) + '%</span>';
-  return '<span class="ib ibok">' + r.toFixed(1) + '%</span>';
-}
 
 function bStrip() {
   const ag = Object.values(ALL), names = Object.keys(ALL);
@@ -379,7 +348,7 @@ async function loadFromSupabase() {
   }
 
   if (!data || data.length === 0) {
-    // No data – show empty state and show upload zone
+    // No data – show empty state and upload zone
     document.getElementById('uploadZone').style.display = 'block';
     document.getElementById('fbar').classList.remove('show');
     document.getElementById('mainContent').classList.add('hidden');
@@ -396,7 +365,15 @@ async function loadFromSupabase() {
 
   ALL = {};
   for (const agentName in groups) {
-    ALL[agentName] = aggregateAgentData(groups[agentName]);
+    // Convert DB rows to the format expected by aggregateFromDailyRows
+    const dr = groups[agentName].map(row => ({
+      date: new Date(row.date),
+      calls: row.calls,
+      ignored: row.ignored,
+      avgMin: row.calls > 0 ? row.talk_time_minutes / row.calls : 0,
+      totalHrs: row.talk_time_minutes / 60
+    }));
+    ALL[agentName] = aggregateFromDailyRows(dr);
   }
 
   // Data exists – hide upload zone, show dashboard
@@ -445,16 +422,14 @@ async function parseAndUpload(file) {
     try {
       const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
       const allDailyRows = [];
-      const agentNames = [];
 
-      // Parse each sheet
+      // Parse each sheet exactly as original hf() function
       for (const sn of wb.SheetNames) {
         const ws = wb.Sheets[sn];
         const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
         const agentName = sn.replace(/^\d+\s*/, '').trim();
-        if (!agentName) continue;
-
         const dr = [];
+
         for (let i = 3; i < rows.length; i++) {
           const r = rows[i];
           if (!r || r[0] == null) continue;
@@ -470,8 +445,8 @@ async function parseAndUpload(file) {
 
           const calls = parseFloat(r[1]) || 0;
           const ignored = parseFloat(r[2]) || 0;
-          // Use robust time parser
-          const totalHrs = toHours(r[4]);   // column E = Total Talk Time
+          const avgMin = parseFloat(tm(r[5]).toFixed(1));
+          const totalHrs = parseFloat(th(r[4]).toFixed(2));
           const talkMinutes = totalHrs * 60;
 
           dr.push({
@@ -484,11 +459,10 @@ async function parseAndUpload(file) {
         }
         if (dr.length) {
           allDailyRows.push(...dr);
-          agentNames.push(agentName);
         }
       }
 
-      if (agentNames.length === 0) {
+      if (allDailyRows.length === 0) {
         showToast('No valid agent data found in the Excel file.', false);
         return;
       }
@@ -530,7 +504,7 @@ async function init() {
   }
   currentUser = user;
   const meta = user.user_metadata || {};
-  isAdmin = (user.email === 'admin@scoredesk.com') || (meta.role === 'admin');
+  isAdmin = (user.email === 'yassin.aitlehcen@market-wave.com') || (meta.role === 'admin');
 
   // Hide admin-only buttons for non-admins
   if (!isAdmin) {
