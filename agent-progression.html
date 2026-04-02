@@ -337,36 +337,70 @@ function rAgent(name) {
 
 // ==================== LOAD DATA FROM SUPABASE WITH LARGE LIMIT ====================
 async function loadFromSupabase() {
-const { data, error } = await supabase
-  .from('agent_daily_stats')
-  .select('*')
-  .order('date', { ascending: true })
-  .range(0, 999999);   // alternative to limit
-
-  if (error) {
-    console.error('Supabase error:', error);
-    showToast('Could not load data from database.', false);
+  // First, get the total count of rows
+  const { count, error: countError } = await supabase
+    .from('agent_daily_stats')
+    .select('*', { count: 'exact', head: true });
+  
+  if (countError) {
+    console.error('Count error:', countError);
+    showToast('Could not get row count: ' + countError.message, false);
     return false;
   }
-
-  console.log(`Loaded ${data?.length || 0} daily rows from Supabase`); // debug
-
-  if (!data || data.length === 0) {
-    // No data – show empty state and upload zone
+  
+  console.log(`Total rows in agent_daily_stats: ${count}`);
+  
+  if (count === 0) {
     document.getElementById('uploadZone').style.display = 'block';
     document.getElementById('fbar').classList.remove('show');
     document.getElementById('mainContent').classList.add('hidden');
     document.getElementById('emptyState').classList.remove('hidden');
     return false;
   }
-
+  
+  // Fetch all rows using pagination (range)
+  const PAGE_SIZE = 1000;
+  let allData = [];
+  let start = 0;
+  let end = PAGE_SIZE - 1;
+  
+  while (start < count) {
+    const { data, error } = await supabase
+      .from('agent_daily_stats')
+      .select('*')
+      .order('date', { ascending: true })
+      .range(start, end);
+    
+    if (error) {
+      console.error('Supabase error:', error);
+      showToast('Could not load data: ' + error.message, false);
+      return false;
+    }
+    
+    if (data && data.length > 0) {
+      allData = allData.concat(data);
+    }
+    start += PAGE_SIZE;
+    end += PAGE_SIZE;
+  }
+  
+  console.log(`Loaded ${allData.length} daily rows from Supabase (total count: ${count})`);
+  
+  if (allData.length === 0) {
+    document.getElementById('uploadZone').style.display = 'block';
+    document.getElementById('fbar').classList.remove('show');
+    document.getElementById('mainContent').classList.add('hidden');
+    document.getElementById('emptyState').classList.remove('hidden');
+    return false;
+  }
+  
   // Group by agent_name
   const groups = {};
-  for (const row of data) {
+  for (const row of allData) {
     if (!groups[row.agent_name]) groups[row.agent_name] = [];
     groups[row.agent_name].push(row);
   }
-
+  
   ALL = {};
   for (const agentName in groups) {
     const dr = groups[agentName].map(row => ({
@@ -378,7 +412,7 @@ const { data, error } = await supabase
     }));
     ALL[agentName] = aggregateFromDailyRows(dr);
   }
-
+  
   // Data exists – hide upload zone, show dashboard
   document.getElementById('uploadZone').style.display = 'none';
   document.getElementById('fbar').classList.add('show');
@@ -396,7 +430,6 @@ const { data, error } = await supabase
   rAgent(CA);
   return true;
 }
-
 // ==================== DELETE ALL DATA ====================
 async function deleteAllData() {
   if (!isAdmin) return;
