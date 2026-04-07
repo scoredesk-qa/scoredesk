@@ -185,44 +185,51 @@ function ibadge(r) {
   return '<span class="ib ibok">' + r.toFixed(1) + '%</span>';
 }
 
-// ==================== AGGREGATION – exact copy from old hf() ====================
+// ==================== AGGREGATION – FIXED WEEKLY GROUPING ====================
 function aggregateAgentData(dr) {
-  const act = dr.filter(r => r.calls > 0);
-  if (!act.length) return null;
-  const tc2 = dr.reduce((s, r) => s + r.calls, 0);
-  const ti = dr.reduce((s, r) => s + r.ignored, 0);
-  const ir = tc2 > 0 ? parseFloat((ti / tc2 * 100).toFixed(2)) : 0;
-  const ws2 = dr.reduce((s, r) => s + r.avgMin * r.calls, 0);
-  const at = tc2 > 0 ? parseFloat((ws2 / tc2).toFixed(1)) : 0;
-  const sd = dr.map(r => r.date).sort((a, b) => a - b);
-  const fmt = d => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  const dateRange = fmt(sd[0]) + ' – ' + fmt(sd[sd.length - 1]);
-  const avgPerDay = act.length > 0 ? parseFloat((tc2 / act.length).toFixed(1)) : 0;
+   const act = dr.filter(r => r.calls > 0);
+   if (!act.length) return null;
+   const tc2 = dr.reduce((s, r) => s + r.calls, 0);
+   const ti = dr.reduce((s, r) => s + r.ignored, 0);
+   const ir = tc2 > 0 ? parseFloat((ti / tc2 * 100).toFixed(2)) : 0;
+   const ws2 = dr.reduce((s, r) => s + r.avgMin * r.calls, 0);
+   const at = tc2 > 0 ? parseFloat((ws2 / tc2).toFixed(1)) : 0;
+   const sd = dr.map(r => r.date).sort((a, b) => a - b);
+   const fmt = d => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+   const dateRange = fmt(sd[0]) + ' – ' + fmt(sd[sd.length - 1]);
+   const avgPerDay = act.length > 0 ? parseFloat((tc2 / act.length).toFixed(1)) : 0;
 
-  const wm = {};
-  dr.forEach(r => {
-    const day = r.date.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
-    const mon = new Date(r.date);
-    mon.setDate(r.date.getDate() + diff);
-    const wk = 'W' + gwk(r.date);
-    const ms = r.date.toLocaleDateString('en-GB', { month: 'short' });
-    const k = mon.toISOString().slice(0, 10);
-    if (!wm[k]) wm[k] = { label: wk, monthShort: ms, calls: 0, ignored: 0, totalHrs: 0, talkSum: 0, mon };
-    wm[k].calls += r.calls;
-    wm[k].ignored += r.ignored;
-    wm[k].totalHrs += r.totalHrs;
-    wm[k].talkSum += r.avgMin * r.calls;
-  });
-  const weekly = Object.values(wm).sort((a, b) => a.mon - b.mon).map(w => ({
-    label: w.label,
-    monthShort: w.monthShort,
-    calls: w.calls,
-    ignored: w.ignored,
-    ignRate: w.calls > 0 ? parseFloat((w.ignored / w.calls * 100).toFixed(1)) : 0,
-    avgMin: w.calls > 0 ? parseFloat((w.talkSum / w.calls).toFixed(1)) : 0,
-    totalHrs: parseFloat(w.totalHrs.toFixed(1))
-  }));
+   const wm = {};
+   dr.forEach(r => {
+     // Calculate Monday of the week (local time, not UTC)
+     const date = new Date(r.date);
+     const day = date.getDay();
+     const diff = day === 0 ? -6 : 1 - day;
+     const monday = new Date(date);
+     monday.setDate(date.getDate() + diff);
+     
+     // Create key using local date string (YYYY-MM-DD)
+     const k = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+     
+     const wk = 'W' + gwk(r.date);
+     const ms = r.date.toLocaleDateString('en-GB', { month: 'short' });
+     
+     if (!wm[k]) wm[k] = { label: wk, monthShort: ms, calls: 0, ignored: 0, totalHrs: 0, talkSum: 0, monday };
+     wm[k].calls += r.calls;
+     wm[k].ignored += r.ignored;
+     wm[k].totalHrs += r.totalHrs;
+     wm[k].talkSum += r.avgMin * r.calls;
+   });
+   
+   const weekly = Object.values(wm).sort((a, b) => a.monday - b.monday).map(w => ({
+     label: w.label,
+     monthShort: w.monthShort,
+     calls: w.calls,
+     ignored: w.ignored,
+     ignRate: w.calls > 0 ? parseFloat((w.ignored / w.calls * 100).toFixed(1)) : 0,
+     avgMin: w.calls > 0 ? parseFloat((w.talkSum / w.calls).toFixed(1)) : 0,
+     totalHrs: parseFloat(w.totalHrs.toFixed(1))
+   }));
 
   const mm = {};
   dr.forEach(r => {
