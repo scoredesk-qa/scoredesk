@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ScoreDesk – Agent Progression</title>
+<title>ScoreDesk – Agent Progression (Fixed Weekly)</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
@@ -105,7 +105,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   <div class="page-hdr">
     <div class="page-eyebrow">Call Analytics</div>
     <div class="page-title">Agent Progression</div>
-    <div class="page-sub">Upload a ZZPS 3CX CallStats Excel — data stored in Supabase</div>
+    <div class="page-sub">Upload a ZZPS 3CX CallStats Excel — data stored in Supabase (fixed weekly grouping)</div>
   </div>
 
   <div class="upload-zone" id="uploadZone" style="display:none;">
@@ -154,15 +154,33 @@ let CA = null;
 let currentUser = null;
 let isAdmin = false;
 
-// ==================== ORIGINAL WORKING HELPERS (unchanged) ====================
-function gwk(d) {
-  const dt = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  const day = dt.getUTCDay() || 7;
-  dt.setUTCDate(dt.getUTCDate() + 4 - day);
-  const ys = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1));
-  return Math.ceil((((dt - ys) / 86400000) + 1) / 7);
+// ==================== LOCAL DATE HELPER (fixes week grouping) ====================
+function getMondayLocal(date) {
+  const d = new Date(date);
+  const day = d.getDay(); // 0 = Sunday
+  const diff = day === 0 ? -6 : 1 - day; // Monday offset
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
 }
 
+function formatLocalYMD(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function getWeekNumberLocal(date) {
+  const monday = getMondayLocal(date);
+  // Create a copy in UTC to avoid DST issues for week calculation
+  const utcMonday = new Date(Date.UTC(monday.getFullYear(), monday.getMonth(), monday.getDate()));
+  const yearStart = new Date(Date.UTC(utcMonday.getUTCFullYear(), 0, 1));
+  const days = Math.floor((utcMonday - yearStart) / (24 * 3600 * 1000));
+  return Math.ceil((days + 1) / 7);
+}
+
+// ==================== ORIGINAL WORKING HELPERS (unchanged except gwk replaced) ====================
 function tm(v) {
   if (v instanceof Date) return v.getHours() * 60 + v.getMinutes() + v.getSeconds() / 60;
   if (typeof v === 'number') return v * 24 * 60;
@@ -185,52 +203,47 @@ function ibadge(r) {
   return '<span class="ib ibok">' + r.toFixed(1) + '%</span>';
 }
 
-// ==================== AGGREGATION – FIXED WEEKLY GROUPING ====================
+// ==================== AGGREGATION – FIXED WEEKLY GROUPING (local dates) ====================
 function aggregateAgentData(dr) {
-   const act = dr.filter(r => r.calls > 0);
-   if (!act.length) return null;
-   const tc2 = dr.reduce((s, r) => s + r.calls, 0);
-   const ti = dr.reduce((s, r) => s + r.ignored, 0);
-   const ir = tc2 > 0 ? parseFloat((ti / tc2 * 100).toFixed(2)) : 0;
-   const ws2 = dr.reduce((s, r) => s + r.avgMin * r.calls, 0);
-   const at = tc2 > 0 ? parseFloat((ws2 / tc2).toFixed(1)) : 0;
-   const sd = dr.map(r => r.date).sort((a, b) => a - b);
-   const fmt = d => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-   const dateRange = fmt(sd[0]) + ' – ' + fmt(sd[sd.length - 1]);
-   const avgPerDay = act.length > 0 ? parseFloat((tc2 / act.length).toFixed(1)) : 0;
+  const act = dr.filter(r => r.calls > 0);
+  if (!act.length) return null;
+  const tc2 = dr.reduce((s, r) => s + r.calls, 0);
+  const ti = dr.reduce((s, r) => s + r.ignored, 0);
+  const ir = tc2 > 0 ? parseFloat((ti / tc2 * 100).toFixed(2)) : 0;
+  const ws2 = dr.reduce((s, r) => s + r.avgMin * r.calls, 0);
+  const at = tc2 > 0 ? parseFloat((ws2 / tc2).toFixed(1)) : 0;
+  const sd = dr.map(r => r.date).sort((a, b) => a - b);
+  const fmt = d => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const dateRange = fmt(sd[0]) + ' – ' + fmt(sd[sd.length - 1]);
+  const avgPerDay = act.length > 0 ? parseFloat((tc2 / act.length).toFixed(1)) : 0;
 
-   const wm = {};
-   dr.forEach(r => {
-     // Calculate Monday of the week (local time, not UTC)
-     const date = new Date(r.date);
-     const day = date.getDay();
-     const diff = day === 0 ? -6 : 1 - day;
-     const monday = new Date(date);
-     monday.setDate(date.getDate() + diff);
-     
-     // Create key using local date string (YYYY-MM-DD)
-     const k = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
-     
-     const wk = 'W' + gwk(r.date);
-     const ms = r.date.toLocaleDateString('en-GB', { month: 'short' });
-     
-     if (!wm[k]) wm[k] = { label: wk, monthShort: ms, calls: 0, ignored: 0, totalHrs: 0, talkSum: 0, monday };
-     wm[k].calls += r.calls;
-     wm[k].ignored += r.ignored;
-     wm[k].totalHrs += r.totalHrs;
-     wm[k].talkSum += r.avgMin * r.calls;
-   });
-   
-   const weekly = Object.values(wm).sort((a, b) => a.monday - b.monday).map(w => ({
-     label: w.label,
-     monthShort: w.monthShort,
-     calls: w.calls,
-     ignored: w.ignored,
-     ignRate: w.calls > 0 ? parseFloat((w.ignored / w.calls * 100).toFixed(1)) : 0,
-     avgMin: w.calls > 0 ? parseFloat((w.talkSum / w.calls).toFixed(1)) : 0,
-     totalHrs: parseFloat(w.totalHrs.toFixed(1))
-   }));
+  // Weekly grouping using local Monday
+  const wm = {};
+  dr.forEach(r => {
+    const monday = getMondayLocal(r.date);
+    const key = formatLocalYMD(monday);
+    const weekNum = getWeekNumberLocal(r.date);
+    const label = 'W' + weekNum;
+    const monthShort = monday.toLocaleDateString('en-GB', { month: 'short' });
+    if (!wm[key]) {
+      wm[key] = { label, monthShort, calls: 0, ignored: 0, totalHrs: 0, talkSum: 0, mon: monday };
+    }
+    wm[key].calls += r.calls;
+    wm[key].ignored += r.ignored;
+    wm[key].totalHrs += r.totalHrs;
+    wm[key].talkSum += r.avgMin * r.calls;
+  });
+  const weekly = Object.values(wm).sort((a, b) => a.mon - b.mon).map(w => ({
+    label: w.label,
+    monthShort: w.monthShort,
+    calls: w.calls,
+    ignored: w.ignored,
+    ignRate: w.calls > 0 ? parseFloat((w.ignored / w.calls * 100).toFixed(1)) : 0,
+    avgMin: w.calls > 0 ? parseFloat((w.talkSum / w.calls).toFixed(1)) : 0,
+    totalHrs: parseFloat(w.totalHrs.toFixed(1))
+  }));
 
+  // Monthly grouping (unchanged)
   const mm = {};
   dr.forEach(r => {
     const k = r.date.getFullYear() * 100 + r.date.getMonth();
@@ -266,7 +279,7 @@ function aggregateAgentData(dr) {
   };
 }
 
-// ==================== UI RENDERING (exact copy from old version) ====================
+// ==================== UI RENDERING (exact copy from original) ====================
 const GC = 'rgba(255,255,255,0.05)';
 const TK = { color: '#6b7694', font: { family: 'DM Mono, monospace', size: 10 } };
 function tc() { return { backgroundColor: '#191d28', borderColor: '#242938', borderWidth: 1, titleColor: '#e8ecf4', bodyColor: '#6b7694' }; }
@@ -328,7 +341,7 @@ function rAgent(name) {
   const wks = d.weekly, labels = wks.map(w => w.label), calls = wks.map(w => w.calls), ignored = wks.map(w => w.ignored), avgMin = wks.map(w => w.avgMin);
   const hasCrisis = d.ignRate >= 5, isNew = d.days <= 25;
   const banner = hasCrisis ? '<div class="abanner">⚠️ <strong>Overall ignore rate is ' + d.ignRate.toFixed(2) + '%</strong> — requires immediate attention.</div>' : isNew ? '<div class="ibanner">ℹ️ New agent — limited data (' + d.dateRange + ').</div>' : '';
-  document.getElementById('agView').innerHTML = '<p class="ameta">' + name + ' · ' + d.dateRange + ' · ' + d.days + ' active days · avg ' + d.avgPerDay + ' calls/day</p>' + banner + '<div class="krow"><div class="kcard"><div class="klbl">Total Calls</div><div class="kval cb">' + d.totalCalls.toLocaleString() + '</div><div class="ksub">over ' + d.days + ' active days</div></div><div class="kcard"><div class="klbl">Avg Calls / Day</div><div class="kval">' + d.avgPerDay + '</div><div class="ksub">range: ' + (Math.min(...calls.filter(c => c > 0)) || 0) + ' – ' + Math.max(...calls) + '</div></div><div class="kcard"><div class="klbl">Avg Talk Time</div><div class="kval cg">' + d.avgTalk + '<span style="font-size:16px"> min</span></div><div class="ksub">per call (weighted)</div></div><div class="kcard' + (hasCrisis ? ' danger' : '') + '"><div class="klbl">Ignore Rate</div><div class="kval' + (hasCrisis ? ' cr' : '') + '">' + d.ignRate.toFixed(2) + '<span style="font-size:16px">%</span></div><div class="ksub">' + d.totalIgnored + ' of ' + d.totalCalls.toLocaleString() + ' calls</div></div></div><div class="crow"><div class="cc"><div class="clbl">Calls per week</div><div class="leg"><span class="li"><span class="ld" style="background:var(--accent)"></span>Answered</span><span class="li"><span class="ld" style="background:var(--fail)"></span>Ignored</span></div><div style="position:relative;height:200px"><canvas id="cC"></canvas></div></div><div class="cc"><div class="clbl">Avg talk time / week</div><div class="leg"><span class="li"><span class="ld" style="background:var(--pass)"></span>Avg talk</span><span class="li"><span class="ldash"></span>Overall avg</span></div><div style="position:relative;height:200px"><canvas id="cT"></canvas></div></div></div><div class="cc full" style="margin-bottom:16px"><div class="clbl">Monthly summary</div><div style="position:relative;height:190px"><canvas id="cM"></canvas></div></div><div class="cc"><div class="clbl">Weekly breakdown</div><table class="dt"><thead><tr><th>Week</th><th>Month</th><th>Calls</th><th>Ignored</th><th>Ignore %</th><th>Avg Talk</th><th>Total Talk</th></tr></thead><tbody id="cTbl"></tbody></tr></div>';
+  document.getElementById('agView').innerHTML = '<p class="ameta">' + name + ' · ' + d.dateRange + ' · ' + d.days + ' active days · avg ' + d.avgPerDay + ' calls/day</p>' + banner + '<div class="krow"><div class="kcard"><div class="klbl">Total Calls</div><div class="kval cb">' + d.totalCalls.toLocaleString() + '</div><div class="ksub">over ' + d.days + ' active days</div></div><div class="kcard"><div class="klbl">Avg Calls / Day</div><div class="kval">' + d.avgPerDay + '</div><div class="ksub">range: ' + (Math.min(...calls.filter(c => c > 0)) || 0) + ' – ' + Math.max(...calls) + '</div></div><div class="kcard"><div class="klbl">Avg Talk Time</div><div class="kval cg">' + d.avgTalk + '<span style="font-size:16px"> min</span></div><div class="ksub">per call (weighted)</div></div><div class="kcard' + (hasCrisis ? ' danger' : '') + '"><div class="klbl">Ignore Rate</div><div class="kval' + (hasCrisis ? ' cr' : '') + '">' + d.ignRate.toFixed(2) + '<span style="font-size:16px">%</span></div><div class="ksub">' + d.totalIgnored + ' of ' + d.totalCalls.toLocaleString() + ' calls</div></div></div><div class="crow"><div class="cc"><div class="clbl">Calls per week</div><div class="leg"><span class="li"><span class="ld" style="background:var(--accent)"></span>Answered</span><span class="li"><span class="ld" style="background:var(--fail)"></span>Ignored</span></div><div style="position:relative;height:200px"><canvas id="cC"></canvas></div></div><div class="cc"><div class="clbl">Avg talk time / week</div><div class="leg"><span class="li"><span class="ld" style="background:var(--pass)"></span>Avg talk</span><span class="li"><span class="ldash"></span>Overall avg</span></div><div style="position:relative;height:200px"><canvas id="cT"></canvas></div></div></div><div class="cc full" style="margin-bottom:16px"><div class="clbl">Monthly summary</div><div style="position:relative;height:190px"><canvas id="cM"></canvas></div></div><div class="cc"><div class="clbl">Weekly breakdown</div><table class="dt"><thead><tr><th>Week</th><th>Month</th><th>Calls</th><th>Ignored</th><th>Ignore %</th><th>Avg Talk</th><th>Total Talk</th></tr></thead><tbody id="cTbl"></tbody></table></div>';
   AC.push(new Chart(document.getElementById('cC'), { type: 'bar', data: { labels, datasets: [{ label: 'Answered', data: calls, backgroundColor: 'rgba(79,140,255,.75)', borderRadius: 3, stack: 'a' }, { label: 'Ignored', data: ignored, backgroundColor: 'rgba(244,63,94,.75)', borderRadius: 3, stack: 'a' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { mode: 'index', ...tc() } }, scales: { x: { stacked: true, grid: { display: false }, ticks: TK }, y: { stacked: true, grid: { color: GC }, ticks: TK } } } }));
   AC.push(new Chart(document.getElementById('cT'), { type: 'line', data: { labels, datasets: [{ label: 'Avg talk', data: avgMin, borderColor: '#22d3a0', backgroundColor: 'rgba(34,211,160,.07)', fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: '#22d3a0', order: 2 }, { label: 'Overall', data: Array(labels.length).fill(d.avgTalk), borderColor: 'rgba(244,63,94,.6)', borderDash: [5, 4], borderWidth: 2, pointRadius: 0, fill: false, order: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { ...tc() } }, scales: { x: { grid: { display: false }, ticks: TK }, y: { grid: { color: GC }, ticks: { ...TK, callback: v => v + 'm' }, min: 0 } } } }));
   AC.push(new Chart(document.getElementById('cM'), { type: 'bar', data: { labels: d.monthly.map(m => m.month), datasets: [{ label: 'Calls', data: d.monthly.map(m => m.calls), backgroundColor: 'rgba(79,140,255,.7)', borderRadius: 3, yAxisID: 'y' }, { label: 'Avg talk', data: d.monthly.map(m => m.avgMin), backgroundColor: 'rgba(34,211,160,.5)', borderRadius: 3, yAxisID: 'y2' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { mode: 'index', ...tc() } }, scales: { x: { grid: { display: false }, ticks: TK }, y: { position: 'left', grid: { color: GC }, ticks: { ...TK, color: '#4f8cff' }, title: { display: true, text: 'Calls', color: '#4f8cff', font: { size: 10 } } }, y2: { position: 'right', grid: { display: false }, ticks: { ...TK, color: '#22d3a0', callback: v => v + 'm' }, title: { display: true, text: 'Avg talk', color: '#22d3a0', font: { size: 10 } }, min: 0 } } } }));
@@ -336,7 +349,7 @@ function rAgent(name) {
   tbody.innerHTML = '';
   wks.forEach(w => {
     const flag = w.ignRate >= 5 ? '<span style="font-size:10px;background:rgba(244,63,94,.1);color:var(--fail);padding:1px 6px;border-radius:4px;margin-left:4px;font-family:\'DM Mono\',monospace">high</span>' : '';
-    tbody.innerHTML += '<tr><td style="font-family:\'DM Mono\',monospace">' + w.label + '</td><td style="color:var(--muted);font-family:\'DM Mono\',monospace">' + w.monthShort + '</td><td>' + w.calls + '</td><td style="color:var(--muted)">' + w.ignored + '</td><td>' + ibadge(w.ignRate) + flag + '</td><td style="font-family:\'DM Mono\',monospace">' + w.avgMin + ' min</td><td style="font-family:\'DM Mono\',monospace;color:var(--muted)">' + w.totalHrs + ' hrs</td></tr>';
+    tbody.innerHTML += `<tr><td style="font-family:'DM Mono',monospace">${w.label}</td><td style="color:var(--muted);font-family:'DM Mono',monospace">${w.monthShort}</td><td>${w.calls}</td><td style="color:var(--muted)">${w.ignored}</td><td>${ibadge(w.ignRate)}${flag}</td><td style="font-family:'DM Mono',monospace">${w.avgMin} min</td><td style="font-family:'DM Mono',monospace;color:var(--muted)">${w.totalHrs} hrs</td></tr>`;
   });
 
   // Consistency check
@@ -435,7 +448,7 @@ async function loadFromSupabase() {
   return true;
 }
 
-// ==================== UPLOAD – deduplication + batch upsert ====================
+// ==================== UPLOAD – deduplication + batch upsert (unchanged) ====================
 async function parseAndUpload(file) {
   const reader = new FileReader();
   reader.onload = async function(e) {
