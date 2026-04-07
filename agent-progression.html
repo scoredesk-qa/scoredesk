@@ -329,7 +329,7 @@ function rAgent(name) {
   tbody.innerHTML = '';
   wks.forEach(w => {
     const flag = w.ignRate >= 5 ? '<span style="font-size:10px;background:rgba(244,63,94,.1);color:var(--fail);padding:1px 6px;border-radius:4px;margin-left:4px;font-family:\'DM Mono\',monospace">high</span>' : '';
-    tbody.innerHTML += '<tr><td style="font-family:\'DM Mono\',monospace">' + w.label + '</td><td style="color:var(--muted);font-family:\'DM Mono\',monospace">' + w.monthShort + 'NonNull<' + w.calls + '</td><td style="color:var(--muted)">' + w.ignored + '</td><a style="font-family:monospace">' + ibadge(w.ignRate) + flag + '</a></td><td style="font-family:\'DM Mono\',monospace">' + w.avgMin + ' min</td><td style="font-family:\'DM Mono\',monospace;color:var(--muted)">' + w.totalHrs + ' hrs</td></table>';
+    tbody.innerHTML += '<tr><td style="font-family:\'DM Mono\',monospace">' + w.label + '</td><td style="color:var(--muted);font-family:\'DM Mono\',monospace">' + w.monthShort + '</td><td>' + w.calls + '</td><td style="color:var(--muted)">' + w.ignored + '</td><td>' + ibadge(w.ignRate) + flag + '</td><td style="font-family:\'DM Mono\',monospace">' + w.avgMin + ' min</td><td style="font-family:\'DM Mono\',monospace;color:var(--muted)">' + w.totalHrs + ' hrs</td></tr>';
   });
 
   // Consistency check
