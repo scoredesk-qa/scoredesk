@@ -188,59 +188,54 @@ function ignoreBadge(r) {
 }
 
 // ========== core aggregation (weekly + monthly) ==========
-function aggregateAgentData(dr) {
-  const act = dr.filter(r => r.calls > 0);
-  if (!act.length) return null;
+function aggregateAgentData(dailyRecords) {
+  const activeDays = dailyRecords.filter(r => r.calls > 0);
+  if (!activeDays.length) return null;
 
-  const tc2 = dr.reduce((s, r) => s + r.calls, 0);
-  const ti = dr.reduce((s, r) => s + r.ignored, 0);
-  const ir = tc2 > 0 ? parseFloat((ti / tc2 * 100).toFixed(2)) : 0;
+  const totalCalls = dailyRecords.reduce((s, r) => s + r.calls, 0);
+  const totalIgnored = dailyRecords.reduce((s, r) => s + r.ignored, 0);
+  const ignRate = totalCalls > 0 ? parseFloat((totalIgnored / totalCalls * 100).toFixed(2)) : 0;
 
-  const ws2 = dr.reduce((s, r) => s + r.avgMin * r.calls, 0);
-  const at = tc2 > 0 ? parseFloat((ws2 / tc2).toFixed(1)) : 0;
+  const weightedTalkSum = dailyRecords.reduce((s, r) => s + (r.avgMin * r.calls), 0);
+  const avgTalk = totalCalls > 0 ? parseFloat((weightedTalkSum / totalCalls).toFixed(1)) : 0;
 
-  const sd = dr.map(r => r.date).sort((a, b) => a - b);
+  const sortedDates = dailyRecords.map(r => r.date).sort((a, b) => a - b);
   const fmt = d => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  const dateRange = fmt(sd[0]) + ' – ' + fmt(sd[sd.length - 1]);
+  const dateRange = fmt(sortedDates[0]) + ' – ' + fmt(sortedDates[sortedDates.length - 1]);
+  const avgPerDay = activeDays.length > 0 ? parseFloat((totalCalls / activeDays.length).toFixed(1)) : 0;
 
-  const avgPerDay = act.length > 0 ? parseFloat((tc2 / act.length).toFixed(1)) : 0;
+  // ----- WEEKLY (local Monday) -----
+  const weeklyMap = new Map(); // key = YYYY-MM-DD of Monday
 
-  // ==================== WEEKLY LOGIC ====================
-  const wm = {};
+  for (const r of dailyRecords) {
+    const d = new Date(r.date);
+    const dayOfWeek = d.getDay(); // 0 = Sunday
+    const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(d);
+    monday.setDate(d.getDate() + daysToMonday);
+    monday.setHours(0, 0, 0, 0);
+    const key = monday.toISOString().slice(0, 10); // local date string
 
-  dr.forEach(r => {
-    const day = r.date.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
-
-    const mon = new Date(r.date);
-    mon.setHours(0, 0, 0, 0);
-    mon.setDate(mon.getDate() + diff);
-
-    const wk = 'W' + gwk(mon);
-
-    const ms = r.date.toLocaleDateString('en-GB', { month: 'short' });
-    const k = mon.toISOString().slice(0, 10);
-
-    if (!wm[k]) {
-      wm[k] = {
-        label: wk,
-        monthShort: ms,
+    if (!weeklyMap.has(key)) {
+      weeklyMap.set(key, {
+        label: 'W' + getWeekNumberLocal(monday),
+        monthShort: monday.toLocaleDateString('en-GB', { month: 'short' }),
         calls: 0,
         ignored: 0,
-        totalHrs: 0,
         talkSum: 0,
-        mon
-      };
+        totalHrs: 0,
+        monday: monday
+      });
     }
+    const w = weeklyMap.get(key);
+    w.calls += r.calls;
+    w.ignored += r.ignored;
+    w.talkSum += r.avgMin * r.calls;
+    w.totalHrs += r.totalHrs;
+  }
 
-    wm[k].calls += r.calls;
-    wm[k].ignored += r.ignored;
-    wm[k].totalHrs += r.totalHrs;
-    wm[k].talkSum += r.avgMin * r.calls;
-  });
-
-  const weekly = Object.values(wm)
-    .sort((a, b) => a.mon - b.mon)
+  const weekly = Array.from(weeklyMap.values())
+    .sort((a, b) => a.monday - b.monday)
     .map(w => ({
       label: w.label,
       monthShort: w.monthShort,
@@ -251,22 +246,22 @@ function aggregateAgentData(dr) {
       totalHrs: parseFloat(w.totalHrs.toFixed(1))
     }));
 
-  // ==================== MONTHLY ====================
-  const mm = {};
-  dr.forEach(r => {
-    const k = r.date.getFullYear() * 100 + r.date.getMonth();
-    const mo = r.date.toLocaleDateString('en-GB', { month: 'long' });
-
-    if (!mm[k]) mm[k] = { month: mo, calls: 0, ignored: 0, totalHrs: 0, talkSum: 0 };
-
-    mm[k].calls += r.calls;
-    mm[k].ignored += r.ignored;
-    mm[k].totalHrs += r.totalHrs;
-    mm[k].talkSum += r.avgMin * r.calls;
-  });
-
-  const monthly = Object.keys(mm).sort().map(k => {
-    const m = mm[k];
+  // ----- MONTHLY  -----
+  const monthlyMap = new Map();
+  for (const r of dailyRecords) {
+    const key = r.date.getFullYear() * 100 + r.date.getMonth();
+    const monthName = r.date.toLocaleDateString('en-GB', { month: 'long' });
+    if (!monthlyMap.has(key)) {
+      monthlyMap.set(key, { month: monthName, calls: 0, ignored: 0, talkSum: 0, totalHrs: 0 });
+    }
+    const m = monthlyMap.get(key);
+    m.calls += r.calls;
+    m.ignored += r.ignored;
+    m.talkSum += r.avgMin * r.calls;
+    m.totalHrs += r.totalHrs;
+  }
+  const monthly = Array.from(monthlyMap.keys()).sort().map(k => {
+    const m = monthlyMap.get(k);
     return {
       month: m.month,
       calls: m.calls,
@@ -277,17 +272,17 @@ function aggregateAgentData(dr) {
     };
   });
 
-  return {
-    totalCalls: tc2,
-    totalIgnored: ti,
-    ignRate: ir,
-    avgTalk: at,
-    days: act.length,
-    dateRange,
-    avgPerDay,
-    weekly,
-    monthly
-  };
+  return { totalCalls, totalIgnored, ignRate, avgTalk, days: activeDays.length, dateRange, avgPerDay, weekly, monthly };
+}
+
+// Helper: local week number (ISO-like, Monday based)
+function getWeekNumberLocal(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay() || 7;
+  d.setDate(d.getDate() + 4 - day);
+  const startOfYear = new Date(d.getFullYear(), 0, 1);
+  return Math.ceil((((d - startOfYear) / 86400000) + 1) / 7);
 }
 
 // ========== UI RENDERING ==========
