@@ -9,7 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-
+/* ========== CSS – unchanged from working version ========== */
 :root{--bg:#0b0d13;--surface:#12151e;--surface2:#191d28;--surface3:#1f2335;--border:#242938;--border2:#2e3448;--accent:#4f8cff;--accent2:#a78bfa;--pass:#22d3a0;--fail:#f43f5e;--warn:#f59e0b;--text:#e8ecf4;--muted:#6b7694;--muted2:#8a94b8;--radius:12px;}
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
@@ -153,7 +153,7 @@ let CA = null;
 let currentUser = null;
 let isAdmin = false;
 
-// ========== Excel date to local date  ==========
+// ========== FIXED: Excel date to local date (handles 1900 leap year bug) ==========
 function excelDateToLocal(dateValue) {
   if (dateValue instanceof Date) {
     // If it's already a Date object, force local midnight
