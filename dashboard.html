@@ -8,7 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
 <style>
-/* ========== ALL ORIGINAL DASHBOARD CSS – unchanged except overflow fix ========== */
+/* ========== ALL ORIGINAL CSS (unchanged) ========== */
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap');
 :root{
   --bg:#0b0d13;--surface:#12151e;--surface2:#191d28;--surface3:#1f2335;
@@ -18,11 +18,7 @@
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
-
-/* MAIN */
 .main{max-width:1300px;margin:0 auto;padding:28px 28px;}
-
-/* UPLOAD */
 #uploadBig{border:2px dashed var(--border);border-radius:16px;padding:44px 36px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface);position:relative;margin-bottom:24px;}
 #uploadBig:hover,#uploadBig.drag-over{border-color:var(--accent);background:rgba(79,140,255,.04);}
 #uploadBig input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
@@ -37,8 +33,6 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .add-more-btn{background:var(--surface2);border:1px solid var(--accent);color:var(--accent);padding:7px 16px;border-radius:7px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;z-index:1;position:relative;}
 .view-files-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:7px 14px;border-radius:7px;font-family:'Syne',sans-serif;font-weight:600;font-size:12px;cursor:pointer;white-space:nowrap;z-index:1;position:relative;}
 .view-files-btn:hover{border-color:var(--accent);color:var(--accent);}
-
-/* FILES DRAWER */
 #filesDrawer{display:none;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:20px;}
 #filesDrawer.open{display:block;}
 .drawer-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
@@ -54,8 +48,6 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .file-bar-badge.fail{background:rgba(244,63,94,.12);color:var(--fail);}
 .rm-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:5px;font-size:11px;cursor:pointer;font-family:'Syne',sans-serif;}
 .rm-btn:hover{border-color:var(--fail);color:var(--fail);}
-
-/* SUMMARY */
 .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px;}
 .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;display:flex;flex-direction:column;gap:6px;}
 .stat-label{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;}
@@ -63,8 +55,6 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .c-pass{color:var(--pass);}.c-fail{color:var(--fail);}.c-accent{color:var(--accent);}
 .stat-bar{height:3px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:4px;}
 .stat-bar-fill{height:100%;border-radius:3px;}
-
-/* CHARTS */
 .charts-section{margin-bottom:28px;}
 .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
 .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px 24px;}
@@ -72,15 +62,11 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .chart-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;}
 .chart-title{font-size:14px;font-weight:700;margin-bottom:3px;}
 .chart-sub{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
-
-/* SECTION */
 .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
 .section-title{font-size:17px;font-weight:700;}
 .filter-tabs{display:flex;gap:7px;}
 .tab{font-family:'DM Mono',monospace;font-size:11px;padding:5px 14px;border-radius:6px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);transition:all .15s;}
 .tab.active{background:var(--accent);border-color:var(--accent);color:#fff;}
-
-/* AGENT CARDS */
 .agent-cards{display:flex;flex-direction:column;gap:14px;margin-bottom:36px;}
 .agent-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
 .agent-card-header{display:flex;align-items:center;gap:14px;padding:15px 20px;cursor:pointer;transition:background .15s;user-select:none;}
@@ -97,8 +83,6 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .calls-count{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
 .chevron{color:var(--muted);transition:transform .2s;font-size:13px;}
 .chevron.open{transform:rotate(180deg);}
-
-/* TABLE – FIXED: add horizontal scroll */
 .calls-table-wrap{border-top:1px solid var(--border);display:none;overflow-x:auto;width:100%;}
 .calls-table-wrap.open{display:block;}
 table{width:100%;border-collapse:collapse;min-width:600px;}
@@ -114,8 +98,6 @@ tr:hover td{background:rgba(79,140,255,.03);}
 .fail-reason{font-family:'DM Mono',monospace;font-size:11px;color:var(--auto);background:rgba(232,121,249,.08);border:1px solid rgba(232,121,249,.18);padding:3px 9px;border-radius:5px;display:inline-block;max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .action-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 12px;border-radius:6px;font-size:11px;font-family:'Syne',sans-serif;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;}
 .action-btn:hover{border-color:var(--accent);color:var(--accent);}
-
-/* MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:999;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s;}
 .modal-overlay.open{opacity:1;pointer-events:all;}
 .modal{background:var(--surface);border:1px solid var(--border);border-radius:18px;width:100%;max-width:720px;max-height:92vh;overflow-y:auto;transform:translateY(14px);transition:transform .2s;}
@@ -156,19 +138,13 @@ tr:hover td{background:rgba(79,140,255,.03);}
 .save-btn{background:var(--accent);color:#fff;border:none;padding:8px 18px;border-radius:7px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;margin-top:8px;transition:all .15s;}
 .save-btn:hover{background:#3a7aee;}
 .save-ok{color:var(--pass);font-family:'DM Mono',monospace;font-size:11px;margin-top:5px;display:none;}
-
-/* ACCOUNT MODAL */
 .acct-row{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 13px;margin-bottom:6px;}
 .acct-name{font-family:'DM Mono',monospace;font-size:12px;flex:1;}
 .acct-input{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-family:'DM Mono',monospace;font-size:12px;flex:1;width:100%;margin-bottom:8px;}
 .acct-input:focus{outline:none;border-color:var(--accent);}
-
-/* LOADING */
 #loadingOverlay{position:fixed;inset:0;background:rgba(11,13,19,.8);display:none;align-items:center;justify-content:center;z-index:9998;}
 .spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
-
-/* TOAST */
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(70px);background:var(--surface2);border:1px solid var(--border);padding:11px 20px;border-radius:9px;font-size:13px;font-weight:600;z-index:9999;transition:transform .3s cubic-bezier(.4,0,.2,1);}
 .toast.show{transform:translateX(-50%) translateY(0);}
 .toast.ok{border-color:var(--pass);color:var(--pass);}
@@ -182,7 +158,6 @@ tr:hover td{background:rgba(79,140,255,.03);}
 
 <div id="loadingOverlay" style="display:none;"><div class="spinner"></div></div>
 
-<!-- APP (no login screen, no header) -->
 <div id="app" class="hidden">
   <div class="main">
     <div id="uploadBig">
@@ -206,7 +181,6 @@ tr:hover td{background:rgba(79,140,255,.03);}
       <div id="filesList"></div>
     </div>
 
-    <!-- DASHBOARD -->
     <div id="dashSection" class="hidden">
       <div class="summary-grid" id="summaryGrid"></div>
       <div class="charts-section">
@@ -242,7 +216,6 @@ tr:hover td{background:rgba(79,140,255,.03);}
   </div>
 </div>
 
-<!-- CALL DETAIL MODAL -->
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <div class="modal-top"><div><div class="modal-agent" id="mName"></div><div class="modal-meta" id="mMeta"></div></div><button class="modal-close" id="closeCallModalBtn">✕</button></div>
@@ -250,7 +223,6 @@ tr:hover td{background:rgba(79,140,255,.03);}
   </div>
 </div>
 
-<!-- ACCOUNT MODAL -->
 <div class="modal-overlay" id="accountModalOverlay">
   <div class="modal" style="max-width:500px;">
     <div class="modal-top"><div><div class="modal-agent">Manage Accounts</div><div class="modal-meta">Create logins for quality agents</div></div><button class="modal-close" id="closeAcctModalBtn">✕</button></div>
@@ -271,7 +243,6 @@ tr:hover td{background:rgba(79,140,255,.03);}
 <div class="toast" id="toast"></div>
 
 <script>
-// Supabase configuration
 const SUPABASE_URL = 'https://qbvjgiamqzkscdykenvi.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFidmpnaWFtcXprc2NkeWtlbnZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwMzUxMTIsImV4cCI6MjA5MDYxMTExMn0.OeV5qa9y_PCGw6nG0wbfPfiMBjYC_jvzsUXHOip1RTU';
 
@@ -285,11 +256,21 @@ let currentAgentName = null;
 let weeklyChartInst = null, stackedChartInst = null, agentChartInst = null;
 const CHART_CFG = { gridColor:'rgba(255,255,255,0.06)', tickFont:{ family:'DM Mono, monospace', size:11 } };
 
-// ---------- Helper functions ----------
 function showLoading(on) { document.getElementById('loadingOverlay').style.display = on ? 'flex' : 'none'; }
 function showToast(msg, ok) { var t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast' + (ok === true ? ' ok' : ok === false ? ' err' : ''); t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); }
 
-// ---------- Initialization ----------
+// Ensure we have a valid user ID before any insert
+async function ensureUserId() {
+  if (currentUser && currentUser.id) return currentUser.id;
+  // Try to fetch fresh session
+  const { data: { session } } = await sb.auth.getSession();
+  if (session && session.user) {
+    currentUser = session.user;
+    return currentUser.id;
+  }
+  throw new Error('Not authenticated. Please log out and log in again.');
+}
+
 window.addEventListener('load', async () => {
   try {
     if (typeof window.supabase === 'undefined') throw new Error('Supabase SDK not loaded');
@@ -330,7 +311,6 @@ async function onLogin() {
   showLoading(false);
 }
 
-// ========== ALL ORIGINAL DASHBOARD FUNCTIONS (unchanged except removed agent notes) ==========
 async function loadScorecards() {
   let query = sb.from('scorecards').select('*').order('created_at',{ascending:true});
   if (!isAdmin && currentAgentName) {
@@ -405,24 +385,56 @@ function appendFileBar(fileName,sc){
   document.getElementById('filesList').appendChild(div);
 }
 
+// ========== FIXED PARSE FUNCTION ==========
 async function parseFile(file) {
   var reader = new FileReader();
   reader.onload = async function(e) {
     try {
-      var wb = XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      // First, ensure we have a valid user ID
+      let userId;
+      try {
+        userId = await ensureUserId();
+      } catch (err) {
+        showToast('Authentication error: ' + err.message, false);
+        return;
+      }
+
+      var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
       var ws = wb.Sheets[wb.SheetNames[0]];
-      var rows = XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      var rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
       var sc = extractScorecard(rows, file.name);
       if (!sc) { showToast('Could not parse: '+file.name, false); return; }
-      var dup = await sb.from('scorecards').select('id').eq('file_name',file.name).eq('agent_name',sc.name);
-      if (dup.data && dup.data.length>0) { showToast('Already uploaded: '+file.name); return; }
+
+      var dup = await sb.from('scorecards').select('id').eq('file_name', file.name).eq('agent_name', sc.name);
+      if (dup.data && dup.data.length > 0) { showToast('Already uploaded: '+file.name); return; }
+
       showLoading(true);
-      var ins = await sb.from('scorecards').insert({ agent_name:sc.name, file_name:file.name, call_date:sc.callDate, auditor:sc.auditor, account_ref:sc.account, pass:sc.pass, pf_reason:sc.pfReason, auto_fails:sc.autoFails, criteria:sc.criteria, uploaded_by:currentUser.id });
+      // Insert with the valid user ID
+      var ins = await sb.from('scorecards').insert({
+        agent_name: sc.name,
+        file_name: file.name,
+        call_date: sc.callDate,
+        auditor: sc.auditor,
+        account_ref: sc.account,
+        pass: sc.pass,
+        pf_reason: sc.pfReason,
+        auto_fails: sc.autoFails,
+        criteria: sc.criteria,
+        uploaded_by: userId
+      });
       showLoading(false);
-      if (ins.error) { showToast('Save failed: '+ins.error.message, false); return; }
-      showToast('Saved: '+sc.name, true);
+      if (ins.error) {
+        console.error('Insert error:', ins.error);
+        showToast('Save failed: ' + ins.error.message, false);
+        return;
+      }
+      showToast('Saved: ' + sc.name, true);
       await loadScorecards();
-    } catch(err) { console.error(err); showToast('Error: '+file.name, false); showLoading(false); }
+    } catch(err) {
+      console.error(err);
+      showToast('Error: ' + err.message, false);
+      showLoading(false);
+    }
   };
   reader.readAsArrayBuffer(file);
 }
@@ -515,7 +527,6 @@ function renderCharts(){
   agentChartInst=new Chart(gs('agentChart'),{type:'bar',data:{labels:weeks,datasets:[{label:'Scored',data:tc,backgroundColor:'rgba(79,140,255,0.7)',borderRadius:4,borderSkipped:false}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:Object.assign({},tt,{callbacks:{label:ctx=>' '+ctx.parsed.y+' scored'}})},scales:{x:{ticks:{color:'#6b7694',font:CHART_CFG.tickFont},grid:{color:CHART_CFG.gridColor}},y:{ticks:{color:'#6b7694',font:CHART_CFG.tickFont,stepSize:1},grid:{color:CHART_CFG.gridColor}}}}});
 }
 
-// ========== renderCards – NO agent notes section ==========
 function renderCards(agents,filter){
   var filtered=agents.filter(a=>{if(filter==='pass')return a.calls.every(c=>c.pass);if(filter==='fail')return a.calls.some(c=>!c.pass);return true;});
   var container=document.getElementById('agentCards');container.innerHTML='';
@@ -532,7 +543,7 @@ function renderCards(agents,filter){
       +'<div class="agent-card-stats"><span class="mini-badge '+cls+'">'+lbl+'</span><span class="calls-count">'+tot+' call'+(tot!==1?'s':'')+'</span></div>'
       +'<span class="chevron" id="'+cid+'-chev">\u25be</span></div>'
       +'<div class="calls-table-wrap" id="'+cid+'">'
-      +'<table><thead><th>#</th><th>Call Date</th><th>Auditor</th><th>Status</th><th>Fail Reason</th><th>Detail</th></thead><tbody>'+rows+'</tbody></table>'
+      +'</td><thead><th>#</th><th>Call Date</th><th>Auditor</th><th>Status</th><th>Fail Reason</th><th>Detail</th></thead><tbody>'+rows+'</tbody></table>'
       +'</div>';
     container.appendChild(card);
   });
@@ -547,7 +558,6 @@ function callRow(c,idx){
 function toggleCard(id){document.getElementById(id).classList.toggle('open');document.getElementById(id+'-chev').classList.toggle('open');}
 function filterAgents(f,btn){currentFilter=f;document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));btn.classList.add('active');renderCards(Object.values(agentMap),f);}
 
-// ========== MODIFIED openModal – only call notes (no agent notes) ==========
 async function openModal(key){
   var dec=decodeURIComponent(key),parts=dec.split('||'),name=parts[0],fn=parts[1];
   var c=agentMap[name]&&agentMap[name].calls.find(x=>x.fileName===fn);
@@ -558,91 +568,39 @@ async function openModal(key){
   if(!c.pass&&c.autoFails&&c.autoFails.length){html+='<div class="af-box"><div class="af-box-title">⚠️ Auto-Fail Triggers</div>';c.autoFails.forEach(af=>{html+='<div class="af-row"><div class="af-q">'+af.label+'</div><div class="af-result">FAILED — '+af.val+'</div>'+(af.fb?'<div class="af-fb">'+af.fb+'</div>':'')+'</div>';});html+='</div>';}
   var secs=[];if(c.criteria)c.criteria.forEach(cr=>{if(secs.indexOf(cr.section)===-1)secs.push(cr.section);});
   secs.forEach(sec=>{var items=c.criteria.filter(cr=>cr.section===sec);html+='<div><div class="sec-title">'+(sec||'General')+'</div><div class="criteria-list">';items.forEach(cr=>{var r=cr.score!==null?cr.score/cr.weight:-1,cls=r<0?'na':r>=1?'full':r>0?'partial':'zero',disp=cr.score!==null?(cr.score+' / '+cr.weight):('-- / '+cr.weight);html+='<div class="cr-item"><div class="cr-top"><span class="cr-label">'+cr.label+'</span><span class="cr-wt">Max: '+cr.weight+'</span><span class="cr-pts '+cls+'">'+disp+'</span></div>'+(cr.feedback?'<div class="cr-fb">'+cr.feedback+'</div>':'')+'</div>';});html+='</div></div>';});
-
   var nr=await sb.from('notes').select('content').eq('note_key','call:'+key).single();
   var en=(nr.data&&nr.data.content)?nr.data.content:'';
-
-  // Only show editable note area if admin
   if (isAdmin) {
     html+='<div><div class="notes-lbl">Notes for this call</div><textarea class="notes-area" id="callNoteArea" placeholder="Notes about this call...">'+en+'</textarea><div style="display:flex;align-items:center;gap:10px;margin-top:8px;"><button class="save-btn" onclick="saveCallNote()">Save Notes</button><span class="save-ok" id="callSaveOk">✓ Saved</span></div></div>';
   } else if (en) {
-    // Non‑admin: show existing notes as read‑only
     html+='<div><div class="notes-lbl">Notes for this call</div><div style="background:var(--surface2);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;">'+escapeHtml(en)+'</div></div>';
   }
   document.getElementById('mBody').innerHTML=html;
   document.getElementById('modalOverlay').classList.add('open');
 }
-
 function closeModal(){document.getElementById('modalOverlay').classList.remove('open');}
 async function saveCallNote(){notes_upsert('call:'+currentCallKey,document.getElementById('callNoteArea').value,'callSaveOk');}
+function escapeHtml(str) { return str.replace(/[&<>]/g, function(m) { if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; return m; }).replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, function(c) { return c; }); }
+async function notes_upsert(key,val,okId){ if (!isAdmin) return; await sb.from('notes').upsert({note_key:key,content:val,updated_by:currentUser.id},{onConflict:'note_key'}); var ok=document.getElementById(okId); if(ok){ok.style.display='block';setTimeout(()=>ok.style.display='none',2000);} }
 
-// Helper to escape HTML
-function escapeHtml(str) {
-  return str.replace(/[&<>]/g, function(m) {
-    if (m === '&') return '&amp;';
-    if (m === '<') return '&lt;';
-    if (m === '>') return '&gt;';
-    return m;
-  }).replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, function(c) {
-    return c;
-  });
-}
-
-async function notes_upsert(key,val,okId){
-  if (!isAdmin) return; // Only admins can save notes
-  await sb.from('notes').upsert({note_key:key,content:val,updated_by:currentUser.id},{onConflict:'note_key'});
-  var ok=document.getElementById(okId);
-  if(ok){ok.style.display='block';setTimeout(()=>ok.style.display='none',2000);}
-}
-
-// ---------- Account management (unchanged) ----------
-function openAccountModal() {
-  document.getElementById('accountModalOverlay').classList.add('open');
-  document.getElementById('accountList').innerHTML = '<p style="font-family:monospace;font-size:12px;color:var(--muted);margin-bottom:12px;">To view or remove existing users, visit <a href="https://supabase.com/dashboard" target="_blank" style="color:var(--accent);">Supabase Dashboard</a> → Authentication → Users.</p>';
-}
+// Account management (unchanged)
+function openAccountModal() { document.getElementById('accountModalOverlay').classList.add('open'); document.getElementById('accountList').innerHTML = '<p style="font-family:monospace;font-size:12px;color:var(--muted);margin-bottom:12px;">To view or remove existing users, visit <a href="https://supabase.com/dashboard" target="_blank" style="color:var(--accent);">Supabase Dashboard</a> → Authentication → Users.</p>'; }
 function closeAccountModal() { document.getElementById('accountModalOverlay').classList.remove('open'); }
-
-async function createAccount() {
-  var email = document.getElementById('newEmail').value.trim();
-  var agentName = document.getElementById('newAgentName').value.trim();
-  var pass  = document.getElementById('newPassword').value.trim();
-  var msg   = document.getElementById('accountMsg');
-  if (!email||!pass) { showAcctMsg('Email and password required', false); return; }
-  if (pass.length<6) { showAcctMsg('Password must be at least 6 characters', false); return; }
-  if (!agentName) { showAcctMsg('Agent Name is required', false); return; }
-  showLoading(true);
-  var r = await sb.auth.signUp({
-    email, password: pass,
-    options: { data: { role: 'agent', agent_name: agentName } }
-  });
-  showLoading(false);
-  if (r.error) { showAcctMsg(r.error.message, false); }
-  else { document.getElementById('newEmail').value=''; document.getElementById('newAgentName').value=''; document.getElementById('newPassword').value=''; showAcctMsg('Account created: '+email+' (agent: '+agentName+')', true); }
-}
+async function createAccount() { var email = document.getElementById('newEmail').value.trim(); var agentName = document.getElementById('newAgentName').value.trim(); var pass  = document.getElementById('newPassword').value.trim(); var msg   = document.getElementById('accountMsg'); if (!email||!pass) { showAcctMsg('Email and password required', false); return; } if (pass.length<6) { showAcctMsg('Password must be at least 6 characters', false); return; } if (!agentName) { showAcctMsg('Agent Name is required', false); return; } showLoading(true); var r = await sb.auth.signUp({ email, password: pass, options: { data: { role: 'agent', agent_name: agentName } } }); showLoading(false); if (r.error) { showAcctMsg(r.error.message, false); } else { document.getElementById('newEmail').value=''; document.getElementById('newAgentName').value=''; document.getElementById('newPassword').value=''; showAcctMsg('Account created: '+email+' (agent: '+agentName+')', true); } }
 function showAcctMsg(msg,ok){ var el=document.getElementById('accountMsg'); el.textContent=msg; el.style.color=ok?'var(--pass)':'var(--fail)'; el.style.display='block'; setTimeout(()=>el.style.display='none',5000); }
 
-// ---------- Event Listeners ----------
 document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('chooseBtnEl').addEventListener('click', e => { e.stopPropagation(); document.getElementById('fileInputBig').click(); });
   document.getElementById('viewFilesBtnEl').addEventListener('click', e => { e.stopPropagation(); toggleFilesDrawer(); });
   document.getElementById('addMoreBtnEl').addEventListener('click', e => { e.stopPropagation(); document.getElementById('fileInputCompact').click(); });
   document.getElementById('closeDrawerBtnEl').addEventListener('click', toggleFilesDrawer);
-
   document.getElementById('fileInputBig').addEventListener('change', e => { Array.from(e.target.files).forEach(parseFile); e.target.value = ''; });
   document.getElementById('fileInputCompact').addEventListener('change', e => { Array.from(e.target.files).forEach(parseFile); e.target.value = ''; });
-
   var ub = document.getElementById('uploadBig');
   ub.addEventListener('dragover', e => { e.preventDefault(); ub.classList.add('drag-over'); });
   ub.addEventListener('dragleave', () => { ub.classList.remove('drag-over'); });
   ub.addEventListener('drop', e => { e.preventDefault(); ub.classList.remove('drag-over'); Array.from(e.dataTransfer.files).forEach(parseFile); });
-
-  document.querySelectorAll('.filter-tabs .tab').forEach(btn => {
-    btn.addEventListener('click', function() {
-      var f = this.getAttribute('data-filter') || 'all';
-      filterAgents(f, this);
-    });
-  });
-
+  document.querySelectorAll('.filter-tabs .tab').forEach(btn => { btn.addEventListener('click', function() { var f = this.getAttribute('data-filter') || 'all'; filterAgents(f, this); }); });
   document.getElementById('modalOverlay').addEventListener('click', e => { if(e.target===this) closeModal(); });
   document.getElementById('closeCallModalBtn').addEventListener('click', closeModal);
   document.getElementById('accountModalOverlay').addEventListener('click', e => { if(e.target===this) closeAccountModal(); });
