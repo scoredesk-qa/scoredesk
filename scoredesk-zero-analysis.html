@@ -276,6 +276,9 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 let sb = null, currentUser = null, isAdmin = false, agentName = null, allScorecards = [];
 
+// ---------- NEW: Global variable to store team leaderboard data for download ----------
+window.__teamRows = [];
+
 function showLoading(on) { document.getElementById('loadingOverlay').style.display = on ? 'flex' : 'none'; }
 function showToast(msg, ok) {
   const t = document.getElementById('toast');
@@ -539,12 +542,16 @@ function renderAll() {
     typeBadge: `<span class="source-tag" style="background:rgba(244,63,94,.08);border-color:rgba(244,63,94,.2);color:var(--fail);white-space:nowrap">Zero Score</span>`
   }));
 
-  // FIXED TABLE HEADERS – removed stray "Bon" and ensured proper </thead>
+  // ---------- NEW: Store teamRows globally for download ----------
+  window.__teamRows = teamRows;
+
+  // FIXED TABLE HEADERS – with download button added
   html += `<div class="section-hdr">
     <div class="section-hdr-left">
       <div><div class="section-label">Team Overview</div><div class="section-title">Zero Score Leaderboard</div></div>
       <span class="section-count">${teamRows.length} criteria</span>
     </div>
+    ${teamRows.length > 0 ? `<button class="action-btn" onclick="downloadLeaderboardXlsx()">⬇ &nbsp;Download XLSX</button>` : ''}
   </div>
   <div class="table-card">
     <table class="zero-table">
@@ -703,6 +710,29 @@ function renderAll() {
   }
 
   container.innerHTML = html;
+}
+
+// ---------- NEW: Download leaderboard as XLSX ----------
+function downloadLeaderboardXlsx() {
+  const rows = window.__teamRows || [];
+  if (!rows.length) {
+    showToast('No data to download', false);
+    return;
+  }
+  const data = rows.map((r, i) => ({
+    Rank: i + 1,
+    Criteria: r.label,
+    Section: r.section || '—',
+    Type: r.badge.includes('Auto-Fail') ? 'Auto-Fail' : 'Zero Score',
+    Count: r.count,
+    'Affected Agents': Object.entries(r.agents)
+      .map(([agent, count]) => `${agent} (${count})`)
+      .join(', ')
+  }));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(data);
+  XLSX.utils.book_append_sheet(wb, ws, 'Team Overview');
+  XLSX.writeFile(wb, 'Zero_Score_Leaderboard.xlsx');
 }
 
 function toggleAgent(id) {
