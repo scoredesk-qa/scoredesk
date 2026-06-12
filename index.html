@@ -9,16 +9,17 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75' fill='%234f8cff'>📋</text></svg>">
 <style>
 :root {
-  --bg: #07080f;
-  --surface: #0e1018;
-  --surface2: #13161f;
-  --border: #1e2233;
-  --border2: #252a3a;
+  --bg: #0a0c12;
+  --surface: #10131c;
+  --surface2: #161b26;
+  --surface3: #1e2434;
+  --border: #222837;
+  --border2: #2b3245;
   --accent: #4f8cff;
   --accent2: #a78bfa;
   --text: #e8ecf4;
-  --muted: #5a6285;
-  --muted2: #7b85a8;
+  --muted: #5f6a87;
+  --muted2: #7a86a8;
   --pass: #22d3a0;
   --fail: #f43f5e;
 }
@@ -237,7 +238,7 @@ iframe {
 }
 iframe.active { display: block; }
 
-/* MODAL */
+/* MODAL (same as before) */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -411,6 +412,9 @@ iframe.active { display: block; }
       <button class="nav-tab" onclick="switchTab('progression')">
         <span class="nav-tab-dot"></span> 📈 Agent Progression
       </button>
+      <button class="nav-tab" onclick="switchTab('admin')">
+        <span class="nav-tab-dot"></span> 🕒 Admin Analysis
+      </button>
     </div>
     <div class="hdr-right">
       <span class="hdr-user" id="headerUser" onclick="openProfileModal()">Manage account</span>
@@ -421,10 +425,11 @@ iframe.active { display: block; }
     <iframe id="frame-dashboard" class="active" src="dashboard.html"></iframe>
     <iframe id="frame-analysis" src="scoredesk-zero-analysis.html"></iframe>
     <iframe id="frame-progression" src="agent-progression.html"></iframe>
+    <iframe id="frame-admin" src="admin-analysis.html"></iframe>
   </div>
 </div>
 
-<!-- PROFILE MODAL (manage account) -->
+<!-- PROFILE MODAL (unchanged) -->
 <div class="modal-overlay" id="profileModal">
   <div class="modal">
     <div class="modal-top">
@@ -456,14 +461,13 @@ iframe.active { display: block; }
 <div class="toast" id="toast"></div>
 
 <script>
-// ==================== SUPABASE CONFIG ====================
+// Supabase config (same as before)
 const SUPABASE_URL = 'https://qbvjgiamqzkscdykenvi.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFidmpnaWFtcXprc2NkeWtlbnZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwMzUxMTIsImV4cCI6MjA5MDYxMTExMn0.OeV5qa9y_PCGw6nG0wbfPfiMBjYC_jvzsUXHOip1RTU';
 
 let sb = null;
 let currentUser = null;
 
-// Helper: show toast message
 function showToast(msg, ok) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -472,7 +476,6 @@ function showToast(msg, ok) {
   setTimeout(() => t.classList.remove('show'), 3000);
 }
 
-// Initialize Supabase client and check session
 window.addEventListener('load', async () => {
   try {
     if (typeof window.supabase === 'undefined') throw new Error('Supabase SDK not loaded');
@@ -491,20 +494,17 @@ window.addEventListener('load', async () => {
   }
 });
 
-// Password visibility toggle
 document.getElementById('passToggle').addEventListener('click', function() {
   const inp = document.getElementById('loginPass');
   inp.type = inp.type === 'password' ? 'text' : 'password';
   this.textContent = inp.type === 'password' ? '👁' : '🙈';
 });
 
-// Login event handlers
 document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 document.getElementById('loginBtn').addEventListener('click', doLogin);
 document.getElementById('logoutBtn').addEventListener('click', doLogout);
 document.getElementById('updatePasswordBtn').addEventListener('click', updatePassword);
 
-// Login function
 async function doLogin() {
   const email = document.getElementById('loginEmail').value.trim();
   const pass = document.getElementById('loginPass').value;
@@ -531,28 +531,28 @@ async function doLogin() {
   showApp();
 }
 
-// Show main application after login
 function showApp() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
-  document.getElementById('headerUser').textContent = currentUser.email; // Show email as "manage account" clickable
-  // Reload iframes to ensure fresh content
-  document.getElementById('frame-dashboard').src = 'dashboard.html';
-  document.getElementById('frame-analysis').src = 'scoredesk-zero-analysis.html';
-  document.getElementById('frame-progression').src = 'agent-progression.html';
-  // Ensure first tab is active
+  document.getElementById('headerUser').textContent = currentUser.email;
+  // Reload iframes with a cache-buster to ensure fresh session
+  const timestamp = Date.now();
+  document.getElementById('frame-dashboard').src = 'dashboard.html?t='+timestamp;
+  document.getElementById('frame-analysis').src = 'scoredesk-zero-analysis.html?t='+timestamp;
+  document.getElementById('frame-progression').src = 'agent-progression.html?t='+timestamp;
+  document.getElementById('frame-admin').src = 'admin-analysis.html?t='+timestamp;
+  // activate first tab
   setTimeout(() => {
     document.querySelectorAll('.nav-tab').forEach((t, i) => t.classList.toggle('active', i === 0));
     document.getElementById('frame-dashboard').classList.add('active');
     document.getElementById('frame-analysis').classList.remove('active');
     document.getElementById('frame-progression').classList.remove('active');
+    document.getElementById('frame-admin').classList.remove('active');
   }, 100);
 }
 
-// Logout: sign out, clear local storage, reload page to login
 async function doLogout() {
   await sb.auth.signOut();
-  // Clear any Supabase session data from localStorage
   const storageKeys = Object.keys(localStorage);
   for (const key of storageKeys) {
     if (key.includes('supabase.auth.token') || key.includes('sb-')) {
@@ -562,7 +562,6 @@ async function doLogout() {
   window.location.href = window.location.pathname;
 }
 
-// Tab switching (3 tabs)
 function switchTab(name) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('iframe').forEach(f => f.classList.remove('active'));
@@ -575,10 +574,12 @@ function switchTab(name) {
   } else if (name === 'progression') {
     document.querySelectorAll('.nav-tab')[2].classList.add('active');
     document.getElementById('frame-progression').classList.add('active');
+  } else if (name === 'admin') {
+    document.querySelectorAll('.nav-tab')[3].classList.add('active');
+    document.getElementById('frame-admin').classList.add('active');
   }
 }
 
-// Profile modal (manage account)
 function openProfileModal() {
   const modal = document.getElementById('profileModal');
   document.getElementById('profileEmail').value = currentUser.email;
@@ -591,12 +592,10 @@ function closeProfileModal() {
   document.getElementById('profileModal').classList.remove('open');
 }
 
-// Update password
 async function updatePassword() {
   const newPass = document.getElementById('newPassword').value.trim();
   const confirmPass = document.getElementById('confirmPassword').value.trim();
   const msgDiv = document.getElementById('profileMsg');
-
   if (!newPass) {
     msgDiv.textContent = 'Please enter a new password.';
     msgDiv.style.color = 'var(--fail)';
@@ -615,7 +614,6 @@ async function updatePassword() {
     msgDiv.style.display = 'block';
     return;
   }
-
   try {
     const { error } = await sb.auth.updateUser({ password: newPass });
     if (error) throw error;
