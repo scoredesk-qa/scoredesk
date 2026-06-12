@@ -6,7 +6,7 @@
     <title>AdminTrack · Agent Daily Analysis</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
     <style>
-        /* (same as before, unchanged – keep your existing CSS) */
+        /* All styles remain exactly as in the previous working version */
         @import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         :root {
@@ -468,31 +468,52 @@
         };
     }
 
+    // ========== FIXED saveSessionRows – no ON CONFLICT, manual duplicate check ==========
     async function saveSessionRows(rows) {
-        // rows: array of { date, agent, start, end, secs }
         let inserted = 0;
         let skipped = 0;
         for (const row of rows) {
-            // Check for exact duplicate using upsert with conflict on (date, agent_name, start_time, end_time)
-            const { error } = await sb
+            // Check if the exact session already exists
+            const { data: existing, error: checkError } = await sb
                 .from('admin_sessions')
-                .upsert({
+                .select('id')
+                .eq('date', row.date)
+                .eq('agent_name', row.agent)
+                .eq('start_time', row.start)
+                .eq('end_time', row.end)
+                .maybeSingle();
+
+            if (checkError) {
+                console.error('Duplicate check error:', checkError);
+                showToast(`Error checking duplicate for ${row.agent} ${row.start}: ${checkError.message}`, false);
+                return false;
+            }
+
+            if (existing) {
+                skipped++;
+                continue;
+            }
+
+            // Insert the new row
+            const { error: insertError } = await sb
+                .from('admin_sessions')
+                .insert({
                     date: row.date,
                     agent_name: row.agent,
                     start_time: row.start,
                     end_time: row.end,
                     duration_seconds: row.secs,
                     uploaded_by: currentUser.id
-                }, { onConflict: 'date, agent_name, start_time, end_time', ignoreDuplicates: false });
-            if (error) {
-                console.error('Upsert error:', error);
-                showToast(`Error saving ${row.agent} ${row.start}: ${error.message}`, false);
+                });
+
+            if (insertError) {
+                console.error('Insert error:', insertError);
+                showToast(`Error saving ${row.agent} ${row.start}: ${insertError.message}`, false);
                 return false;
             }
-            // Count if it was inserted or updated (but we just need to know success)
             inserted++;
         }
-        showToast(`Saved ${inserted} sessions (skipped duplicates)`, true);
+        showToast(`Saved ${inserted} new sessions (${skipped} duplicates skipped)`, true);
         return true;
     }
 
@@ -647,7 +668,7 @@
         }
     }
 
-    // UI Rendering functions (unchanged from original but with blue accent)
+    // UI Rendering functions (identical to previous version)
     function renderTable() {
         if(!DATA) return;
         const agentFilter = activeAgent || document.getElementById('agent-filter').value;
