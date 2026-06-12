@@ -6,10 +6,9 @@
     <title>AdminTrack · Agent Daily Analysis</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
     <style>
+        /* (same as before, unchanged – keep your existing CSS) */
         @import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600&display=swap');
-
         * { box-sizing: border-box; margin: 0; padding: 0; }
-
         :root {
             --bg: #0a0c12;
             --surface: #10131c;
@@ -27,7 +26,6 @@
             --font-mono: 'Geist Mono', monospace;
             --r: 6px;
         }
-
         html { font-size: 14px; }
         body {
             background: var(--bg);
@@ -36,14 +34,12 @@
             min-height: 100vh;
             line-height: 1.5;
         }
-
         .shell {
             display: grid;
             grid-template-columns: 240px 1fr;
             grid-template-rows: 48px 1fr;
             min-height: 100vh;
         }
-
         .topbar {
             grid-column: 1 / -1;
             display: flex;
@@ -84,7 +80,6 @@
             cursor: pointer;
         }
         .date-selector:focus { border-color: var(--accent); }
-
         .sidebar {
             border-right: 1px solid var(--border);
             background: var(--surface);
@@ -114,9 +109,7 @@
         .agent-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
         .agent-name { font-size: 12px; font-weight: 500; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .agent-mins { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
-
         .main { overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
-
         #upload-zone {
             display: flex;
             flex-direction: column;
@@ -138,7 +131,6 @@
         #upload-status { margin-top: 14px; font-family: var(--font-mono); font-size: 10px; text-align: center; }
         #upload-status.success { color: var(--green); }
         #upload-status.error { color: var(--red); }
-
         .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
         .stat-card {
             background: var(--surface);
@@ -150,7 +142,6 @@
         .stat-value { font-family: var(--font-mono); font-size: 22px; font-weight: 600; }
         .stat-value span { font-size: 12px; color: var(--muted); font-weight: 400; }
         .stat-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
-
         .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); }
         .panel-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); }
         .panel-title { font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; }
@@ -240,6 +231,25 @@
         .badge { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 10px; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border2); }
         .badge.hi { border-color: var(--accent); color: var(--accent); background: var(--accent-lo); }
         .no-data { color: var(--muted); font-size: 12px; padding: 24px; text-align: center; }
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(70px);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 11px 20px;
+            border-radius: 9px;
+            font-size: 13px;
+            font-weight: 600;
+            z-index: 9999;
+            transition: transform .3s cubic-bezier(.4,0,.2,1);
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+        .toast.ok { border-color: var(--green); color: var(--green); }
+        .toast.err { border-color: var(--red); color: var(--red); }
     </style>
 </head>
 <body>
@@ -317,7 +327,6 @@
 <div id="tooltip"></div>
 
 <script>
-    // Supabase configuration (same as portal)
     const SUPABASE_URL = 'https://qbvjgiamqzkscdykenvi.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFidmpnaWFtcXprc2NkeWtlbnZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwMzUxMTIsImV4cCI6MjA5MDYxMTExMn0.OeV5qa9y_PCGw6nG0wbfPfiMBjYC_jvzsUXHOip1RTU';
 
@@ -326,9 +335,8 @@
     let isAdmin = false;
     let currentAgentName = null;
 
-    // ---------- GLOBALS ----------
-    let allDaysData = {};      // { "YYYY-MM-DD": dataObject }
-    let DATA = null;           // currently active day
+    let allDaysData = {};
+    let DATA = null;
     let activeAgent = null;
     let sortCol = 'start', sortDir = 1;
     let dashboardBuilt = false;
@@ -336,28 +344,38 @@
     const COLORS = ['#4f8cff','#3b82f6','#22c55e','#a78bfa','#ec4899','#14b8a6','#eab308','#ef4444','#6366f1','#84cc16'];
     const agentColor = (agent) => COLORS[Math.abs(agent.split('').reduce((a,b)=>a+b.charCodeAt(0),0) % COLORS.length)];
 
-    // ---------- UI helpers ----------
+    function showToast(msg, isOk) {
+        const t = document.createElement('div');
+        t.className = 'toast' + (isOk === true ? ' ok' : isOk === false ? ' err' : '');
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(() => t.classList.add('show'), 10);
+        setTimeout(() => {
+            t.classList.remove('show');
+            setTimeout(() => t.remove(), 500);
+        }, 4000);
+    }
+
+    function timeToSec(t) { let [h,m,s] = t.split(':').map(Number); return h*3600 + m*60 + (s||0); }
+
     window.showTip = (e, html) => {
         const tip = document.getElementById('tooltip');
         tip.innerHTML = html;
         tip.style.opacity = 1;
-        moveTip(e);
+        const move = (e) => {
+            let x = e.clientX + 14, y = e.clientY - 10;
+            if (x + 200 > window.innerWidth) x = e.clientX - 210;
+            tip.style.left = x + 'px';
+            tip.style.top = y + 'px';
+        };
+        move(e);
+        window.tipMove = move;
     };
     window.hideTip = () => { document.getElementById('tooltip').style.opacity = 0; };
-    function moveTip(e) {
-        const tip = document.getElementById('tooltip');
-        let x = e.clientX + 14, y = e.clientY - 10;
-        if (x + 200 > window.innerWidth) x = e.clientX - 210;
-        tip.style.left = x + 'px';
-        tip.style.top = y + 'px';
-    }
-    document.addEventListener('mousemove', (e) => { if (document.getElementById('tooltip').style.opacity === '1') moveTip(e); });
+    document.addEventListener('mousemove', (e) => { if (document.getElementById('tooltip').style.opacity === '1' && window.tipMove) window.tipMove(e); });
 
     function fmtSecs(s) { let m = Math.floor(s/60), sec = s%60; return m>0 ? `${m}m ${sec}s` : `${sec}s`; }
     function durClass(secs) { if (secs < 60) return 'dur-short'; if (secs < 180) return 'dur-medium'; return 'dur-long'; }
-
-    function timeToSec(t) { let [h,m,s] = t.split(':').map(Number); return h*3600 + m*60 + (s||0); }
-    function secToTime(sec) { let h = Math.floor(sec/3600)%24, m = Math.floor((sec%3600)/60); return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`; }
 
     function distributeSessionToBuckets(startSec, endSec, minBucketSec, maxBucketSec, bucketInterval=1800) {
         const buckets = new Map();
@@ -450,7 +468,34 @@
         };
     }
 
-    // Supabase data operations
+    async function saveSessionRows(rows) {
+        // rows: array of { date, agent, start, end, secs }
+        let inserted = 0;
+        let skipped = 0;
+        for (const row of rows) {
+            // Check for exact duplicate using upsert with conflict on (date, agent_name, start_time, end_time)
+            const { error } = await sb
+                .from('admin_sessions')
+                .upsert({
+                    date: row.date,
+                    agent_name: row.agent,
+                    start_time: row.start,
+                    end_time: row.end,
+                    duration_seconds: row.secs,
+                    uploaded_by: currentUser.id
+                }, { onConflict: 'date, agent_name, start_time, end_time', ignoreDuplicates: false });
+            if (error) {
+                console.error('Upsert error:', error);
+                showToast(`Error saving ${row.agent} ${row.start}: ${error.message}`, false);
+                return false;
+            }
+            // Count if it was inserted or updated (but we just need to know success)
+            inserted++;
+        }
+        showToast(`Saved ${inserted} sessions (skipped duplicates)`, true);
+        return true;
+    }
+
     async function loadSessionsFromSupabase() {
         if (!currentUser) return [];
         let query = sb.from('admin_sessions').select('*');
@@ -459,33 +504,69 @@
         }
         const { data, error } = await query.order('date', { ascending: true });
         if (error) {
-            console.error('Load sessions error:', error);
-            showToast('Failed to load sessions: '+error.message, false);
+            console.error('Load error:', error);
+            showToast('Failed to load sessions: ' + error.message, false);
             return [];
         }
         return data || [];
     }
 
-    async function saveSessionRow(date, agent, start, end, secs) {
-        // Check for duplicate to avoid re-inserting same session
-        const { data: existing } = await sb
-            .from('admin_sessions')
-            .select('id')
-            .eq('date', date)
-            .eq('agent_name', agent)
-            .eq('start_time', start)
-            .eq('end_time', end)
-            .maybeSingle();
-        if (existing) return; // already exists
-        const { error } = await sb.from('admin_sessions').insert({
-            date: date,
-            agent_name: agent,
-            start_time: start,
-            end_time: end,
-            duration_seconds: secs,
-            uploaded_by: currentUser.id
-        });
-        if (error) console.error('Insert error:', error);
+    async function refreshFromSupabase() {
+        const sessions = await loadSessionsFromSupabase();
+        if (sessions.length === 0) {
+            document.getElementById('upload-zone').style.display = isAdmin ? 'flex' : 'none';
+            document.getElementById('dashboard-content').style.display = 'none';
+            return;
+        }
+        const grouped = {};
+        for (const s of sessions) {
+            if (!grouped[s.date]) grouped[s.date] = [];
+            grouped[s.date].push({
+                agent: s.agent_name,
+                start: s.start_time,
+                end: s.end_time,
+                secs: s.duration_seconds
+            });
+        }
+        const newAllDays = {};
+        for (const [date, rows] of Object.entries(grouped)) {
+            const built = buildDataForDate(rows, date);
+            if (built) newAllDays[date] = built;
+        }
+        allDaysData = newAllDays;
+        if (Object.keys(allDaysData).length === 0) {
+            document.getElementById('upload-zone').style.display = isAdmin ? 'flex' : 'none';
+            document.getElementById('dashboard-content').style.display = 'none';
+            return;
+        }
+        document.getElementById('upload-zone').style.display = 'none';
+        document.getElementById('dashboard-content').style.display = '';
+        setActiveDate(Object.keys(allDaysData).sort()[0]);
+    }
+
+    function parseCSVLine(line) {
+        let result=[], cur='', inQuotes=false;
+        for(let ch of line){
+            if(inQuotes){ if(ch==='"') inQuotes=false; else cur+=ch; }
+            else { if(ch==='"') inQuotes=true; else if(ch===',') { result.push(cur.trim()); cur=''; } else cur+=ch; }
+        }
+        result.push(cur.trim());
+        return result;
+    }
+
+    function detectColumns(cols) {
+        let agentIdx=0, startIdx=1, endIdx=2, dateIdx=-1;
+        const lowerCols = cols.map(c=>c.toLowerCase());
+        if(lowerCols.some(c=>c==='agent' || c==='name')) agentIdx = lowerCols.findIndex(c=>c==='agent'||c==='name');
+        if(lowerCols.some(c=>c==='start'||c==='start_time')) startIdx = lowerCols.findIndex(c=>c==='start'||c==='start_time');
+        if(lowerCols.some(c=>c==='end'||c==='end_time')) endIdx = lowerCols.findIndex(c=>c==='end'||c==='end_time');
+        if(lowerCols.some(c=>c==='date')) dateIdx = lowerCols.findIndex(c=>c==='date');
+        return { agentIdx, startIdx, endIdx, dateIdx };
+    }
+
+    function extractDateFromFilename(fname) {
+        let match = fname.match(/(\d{4}-\d{2}-\d{2})/);
+        return match ? match[1] : null;
     }
 
     async function processFiles(files) {
@@ -493,7 +574,7 @@
             showToast('Only administrators can upload files.', false);
             return;
         }
-        let allRows = []; // raw rows { date, agent, start, end, secs }
+        let allRows = [];
         for (const file of files) {
             try {
                 const text = await file.text();
@@ -549,6 +630,7 @@
                         if (!dateVal) dateVal = extractDateFromFilename(file.name);
                         if (!dateVal) continue;
                         let secs = (timeToSec(end) - timeToSec(start) + 86400) % 86400;
+                        if (secs <= 0) continue;
                         allRows.push({ date: dateVal, agent, start, end, secs });
                     }
                 }
@@ -558,74 +640,14 @@
             showToast('No valid session rows found.', false);
             return;
         }
-        showToast(`Saving ${allRows.length} sessions...`, true);
-        for (const row of allRows) {
-            await saveSessionRow(row.date, row.agent, row.start, row.end, row.secs);
+        showToast(`Processing ${allRows.length} sessions...`, true);
+        const success = await saveSessionRows(allRows);
+        if (success) {
+            await refreshFromSupabase();
         }
-        showToast('Upload complete.', true);
-        await refreshFromSupabase();
     }
 
-    function parseCSVLine(line) {
-        let result=[], cur='', inQuotes=false;
-        for(let ch of line){
-            if(inQuotes){ if(ch==='"') inQuotes=false; else cur+=ch; }
-            else { if(ch==='"') inQuotes=true; else if(ch===',') { result.push(cur.trim()); cur=''; } else cur+=ch; }
-        }
-        result.push(cur.trim());
-        return result;
-    }
-
-    function detectColumns(cols) {
-        let agentIdx=0, startIdx=1, endIdx=2, dateIdx=-1;
-        const lowerCols = cols.map(c=>c.toLowerCase());
-        if(lowerCols.some(c=>c==='agent' || c==='name')) agentIdx = lowerCols.findIndex(c=>c==='agent'||c==='name');
-        if(lowerCols.some(c=>c==='start'||c==='start_time')) startIdx = lowerCols.findIndex(c=>c==='start'||c==='start_time');
-        if(lowerCols.some(c=>c==='end'||c==='end_time')) endIdx = lowerCols.findIndex(c=>c==='end'||c==='end_time');
-        if(lowerCols.some(c=>c==='date')) dateIdx = lowerCols.findIndex(c=>c==='date');
-        return { agentIdx, startIdx, endIdx, dateIdx };
-    }
-
-    function extractDateFromFilename(fname) {
-        let match = fname.match(/(\d{4}-\d{2}-\d{2})/);
-        return match ? match[1] : null;
-    }
-
-    async function refreshFromSupabase() {
-        const sessions = await loadSessionsFromSupabase();
-        if (sessions.length === 0) {
-            document.getElementById('upload-zone').style.display = isAdmin ? 'flex' : 'none';
-            document.getElementById('dashboard-content').style.display = 'none';
-            return;
-        }
-        // Group sessions by date
-        const grouped = {};
-        for (const s of sessions) {
-            if (!grouped[s.date]) grouped[s.date] = [];
-            grouped[s.date].push({
-                agent: s.agent_name,
-                start: s.start_time,
-                end: s.end_time,
-                secs: s.duration_seconds
-            });
-        }
-        const newAllDays = {};
-        for (const [date, rows] of Object.entries(grouped)) {
-            const built = buildDataForDate(rows, date);
-            if (built) newAllDays[date] = built;
-        }
-        allDaysData = newAllDays;
-        if (Object.keys(allDaysData).length === 0) {
-            document.getElementById('upload-zone').style.display = isAdmin ? 'flex' : 'none';
-            document.getElementById('dashboard-content').style.display = 'none';
-            return;
-        }
-        document.getElementById('upload-zone').style.display = 'none';
-        document.getElementById('dashboard-content').style.display = '';
-        setActiveDate(Object.keys(allDaysData).sort()[0]);
-    }
-
-    // ---------- UI RENDERING (same as original but with blue accent) ----------
+    // UI Rendering functions (unchanged from original but with blue accent)
     function renderTable() {
         if(!DATA) return;
         const agentFilter = activeAgent || document.getElementById('agent-filter').value;
@@ -646,8 +668,8 @@
         document.getElementById('session-body').innerHTML = filtered.map(r => `
             <tr><td style="color:${agentColor(r.agent)};font-weight:500">${r.agent}</td>
             <td>${r.start}</td><td>${r.end}</td>
-            <td><span class="dur-pill ${durClass(r.secs)}">${r.duration}</span></td></tr>
-        `).join('');
+            <td><span class="dur-pill ${durClass(r.secs)}">${r.duration}</span></td>
+        </tr>`).join('');
     }
 
     function drawTimeline() {
@@ -755,19 +777,6 @@
         } else selector.style.display='none';
     }
 
-    function showToast(msg, ok) {
-        const toast = document.createElement('div');
-        toast.className = 'toast' + (ok === true ? ' ok' : ok === false ? ' err' : '');
-        toast.textContent = msg;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.classList.add('show'), 10);
-        setTimeout(() => {
-            toast.classList.remove('show');
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
-    }
-
-    // ---------- Authentication & init ----------
     async function init() {
         sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
             auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: false }
@@ -788,7 +797,6 @@
             document.getElementById('upload-zone').style.display = 'none';
         }
 
-        // Set up file upload listeners
         const uploadZone = document.getElementById('upload-zone');
         const fileInput = document.getElementById('file-input');
         uploadZone.addEventListener('click', () => fileInput.click());
@@ -804,7 +812,14 @@
             fileInput.value = '';
         });
 
-        await refreshFromSupabase();
+        // Test table access
+        const { error: testError } = await sb.from('admin_sessions').select('id').limit(1);
+        if (testError) {
+            console.error('Table access error:', testError);
+            showToast('Database table "admin_sessions" not accessible. Please create it and set RLS policies.', false);
+        } else {
+            await refreshFromSupabase();
+        }
     }
 
     init();
