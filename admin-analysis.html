@@ -6,7 +6,7 @@
     <title>AdminTrack · Agent Daily Analysis</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
     <style>
-        /* ===== ALL ORIGINAL STYLES – plus a few additions ===== */
+        /* === all styles unchanged from previous working version – keep your existing CSS === */
         @import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         :root {
@@ -485,11 +485,16 @@
         };
     }
 
-    // Save sessions – manual duplicate check (no ON CONFLICT)
+    // ----- Save sessions with manual duplicate check -----
     async function saveSessionRows(rows) {
         let inserted = 0;
         let skipped = 0;
         for (const row of rows) {
+            // Validate time format
+            if (!/^\d{2}:\d{2}:\d{2}$/.test(row.start) || !/^\d{2}:\d{2}:\d{2}$/.test(row.end)) {
+                console.warn(`Skipping invalid time: ${row.agent} ${row.start} - ${row.end}`);
+                continue;
+            }
             const { data: existing, error: checkError } = await sb
                 .from('admin_sessions')
                 .select('id')
@@ -552,7 +557,6 @@
         if (sessions.length === 0) {
             document.getElementById('upload-zone').style.display = isAdmin ? 'flex' : 'none';
             document.getElementById('dashboard-content').style.display = 'none';
-            // Hide add files button when no data
             document.getElementById('addFilesButton').style.display = 'none';
             return;
         }
@@ -580,33 +584,40 @@
         }
         document.getElementById('upload-zone').style.display = 'none';
         document.getElementById('dashboard-content').style.display = '';
-        // Show add files button only for admins
         if (isAdmin) document.getElementById('addFilesButton').style.display = 'inline-block';
         setActiveDate(Object.keys(allDaysData).sort()[0]);
     }
 
+    // ----- Robust CSV parsing -----
     function parseCSVLine(line) {
-        let result=[], cur='', inQuotes=false;
-        for(let ch of line){
-            if(inQuotes){ if(ch==='"') inQuotes=false; else cur+=ch; }
-            else { if(ch==='"') inQuotes=true; else if(ch===',') { result.push(cur.trim()); cur=''; } else cur+=ch; }
+        const result = [];
+        let cur = '';
+        let inQuotes = false;
+        for (let ch of line) {
+            if (inQuotes) {
+                if (ch === '"') inQuotes = false;
+                else cur += ch;
+            } else {
+                if (ch === '"') inQuotes = true;
+                else if (ch === ',') {
+                    result.push(cur.trim());
+                    cur = '';
+                } else cur += ch;
+            }
         }
         result.push(cur.trim());
         return result;
     }
 
-    function detectColumns(cols) {
-        let agentIdx=0, startIdx=1, endIdx=2, dateIdx=-1;
-        const lowerCols = cols.map(c=>c.toLowerCase());
-        if(lowerCols.some(c=>c==='agent' || c==='name')) agentIdx = lowerCols.findIndex(c=>c==='agent'||c==='name');
-        if(lowerCols.some(c=>c==='start'||c==='start_time')) startIdx = lowerCols.findIndex(c=>c==='start'||c==='start_time');
-        if(lowerCols.some(c=>c==='end'||c==='end_time')) endIdx = lowerCols.findIndex(c=>c==='end'||c==='end_time');
-        if(lowerCols.some(c=>c==='date')) dateIdx = lowerCols.findIndex(c=>c==='date');
-        return { agentIdx, startIdx, endIdx, dateIdx };
+    function isHeaderRow(cols) {
+        const lower = cols.map(c => c.toLowerCase());
+        return lower.some(c => c === 'date' || c === 'agent' || c === 'name') &&
+               lower.some(c => c === 'start' || c === 'start_time') &&
+               lower.some(c => c === 'end' || c === 'end_time');
     }
 
     function extractDateFromFilename(fname) {
-        let match = fname.match(/(\d{4}-\d{2}-\d{2})/);
+        const match = fname.match(/(\d{4}-\d{2}-\d{2})/);
         return match ? match[1] : null;
     }
 
@@ -618,62 +629,46 @@
         let allRows = [];
         for (const file of files) {
             try {
-                const text = await file.text();
-                const ext = file.name.split('.').pop().toLowerCase();
-                if (ext === 'json' || (text.trim().startsWith('{') || text.trim().startsWith('['))) {
-                    let json = JSON.parse(text);
-                    let rowsSource = Array.isArray(json) ? json : (json.rows || json.sessions || []);
-                    for (let item of rowsSource) {
-                        let agent = item.agent || item.Agent;
-                        let start = item.start || item.Start;
-                        let end = item.end || item.End;
-                        let dateVal = item.date || item.Date || extractDateFromFilename(file.name);
-                        if (agent && start && end && dateVal) {
-                            let secs = (timeToSec(end) - timeToSec(start) + 86400) % 86400;
-                            allRows.push({ date: dateVal, agent, start, end, secs });
-                        }
-                    }
-                } else { // CSV
-                    const lines = text.split(/\r?\n/).filter(l=>l.trim());
-                    if (!lines.length) continue;
-                    let header = null;
-                    let startRow = 0;
-                    const firstLine = lines[0].toLowerCase();
-                    if (firstLine.includes('agent') || firstLine.includes('start') || firstLine.includes('end') || firstLine.includes('date')) {
-                        header = parseCSVLine(lines[0]);
-                        startRow = 1;
-                    }
-                    for (let i=startRow; i<lines.length; i++) {
-                        const cols = parseCSVLine(lines[i]);
-                        if (cols.length < 3) continue;
-                        let agent, start, end, dateVal = null;
-                        if (header) {
-                            const {agentIdx, startIdx, endIdx, dateIdx} = detectColumns(header);
-                            agent = cols[agentIdx] || '';
-                            start = cols[startIdx] || '';
-                            end = cols[endIdx] || '';
-                            if (dateIdx !== -1) dateVal = cols[dateIdx];
-                        } else {
-                            const isDate = /^\d{4}-\d{2}-\d{2}$/.test(cols[0]);
-                            if (isDate && cols.length >= 4) {
-                                dateVal = cols[0];
-                                agent = cols[1];
-                                start = cols[2];
-                                end = cols[3];
-                            } else {
-                                agent = cols[0];
-                                start = cols[1];
-                                end = cols[2];
-                                dateVal = null;
-                            }
-                        }
-                        if (!agent || !start || !end) continue;
-                        if (!dateVal) dateVal = extractDateFromFilename(file.name);
-                        if (!dateVal) continue;
-                        let secs = (timeToSec(end) - timeToSec(start) + 86400) % 86400;
-                        if (secs <= 0) continue;
-                        allRows.push({ date: dateVal, agent, start, end, secs });
-                    }
+                let text = await file.text();
+                // Remove BOM
+                if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+                const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+                if (lines.length === 0) continue;
+
+                let startIdx = 0;
+                let colMap = null; // { dateIdx, agentIdx, startIdx, endIdx }
+
+                // Check first line for header
+                const firstCols = parseCSVLine(lines[0]);
+                if (isHeaderRow(firstCols)) {
+                    console.log('Detected header row:', firstCols);
+                    const lower = firstCols.map(c => c.toLowerCase());
+                    colMap = {
+                        dateIdx: lower.findIndex(c => c === 'date'),
+                        agentIdx: lower.findIndex(c => c === 'agent' || c === 'name'),
+                        startIdx: lower.findIndex(c => c === 'start' || c === 'start_time'),
+                        endIdx: lower.findIndex(c => c === 'end' || c === 'end_time')
+                    };
+                    startIdx = 1;
+                } else {
+                    // No header – assume column order: date, agent, start, end
+                    colMap = { dateIdx: 0, agentIdx: 1, startIdx: 2, endIdx: 3 };
+                    startIdx = 0;
+                }
+
+                for (let i = startIdx; i < lines.length; i++) {
+                    const cols = parseCSVLine(lines[i]);
+                    if (cols.length < 4) continue;
+                    const dateVal = cols[colMap.dateIdx]?.trim();
+                    const agent = cols[colMap.agentIdx]?.trim();
+                    const start = cols[colMap.startIdx]?.trim();
+                    const end = cols[colMap.endIdx]?.trim();
+                    if (!dateVal || !agent || !start || !end) continue;
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateVal)) continue;
+                    if (!/^\d{2}:\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}:\d{2}$/.test(end)) continue;
+                    const secs = (timeToSec(end) - timeToSec(start) + 86400) % 86400;
+                    if (secs <= 0) continue;
+                    allRows.push({ date: dateVal, agent, start, end, secs });
                 }
             } catch(e) { console.error(e); showToast('Error parsing '+file.name, false); }
         }
@@ -683,13 +678,10 @@
         }
         showToast(`Processing ${allRows.length} sessions...`, true);
         const success = await saveSessionRows(allRows);
-        if (success) {
-            // Automatically reload data after upload
-            await refreshFromSupabase();
-        }
+        if (success) await refreshFromSupabase();
     }
 
-    // ---------- UI rendering functions (unchanged) ----------
+    // ----- UI rendering (unchanged from previous working version) -----
     function renderTable() {
         if(!DATA) return;
         const agentFilter = activeAgent || document.getElementById('agent-filter').value;
@@ -838,13 +830,8 @@
         const addFilesBtn = document.getElementById('addFilesButton');
 
         if (isAdmin) {
-            // Show upload zone only when no data yet (will be hidden by refresh if data exists)
-            // But also provide the button to re-open file picker
             addFilesBtn.style.display = 'inline-block';
-            addFilesBtn.addEventListener('click', () => {
-                fileInput.click(); // trigger file selection
-            });
-            // Reuse the same file input for both initial upload and "Add Files"
+            addFilesBtn.addEventListener('click', () => fileInput.click());
             uploadZone.addEventListener('click', (e) => {
                 if (e.target === uploadZone || e.target.classList.contains('upload-icon') || e.target.classList.contains('upload-title')) {
                     fileInput.click();
@@ -865,7 +852,6 @@
             addFilesBtn.style.display = 'none';
         }
 
-        // Test table access and load data
         const { error: testError } = await sb.from('admin_sessions').select('id').limit(1);
         if (testError) {
             console.error('Table access error:', testError);
