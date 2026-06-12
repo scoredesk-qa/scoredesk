@@ -6,7 +6,7 @@
     <title>AdminTrack · Agent Daily Analysis</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
     <style>
-        /* All styles remain exactly as in the previous working version */
+        /* ===== ALL ORIGINAL STYLES – plus a few additions ===== */
         @import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         :root {
@@ -59,7 +59,7 @@
         }
         .topbar-sep { width: 1px; height: 20px; background: var(--border2); }
         .topbar-title { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
-        .topbar-controls { margin-left: auto; display: flex; gap: 12px; }
+        .topbar-controls { margin-left: auto; display: flex; gap: 12px; align-items: center; }
         .topbar-date {
             font-family: var(--font-mono);
             font-size: 11px;
@@ -80,6 +80,21 @@
             cursor: pointer;
         }
         .date-selector:focus { border-color: var(--accent); }
+        .add-files-btn {
+            background: var(--surface2);
+            border: 1px solid var(--border2);
+            border-radius: var(--r);
+            color: var(--accent);
+            font-family: var(--font-mono);
+            font-size: 11px;
+            padding: 4px 12px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .add-files-btn:hover {
+            border-color: var(--accent);
+            background: var(--accent-lo);
+        }
         .sidebar {
             border-right: 1px solid var(--border);
             background: var(--surface);
@@ -111,7 +126,7 @@
         .agent-mins { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
         .main { overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
         #upload-zone {
-            display: flex;
+            display: none;
             flex-direction: column;
             align-items: center;
             justify-content: center;
@@ -123,7 +138,7 @@
             margin: 12px 0;
             background: var(--surface);
         }
-        #upload-zone:hover, #upload-zone.drag-over { border-color: var(--accent); background: rgba(79,140,255,0.04); }
+        #upload-zone.drag-over { border-color: var(--accent); background: rgba(79,140,255,0.04); }
         .upload-icon { font-size: 44px; margin-bottom: 18px; opacity: 0.8; }
         .upload-title { font-family: var(--font-mono); font-size: 14px; font-weight: 500; margin-bottom: 6px; }
         .upload-sub { color: var(--muted); font-size: 11px; text-align: center; max-width: 360px; }
@@ -250,6 +265,7 @@
         .toast.show { transform: translateX(-50%) translateY(0); }
         .toast.ok { border-color: var(--green); color: var(--green); }
         .toast.err { border-color: var(--red); color: var(--red); }
+        .hidden-file-input { display: none; }
     </style>
 </head>
 <body>
@@ -260,6 +276,7 @@
         <div class="topbar-sep"></div>
         <span class="topbar-title">Per Agent · Per Day Analysis</span>
         <div class="topbar-controls">
+            <button id="addFilesButton" class="add-files-btn" style="display: none;">+ Add Files</button>
             <select class="date-selector" id="date-selector" style="display:none;"></select>
             <span class="topbar-date" id="topbar-date">—</span>
         </div>
@@ -275,7 +292,7 @@
             <div class="upload-icon">📊</div>
             <div class="upload-title">Load Admin Data (CSV/JSON)</div>
             <div class="upload-sub">Drop CSV (date,agent,start,end) or JSON — supports multiple dates & files</div>
-            <input type="file" id="file-input" accept=".csv,.json" multiple style="display:none;">
+            <input type="file" id="file-input" accept=".csv,.json" multiple class="hidden-file-input">
             <div id="upload-status"></div>
         </div>
 
@@ -468,12 +485,11 @@
         };
     }
 
-    // ========== FIXED saveSessionRows – no ON CONFLICT, manual duplicate check ==========
+    // Save sessions – manual duplicate check (no ON CONFLICT)
     async function saveSessionRows(rows) {
         let inserted = 0;
         let skipped = 0;
         for (const row of rows) {
-            // Check if the exact session already exists
             const { data: existing, error: checkError } = await sb
                 .from('admin_sessions')
                 .select('id')
@@ -494,7 +510,6 @@
                 continue;
             }
 
-            // Insert the new row
             const { error: insertError } = await sb
                 .from('admin_sessions')
                 .insert({
@@ -537,6 +552,8 @@
         if (sessions.length === 0) {
             document.getElementById('upload-zone').style.display = isAdmin ? 'flex' : 'none';
             document.getElementById('dashboard-content').style.display = 'none';
+            // Hide add files button when no data
+            document.getElementById('addFilesButton').style.display = 'none';
             return;
         }
         const grouped = {};
@@ -558,10 +575,13 @@
         if (Object.keys(allDaysData).length === 0) {
             document.getElementById('upload-zone').style.display = isAdmin ? 'flex' : 'none';
             document.getElementById('dashboard-content').style.display = 'none';
+            document.getElementById('addFilesButton').style.display = 'none';
             return;
         }
         document.getElementById('upload-zone').style.display = 'none';
         document.getElementById('dashboard-content').style.display = '';
+        // Show add files button only for admins
+        if (isAdmin) document.getElementById('addFilesButton').style.display = 'inline-block';
         setActiveDate(Object.keys(allDaysData).sort()[0]);
     }
 
@@ -664,11 +684,12 @@
         showToast(`Processing ${allRows.length} sessions...`, true);
         const success = await saveSessionRows(allRows);
         if (success) {
+            // Automatically reload data after upload
             await refreshFromSupabase();
         }
     }
 
-    // UI Rendering functions (identical to previous version)
+    // ---------- UI rendering functions (unchanged) ----------
     function renderTable() {
         if(!DATA) return;
         const agentFilter = activeAgent || document.getElementById('agent-filter').value;
@@ -812,28 +833,39 @@
         isAdmin = (currentUser.email === 'admin@scoredesk.com') || (meta.role === 'admin');
         currentAgentName = meta.agent_name || null;
 
-        if (isAdmin) {
-            document.getElementById('upload-zone').style.display = 'flex';
-        } else {
-            document.getElementById('upload-zone').style.display = 'none';
-        }
-
         const uploadZone = document.getElementById('upload-zone');
         const fileInput = document.getElementById('file-input');
-        uploadZone.addEventListener('click', () => fileInput.click());
-        uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
-        uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
-        uploadZone.addEventListener('drop', e => {
-            e.preventDefault();
-            uploadZone.classList.remove('drag-over');
-            if (e.dataTransfer.files.length) processFiles(e.dataTransfer.files);
-        });
-        fileInput.addEventListener('change', () => {
-            if (fileInput.files.length) processFiles(fileInput.files);
-            fileInput.value = '';
-        });
+        const addFilesBtn = document.getElementById('addFilesButton');
 
-        // Test table access
+        if (isAdmin) {
+            // Show upload zone only when no data yet (will be hidden by refresh if data exists)
+            // But also provide the button to re-open file picker
+            addFilesBtn.style.display = 'inline-block';
+            addFilesBtn.addEventListener('click', () => {
+                fileInput.click(); // trigger file selection
+            });
+            // Reuse the same file input for both initial upload and "Add Files"
+            uploadZone.addEventListener('click', (e) => {
+                if (e.target === uploadZone || e.target.classList.contains('upload-icon') || e.target.classList.contains('upload-title')) {
+                    fileInput.click();
+                }
+            });
+            uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+            uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+            uploadZone.addEventListener('drop', e => {
+                e.preventDefault();
+                uploadZone.classList.remove('drag-over');
+                if (e.dataTransfer.files.length) processFiles(e.dataTransfer.files);
+            });
+            fileInput.addEventListener('change', () => {
+                if (fileInput.files.length) processFiles(fileInput.files);
+                fileInput.value = '';
+            });
+        } else {
+            addFilesBtn.style.display = 'none';
+        }
+
+        // Test table access and load data
         const { error: testError } = await sb.from('admin_sessions').select('id').limit(1);
         if (testError) {
             console.error('Table access error:', testError);
