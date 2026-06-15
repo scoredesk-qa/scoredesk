@@ -400,7 +400,7 @@
         const end = endSec;
         if (curStart >= end) return buckets;
         let bucketStart = Math.floor(curStart / bucketInterval) * bucketInterval;
-        while (bucketStart < end && bucketStart < maxBucketSec) {
+        while (bucketStart < end && bucketStart <= maxBucketSec) {
             const bucketEnd = bucketStart + bucketInterval;
             const overlapStart = Math.max(curStart, bucketStart);
             const overlapEnd = Math.min(end, bucketEnd);
@@ -433,7 +433,7 @@
         const firstBucket = Math.floor(minSec / bucketInterval) * bucketInterval;
         const lastBucket = Math.ceil(maxSec / bucketInterval) * bucketInterval;
         const bucketStarts = [];
-        for (let t = firstBucket; t < lastBucket; t += bucketInterval) bucketStarts.push(t);
+        for (let t = firstBucket; t <= lastBucket; t += bucketInterval) bucketStarts.push(t);
         const bucketLabels = bucketStarts.map(bs => { let h = Math.floor(bs/3600), m = (bs%3600)/60; return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`; });
 
         const agents = [...new Set(sessions.map(s => s.agent))].sort();
@@ -485,58 +485,86 @@
         };
     }
 
-    // ----- Save sessions with bulk upsert (ignores duplicates via onConflict) -----
+    // ----- Save sessions: pre-fetch existing keys then bulk insert only new rows -----
     async function saveSessionRows(rows) {
-        // Validate and build payload
+        // 1. Validate rows
         const valid = rows.filter(row => {
             if (!/^\d{2}:\d{2}:\d{2}$/.test(row.start) || !/^\d{2}:\d{2}:\d{2}$/.test(row.end)) {
                 console.warn(`Skipping invalid time: ${row.agent} ${row.start} - ${row.end}`);
                 return false;
             }
             return true;
-        }).map(row => ({
-            date: row.date,
-            agent_name: row.agent,
-            start_time: row.start,
-            end_time: row.end,
-            duration_seconds: row.secs,
-            uploaded_by: currentUser.id
-        }));
+        });
 
         if (valid.length === 0) {
             showToast('No valid rows to save.', false);
             return false;
         }
 
-        // Bulk upsert in chunks of 500 to stay within request size limits
+        // 2. Find the unique dates in this upload
+        const dates = [...new Set(valid.map(r => r.date))];
+
+        // 3. Fetch all existing rows for those dates in one query (avoids N+1)
+        showToast(`Checking ${valid.length} sessions across ${dates.length} day(s)...`, true);
+        const { data: existing, error: fetchErr } = await sb
+            .from('admin_sessions')
+            .select('date, agent_name, start_time, end_time')
+            .in('date', dates)
+            .limit(100000);
+
+        if (fetchErr) {
+            console.error('Pre-fetch error:', fetchErr);
+            showToast('Error checking existing data: ' + fetchErr.message, false);
+            return false;
+        }
+
+        // 4. Build a Set of existing keys for O(1) lookup
+        const existingKeys = new Set(
+            (existing || []).map(r => `${r.date}|${r.agent_name}|${r.start_time}|${r.end_time}`)
+        );
+
+        // 5. Filter to only genuinely new rows
+        const toInsert = valid.filter(r =>
+            !existingKeys.has(`${r.date}|${r.agent}|${r.start}|${r.end}`)
+        ).map(r => ({
+            date: r.date,
+            agent_name: r.agent,
+            start_time: r.start,
+            end_time: r.end,
+            duration_seconds: r.secs,
+            uploaded_by: currentUser.id
+        }));
+
+        const skipped = valid.length - toInsert.length;
+
+        if (toInsert.length === 0) {
+            showToast(`All ${skipped} sessions already exist - nothing new to save.`, true);
+            return true;
+        }
+
+        // 6. Bulk insert in chunks of 500
         const CHUNK = 500;
-        let totalInserted = 0;
-        for (let i = 0; i < valid.length; i += CHUNK) {
-            const chunk = valid.slice(i, i + CHUNK);
-            const { error } = await sb
-                .from('admin_sessions')
-                .upsert(chunk, {
-                    onConflict: 'date,agent_name,start_time,end_time',
-                    ignoreDuplicates: true
-                });
-            if (error) {
-                console.error('Upsert error:', error);
-                // Fallback: try inserting one by one for this chunk to skip duplicates gracefully
-                let chunkInserted = 0;
-                for (const rec of chunk) {
-                    const { error: singleErr } = await sb.from('admin_sessions').insert(rec);
-                    if (!singleErr) chunkInserted++;
-                    // ignore unique-violation errors (code 23505) — those are duplicates
-                }
-                totalInserted += chunkInserted;
+        let inserted = 0;
+        let failed = 0;
+        for (let i = 0; i < toInsert.length; i += CHUNK) {
+            const chunk = toInsert.slice(i, i + CHUNK);
+            const { error: insertErr } = await sb.from('admin_sessions').insert(chunk);
+            if (insertErr) {
+                console.error(`Insert error (chunk ${i}-${i+chunk.length}):`, insertErr);
+                showToast(`Insert error: ${insertErr.message}`, false);
+                failed += chunk.length;
             } else {
-                totalInserted += chunk.length;
+                inserted += chunk.length;
             }
         }
-        showToast(`Saved ${totalInserted} sessions (duplicates skipped automatically)`, true);
+
+        if (failed > 0) {
+            showToast(`Saved ${inserted} sessions. ${failed} failed - check console.`, false);
+            return inserted > 0;
+        }
+        showToast(`Saved ${inserted} new sessions${skipped ? ` (${skipped} already existed)` : ''}.`, true);
         return true;
     }
-
     async function loadSessionsFromSupabase() {
         if (!currentUser) return [];
         let query = sb.from('admin_sessions').select('*');
@@ -585,7 +613,11 @@
         document.getElementById('upload-zone').style.display = 'none';
         document.getElementById('dashboard-content').style.display = '';
         if (isAdmin) document.getElementById('addFilesButton').style.display = 'inline-block';
-        setActiveDate(Object.keys(allDaysData).sort()[0]);
+        const sortedDates = Object.keys(allDaysData).sort();
+        // Default to the most recent date so newly uploaded data is shown first
+        const currentDate = DATA ? DATA.date : null;
+        const targetDate = (currentDate && allDaysData[currentDate]) ? currentDate : sortedDates[sortedDates.length - 1];
+        setActiveDate(targetDate);
     }
 
     // ----- Robust CSV parsing -----
@@ -676,7 +708,8 @@
             showToast('No valid session rows found.', false);
             return;
         }
-        showToast(`Processing ${allRows.length} sessions — saving to database...`, true);
+        const uniqueDates = [...new Set(allRows.map(r => r.date))];
+        showToast(`Parsed ${allRows.length} sessions across ${uniqueDates.length} day(s) — saving...`, true);
         const success = await saveSessionRows(allRows);
         if (success) await refreshFromSupabase();
     }
@@ -803,12 +836,10 @@
         sortCol='start'; sortDir=1;
         resetDashboard();
         const selector = document.getElementById('date-selector');
-        if(Object.keys(allDaysData).length>1){
-            selector.style.display='inline-block';
-            selector.innerHTML = '';
-            Object.keys(allDaysData).sort().forEach(d=>{ let opt = document.createElement('option'); opt.value=d; opt.textContent=d; if(d===dateKey) opt.selected=true; selector.appendChild(opt); });
-            selector.onchange = (e)=> setActiveDate(e.target.value);
-        } else selector.style.display='none';
+        selector.style.display = 'inline-block';
+        selector.innerHTML = '';
+        Object.keys(allDaysData).sort().reverse().forEach(d=>{ let opt = document.createElement('option'); opt.value=d; opt.textContent=d; if(d===dateKey) opt.selected=true; selector.appendChild(opt); });
+        selector.onchange = (e)=> setActiveDate(e.target.value);
     }
 
     async function init() {
