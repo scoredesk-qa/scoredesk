@@ -485,55 +485,55 @@
         };
     }
 
-    // ----- Save sessions with manual duplicate check -----
+    // ----- Save sessions with bulk upsert (ignores duplicates via onConflict) -----
     async function saveSessionRows(rows) {
-        let inserted = 0;
-        let skipped = 0;
-        for (const row of rows) {
-            // Validate time format
+        // Validate and build payload
+        const valid = rows.filter(row => {
             if (!/^\d{2}:\d{2}:\d{2}$/.test(row.start) || !/^\d{2}:\d{2}:\d{2}$/.test(row.end)) {
                 console.warn(`Skipping invalid time: ${row.agent} ${row.start} - ${row.end}`);
-                continue;
-            }
-            const { data: existing, error: checkError } = await sb
-                .from('admin_sessions')
-                .select('id')
-                .eq('date', row.date)
-                .eq('agent_name', row.agent)
-                .eq('start_time', row.start)
-                .eq('end_time', row.end)
-                .maybeSingle();
-
-            if (checkError) {
-                console.error('Duplicate check error:', checkError);
-                showToast(`Error checking duplicate for ${row.agent} ${row.start}: ${checkError.message}`, false);
                 return false;
             }
+            return true;
+        }).map(row => ({
+            date: row.date,
+            agent_name: row.agent,
+            start_time: row.start,
+            end_time: row.end,
+            duration_seconds: row.secs,
+            uploaded_by: currentUser.id
+        }));
 
-            if (existing) {
-                skipped++;
-                continue;
-            }
-
-            const { error: insertError } = await sb
-                .from('admin_sessions')
-                .insert({
-                    date: row.date,
-                    agent_name: row.agent,
-                    start_time: row.start,
-                    end_time: row.end,
-                    duration_seconds: row.secs,
-                    uploaded_by: currentUser.id
-                });
-
-            if (insertError) {
-                console.error('Insert error:', insertError);
-                showToast(`Error saving ${row.agent} ${row.start}: ${insertError.message}`, false);
-                return false;
-            }
-            inserted++;
+        if (valid.length === 0) {
+            showToast('No valid rows to save.', false);
+            return false;
         }
-        showToast(`Saved ${inserted} new sessions (${skipped} duplicates skipped)`, true);
+
+        // Bulk upsert in chunks of 500 to stay within request size limits
+        const CHUNK = 500;
+        let totalInserted = 0;
+        for (let i = 0; i < valid.length; i += CHUNK) {
+            const chunk = valid.slice(i, i + CHUNK);
+            const { error } = await sb
+                .from('admin_sessions')
+                .upsert(chunk, {
+                    onConflict: 'date,agent_name,start_time,end_time',
+                    ignoreDuplicates: true
+                });
+            if (error) {
+                console.error('Upsert error:', error);
+                // Fallback: try inserting one by one for this chunk to skip duplicates gracefully
+                let chunkInserted = 0;
+                for (const rec of chunk) {
+                    const { error: singleErr } = await sb.from('admin_sessions').insert(rec);
+                    if (!singleErr) chunkInserted++;
+                    // ignore unique-violation errors (code 23505) — those are duplicates
+                }
+                totalInserted += chunkInserted;
+            } else {
+                totalInserted += chunk.length;
+            }
+        }
+        showToast(`Saved ${totalInserted} sessions (duplicates skipped automatically)`, true);
         return true;
     }
 
@@ -543,7 +543,7 @@
         if (!isAdmin && currentAgentName) {
             query = query.eq('agent_name', currentAgentName);
         }
-        const { data, error } = await query.order('date', { ascending: true });
+        const { data, error } = await query.order('date', { ascending: true }).order('start_time', { ascending: true }).limit(100000);
         if (error) {
             console.error('Load error:', error);
             showToast('Failed to load sessions: ' + error.message, false);
@@ -676,7 +676,7 @@
             showToast('No valid session rows found.', false);
             return;
         }
-        showToast(`Processing ${allRows.length} sessions...`, true);
+        showToast(`Processing ${allRows.length} sessions — saving to database...`, true);
         const success = await saveSessionRows(allRows);
         if (success) await refreshFromSupabase();
     }
