@@ -68,18 +68,65 @@
             padding: 3px 10px;
             border-radius: var(--r);
         }
-        .date-selector {
+        /* ── Date Picker ── */
+        .date-picker-btn {
+            display: none;
+            align-items: center;
+            gap: 8px;
             background: var(--border);
             border: 1px solid var(--border2);
             border-radius: var(--r);
             color: var(--text);
             font-family: var(--font-mono);
             font-size: 11px;
-            padding: 4px 8px;
-            outline: none;
+            padding: 5px 12px;
             cursor: pointer;
+            transition: border-color 0.15s;
+            white-space: nowrap;
         }
-        .date-selector:focus { border-color: var(--accent); }
+        .date-picker-btn:hover, .date-picker-btn.open { border-color: var(--accent); color: var(--accent); }
+        .date-picker-btn .dp-arrow { font-size: 9px; opacity: 0.6; transition: transform 0.15s; }
+        .date-picker-btn.open .dp-arrow { transform: rotate(180deg); }
+        .date-picker-panel {
+            display: none;
+            position: absolute;
+            top: calc(100% + 6px);
+            right: 0;
+            background: #16192a;
+            border: 1px solid var(--border2);
+            border-radius: 8px;
+            padding: 14px;
+            z-index: 999;
+            min-width: 260px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+        .date-picker-panel.open { display: block; }
+        .dp-month-group { margin-bottom: 12px; }
+        .dp-month-group:last-child { margin-bottom: 0; }
+        .dp-month-label {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 6px;
+        }
+        .dp-dates { display: flex; flex-wrap: wrap; gap: 5px; }
+        .dp-date-btn {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 4px;
+            border: 1px solid var(--border2);
+            background: var(--border);
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.12s;
+        }
+        .dp-date-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-lo); }
+        .dp-date-btn.active { border-color: var(--accent); background: var(--accent); color: #fff; }
+        .dp-wrapper { position: relative; }
         .add-files-btn {
             background: var(--surface2);
             border: 1px solid var(--border2);
@@ -277,8 +324,13 @@
         <span class="topbar-title">Per Agent · Per Day Analysis</span>
         <div class="topbar-controls">
             <button id="addFilesButton" class="add-files-btn" style="display: none;">+ Add Files</button>
-            <select class="date-selector" id="date-selector" style="display:none;"></select>
-            <span class="topbar-date" id="topbar-date">—</span>
+            <div class="dp-wrapper">
+                <button class="date-picker-btn" id="date-picker-btn" style="display:none;">
+                    <span id="dp-current-label">—</span>
+                    <span class="dp-arrow">▼</span>
+                </button>
+                <div class="date-picker-panel" id="date-picker-panel"></div>
+            </div>
         </div>
     </header>
 
@@ -762,7 +814,7 @@
     function buildDashboard() {
         if(!DATA) return;
         dashboardBuilt = true;
-        document.getElementById('topbar-date').textContent = DATA.date;
+        // date shown in date picker button now
         const sorted = [...DATA.summary].sort((a,b)=>b.total_secs - a.total_secs);
         const top = sorted[0];
         const peakEntry = Object.entries(DATA.bucket_totals).sort((a,b)=>b[1]-a[1])[0];
@@ -829,17 +881,69 @@
     }
 
     function resetDashboard() { dashboardBuilt=false; buildDashboard(); }
+    function buildDatePicker(activeKey) {
+        const btn   = document.getElementById('date-picker-btn');
+        const panel = document.getElementById('date-picker-panel');
+        const label = document.getElementById('dp-current-label');
+        const dates = Object.keys(allDaysData).sort().reverse(); // newest first
+
+        if (dates.length === 0) { btn.style.display = 'none'; return; }
+
+        btn.style.display = 'flex';
+        label.textContent = activeKey;
+
+        // Group by YYYY-MM month
+        const byMonth = {};
+        dates.forEach(d => {
+            const m = d.slice(0, 7); // "2026-06"
+            if (!byMonth[m]) byMonth[m] = [];
+            byMonth[m].push(d);
+        });
+
+        panel.innerHTML = '';
+        Object.keys(byMonth).sort().reverse().forEach(month => {
+            const [y, m] = month.split('-');
+            const monthName = new Date(+y, +m - 1, 1).toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+            const group = document.createElement('div');
+            group.className = 'dp-month-group';
+            group.innerHTML = `<div class="dp-month-label">${monthName}</div><div class="dp-dates" id="dp-dates-${month}"></div>`;
+            panel.appendChild(group);
+            const datesRow = group.querySelector('.dp-dates');
+            byMonth[month].forEach(d => {
+                const dayNum = d.slice(8); // "12"
+                const db = document.createElement('button');
+                db.className = 'dp-date-btn' + (d === activeKey ? ' active' : '');
+                db.textContent = dayNum;
+                db.title = d;
+                db.addEventListener('click', () => {
+                    setActiveDate(d);
+                    panel.classList.remove('open');
+                    btn.classList.remove('open');
+                });
+                datesRow.appendChild(db);
+            });
+        });
+
+        // Toggle panel on button click
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            const isOpen = panel.classList.toggle('open');
+            btn.classList.toggle('open', isOpen);
+        };
+        // Close on outside click
+        document.addEventListener('click', () => {
+            panel.classList.remove('open');
+            btn.classList.remove('open');
+        }, { once: false });
+    }
+
     function setActiveDate(dateKey){
         if(!allDaysData[dateKey]) return;
         DATA = allDaysData[dateKey];
         activeAgent = null;
         sortCol='start'; sortDir=1;
         resetDashboard();
-        const selector = document.getElementById('date-selector');
-        selector.style.display = 'inline-block';
-        selector.innerHTML = '';
-        Object.keys(allDaysData).sort().reverse().forEach(d=>{ let opt = document.createElement('option'); opt.value=d; opt.textContent=d; if(d===dateKey) opt.selected=true; selector.appendChild(opt); });
-        selector.onchange = (e)=> setActiveDate(e.target.value);
+        buildDatePicker(dateKey);
     }
 
     async function init() {
