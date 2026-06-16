@@ -6,7 +6,7 @@
     <title>AdminTrack · Agent Daily Analysis · v3</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
     <style>
-        /* === all styles unchanged from previous working version – keep your existing CSS === */
+        /* (all your existing CSS – unchanged) */
         @import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         :root {
@@ -68,7 +68,6 @@
             padding: 3px 10px;
             border-radius: var(--r);
         }
-        /* ── Date Picker ── */
         .dp-wrapper { position: relative; }
         .date-picker-btn {
             display: none;
@@ -88,7 +87,6 @@
         .date-picker-btn:hover, .date-picker-btn.open { border-color: var(--accent); color: var(--accent); }
         .date-picker-btn .dp-arrow { font-size: 9px; opacity: 0.5; transition: transform 0.15s; }
         .date-picker-btn.open .dp-arrow { transform: rotate(180deg); }
-        /* panel */
         .date-picker-panel {
             display: none;
             position: absolute;
@@ -103,7 +101,27 @@
             overflow: hidden;
         }
         .date-picker-panel.open { display: flex; flex-direction: column; }
-        /* breadcrumb nav */
+        .dp-mode-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .dp-mode-tab {
+            flex: 1;
+            text-align: center;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--muted);
+            padding: 8px 0;
+            cursor: pointer;
+            transition: all 0.15s;
+            border-bottom: 2px solid transparent;
+        }
+        .dp-mode-tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
         .dp-nav {
             display: flex;
             align-items: center;
@@ -123,13 +141,11 @@
         .dp-crumb:hover { color: var(--text); }
         .dp-crumb.active { color: var(--text); font-weight: 600; cursor: default; }
         .dp-crumb-sep { opacity: 0.3; }
-        /* scroll body */
         .dp-body {
             overflow-y: auto;
             max-height: 340px;
             padding: 10px;
         }
-        /* grid of selectable chips */
         .dp-grid { display: flex; flex-wrap: wrap; gap: 6px; }
         .dp-chip {
             font-family: var(--font-mono);
@@ -146,7 +162,6 @@
         .dp-chip:hover { border-color: var(--accent); color: var(--accent); background: rgba(79,140,255,0.08); }
         .dp-chip.active { border-color: var(--accent); background: var(--accent); color: #fff; }
         .dp-chip.has-active { border-color: rgba(79,140,255,0.4); color: var(--accent); }
-        /* section label inside body */
         .dp-section-label {
             font-family: var(--font-mono);
             font-size: 9px;
@@ -343,6 +358,21 @@
         .toast.ok { border-color: var(--green); color: var(--green); }
         .toast.err { border-color: var(--red); color: var(--red); }
         .hidden-file-input { display: none; }
+        .progress-bar {
+            height: 6px;
+            background: var(--border);
+            border-radius: 3px;
+            margin: 12px auto 0;
+            width: 80%;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 3px;
+            width: 0%;
+            transition: width 0.2s;
+        }
     </style>
 </head>
 <body>
@@ -351,7 +381,7 @@
     <header class="topbar">
         <span class="topbar-logo">AdminTrack <span style="font-size:9px;opacity:0.4">v3</span></span>
         <div class="topbar-sep"></div>
-        <span class="topbar-title">Per Agent · Per Day Analysis</span>
+        <span class="topbar-title" id="topbar-title">Per Agent · Per Day Analysis</span>
         <div class="topbar-controls">
             <button id="addFilesButton" class="add-files-btn" style="display: none;">+ Add Files</button>
             <div class="dp-wrapper">
@@ -360,8 +390,17 @@
                     <span class="dp-arrow">▼</span>
                 </button>
                 <div class="date-picker-panel" id="date-picker-panel">
-                    <div class="dp-nav" id="dp-nav"></div>
-                    <div class="dp-body" id="dp-body"></div>
+                    <div class="dp-mode-tabs">
+                        <div class="dp-mode-tab active" data-mode="day">Day</div>
+                        <div class="dp-mode-tab" data-mode="month">Month</div>
+                    </div>
+                    <div id="dp-day-container">
+                        <div class="dp-nav" id="dp-nav"></div>
+                        <div class="dp-body" id="dp-body"></div>
+                    </div>
+                    <div id="dp-month-container" style="display:none;">
+                        <div class="dp-body" id="dp-month-body"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -438,14 +477,23 @@
     let currentAgentName = null;
 
     let allDaysData = {};
+    let allSessions = [];          // raw sessions from Supabase
     let DATA = null;
     let activeAgent = null;
     let sortCol = 'start', sortDir = 1;
     let dashboardBuilt = false;
 
+    let dpMode = 'day';           // 'day' or 'month'
+    let activeDate = null;        // YYYY-MM-DD
+    let activeMonth = null;       // YYYY-MM
+
     const COLORS = ['#4f8cff','#3b82f6','#22c55e','#a78bfa','#ec4899','#14b8a6','#eab308','#ef4444','#6366f1','#84cc16'];
     const agentColor = (agent) => COLORS[Math.abs(agent.split('').reduce((a,b)=>a+b.charCodeAt(0),0) % COLORS.length)];
 
+    // helper to get last name (last word of full name)
+    const lastName = (fullName) => fullName.split(' ').pop();
+
+    // ---- toast helper ----
     function showToast(msg, isOk) {
         const t = document.createElement('div');
         t.className = 'toast' + (isOk === true ? ' ok' : isOk === false ? ' err' : '');
@@ -458,8 +506,13 @@
         }, 4000);
     }
 
-    function timeToSec(t) { if (!t) return 0; const p = String(t).split(':').map(Number); return (p[0]||0)*3600 + (p[1]||0)*60 + (p[2]||0); }
+    function timeToSec(t) {
+        if (!t) return 0;
+        const p = String(t).split(':').map(Number);
+        return (p[0]||0)*3600 + (p[1]||0)*60 + (p[2]||0);
+    }
 
+    // ---- tooltip ----
     window.showTip = (e, html) => {
         const tip = document.getElementById('tooltip');
         tip.innerHTML = html;
@@ -479,6 +532,7 @@
     function fmtSecs(s) { let m = Math.floor(s/60), sec = s%60; return m>0 ? `${m}m ${sec}s` : `${sec}s`; }
     function durClass(secs) { if (secs < 60) return 'dur-short'; if (secs < 180) return 'dur-medium'; return 'dur-long'; }
 
+    // ---- bucket distribution ----
     function distributeSessionToBuckets(startSec, endSec, minBucketSec, maxBucketSec, bucketInterval=1800) {
         const buckets = new Map();
         let curStart = Math.max(startSec, minBucketSec);
@@ -498,7 +552,8 @@
         return buckets;
     }
 
-    function buildDataForDate(rows, dateStr) {
+    // ---- build data from session rows (label = date or month) ----
+    function buildDataForDate(rows, label) {
         if (!rows.length) return null;
         const sessions = rows.map(r => ({
             agent: r.agent,
@@ -532,9 +587,9 @@
             for (let [bucketStart, overlapSec] of bucketMap.entries()) {
                 const idx = bucketStarts.indexOf(bucketStart);
                 if (idx === -1) continue;
-                const label = bucketLabels[idx];
-                timeline[sess.agent][label] += overlapSec;
-                bucketTotals[label] += overlapSec;
+                const labelBl = bucketLabels[idx];
+                timeline[sess.agent][labelBl] += overlapSec;
+                bucketTotals[labelBl] += overlapSec;
             }
         }
 
@@ -558,7 +613,7 @@
         }));
 
         return {
-            date: dateStr,
+            date: label,
             agents,
             buckets: bucketLabels,
             summary,
@@ -570,9 +625,8 @@
         };
     }
 
-    // ----- Save sessions: pre-fetch existing keys then bulk insert only new rows -----
+    // ---- save to Supabase (bulk insert with dedup) ----
     async function saveSessionRows(rows) {
-        // 1. Validate rows
         const valid = rows.filter(row => {
             if (!/^\d{2}:\d{2}:\d{2}$/.test(row.start) || !/^\d{2}:\d{2}:\d{2}$/.test(row.end)) {
                 console.warn(`Skipping invalid time: ${row.agent} ${row.start} - ${row.end}`);
@@ -580,108 +634,91 @@
             }
             return true;
         });
+        if (valid.length === 0) { showToast('No valid rows to save.', false); return false; }
 
-        if (valid.length === 0) {
-            showToast('No valid rows to save.', false);
-            return false;
-        }
-
-        // 2. Find the unique dates in this upload
         const dates = [...new Set(valid.map(r => r.date))];
-
-        // 3. Fetch all existing rows for those dates in one query (avoids N+1)
         showToast(`Checking ${valid.length} sessions across ${dates.length} day(s)...`, true);
-        const { data: existing, error: fetchErr } = await sb
-            .from('admin_sessions')
-            .select('date, agent_name, start_time, end_time')
-            .in('date', dates)
-            .limit(100000);
 
-        if (fetchErr) {
-            console.error('Pre-fetch error:', fetchErr);
-            showToast('Error checking existing data: ' + fetchErr.message, false);
-            return false;
-        }
-
-        // 4. Build a Set of existing keys for O(1) lookup
-        const existingKeys = new Set(
-            (existing || []).map(r => `${r.date}|${r.agent_name}|${r.start_time}|${r.end_time}`)
-        );
-
-        // 5. Filter to only genuinely new rows
-        const toInsert = valid.filter(r =>
-            !existingKeys.has(`${r.date}|${r.agent}|${r.start}|${r.end}`)
-        ).map(r => ({
-            date: r.date,
-            agent_name: r.agent,
-            start_time: r.start,
-            end_time: r.end,
-            duration_seconds: r.secs,
-            uploaded_by: currentUser.id
-        }));
-
-        const skipped = valid.length - toInsert.length;
-
-        if (toInsert.length === 0) {
-            showToast(`All ${skipped} sessions already exist - nothing new to save.`, true);
-            return true;
-        }
-
-        // 6. Bulk insert in chunks of 500
-        const CHUNK = 500;
-        let inserted = 0;
-        let failed = 0;
-        for (let i = 0; i < toInsert.length; i += CHUNK) {
-            const chunk = toInsert.slice(i, i + CHUNK);
-            const { error: insertErr } = await sb.from('admin_sessions').insert(chunk);
-            if (insertErr) {
-                console.error(`Insert error (chunk ${i}-${i+chunk.length}):`, insertErr);
-                showToast(`Insert error: ${insertErr.message}`, false);
-                failed += chunk.length;
-            } else {
-                inserted += chunk.length;
+        // Paginated fetch for existing rows
+        const existingKeys = new Set();
+        let rangeStart = 0;
+        const PAGE_SIZE = 1000;
+        while (true) {
+            const { data: chunk, error } = await sb
+                .from('admin_sessions')
+                .select('date, agent_name, start_time, end_time')
+                .in('date', dates)
+                .range(rangeStart, rangeStart + PAGE_SIZE - 1);
+            if (error) {
+                showToast('Error checking existing data: ' + error.message, false);
+                return false;
             }
+            if (!chunk || chunk.length === 0) break;
+            chunk.forEach(r => existingKeys.add(`${r.date}|${r.agent_name}|${r.start_time}|${r.end_time}`));
+            if (chunk.length < PAGE_SIZE) break;
+            rangeStart += PAGE_SIZE;
         }
 
-        if (failed > 0) {
-            showToast(`Saved ${inserted} sessions. ${failed} failed - check console.`, false);
-            return inserted > 0;
+        const toInsert = valid.filter(r => !existingKeys.has(`${r.date}|${r.agent}|${r.start}|${r.end}`))
+            .map(r => ({ date: r.date, agent_name: r.agent, start_time: r.start, end_time: r.end, duration_seconds: r.secs, uploaded_by: currentUser.id }));
+        const skipped = valid.length - toInsert.length;
+        if (toInsert.length === 0) { showToast(`All ${skipped} sessions already exist - nothing new to save.`, true); return true; }
+
+        const CHUNK = 500;
+        let inserted = 0, failed = 0;
+        for (let i = 0; i < toInsert.length; i += CHUNK) {
+            const chunk = toInsert.slice(i, i+CHUNK);
+            const { error: insertErr } = await sb.from('admin_sessions').insert(chunk);
+            if (insertErr) { console.error('Insert error:', insertErr); failed += chunk.length; }
+            else inserted += chunk.length;
         }
+        if (failed > 0) { showToast(`Saved ${inserted} sessions. ${failed} failed - check console.`, false); return inserted > 0; }
         showToast(`Saved ${inserted} new sessions${skipped ? ` (${skipped} already existed)` : ''}.`, true);
         return true;
     }
+
+    // ---- Paginated load of all sessions ----
     async function loadSessionsFromSupabase() {
         if (!currentUser) return [];
-        let query = sb.from('admin_sessions').select('*');
-        if (!isAdmin && currentAgentName) {
-            query = query.eq('agent_name', currentAgentName);
+        let allData = [];
+        let rangeStart = 0;
+        const PAGE_SIZE = 1000;
+        while (true) {
+            let query = sb.from('admin_sessions').select('*');
+            if (!isAdmin && currentAgentName) {
+                query = query.eq('agent_name', currentAgentName);
+            }
+            const { data, error } = await query
+                .order('date', { ascending: true })
+                .order('start_time', { ascending: true })
+                .range(rangeStart, rangeStart + PAGE_SIZE - 1);
+            if (error) {
+                console.error('Load error:', error);
+                showToast('Failed to load sessions: ' + error.message, false);
+                return [];
+            }
+            if (!data || data.length === 0) break;
+            allData = allData.concat(data);
+            if (data.length < PAGE_SIZE) break;
+            rangeStart += PAGE_SIZE;
         }
-        const { data, error } = await query.order('date', { ascending: true }).order('start_time', { ascending: true }).limit(100000);
-        if (error) {
-            console.error('Load error:', error);
-            showToast('Failed to load sessions: ' + error.message, false);
-            return [];
-        }
-        return data || [];
+        return allData;
     }
 
     async function refreshFromSupabase() {
         const sessions = await loadSessionsFromSupabase();
+        allSessions = sessions;
         if (sessions.length === 0) {
             document.getElementById('upload-zone').style.display = isAdmin ? 'flex' : 'none';
             document.getElementById('dashboard-content').style.display = 'none';
             document.getElementById('addFilesButton').style.display = 'none';
+            document.getElementById('date-picker-btn').style.display = 'none';
             return;
         }
         const grouped = {};
         for (const s of sessions) {
             if (!grouped[s.date]) grouped[s.date] = [];
-            grouped[s.date].push({
-                agent: s.agent_name,
-                start: s.start_time,
-                end: s.end_time,
-                secs: s.duration_seconds
-            });
+            grouped[s.date].push({ agent: s.agent_name, start: s.start_time, end: s.end_time, secs: s.duration_seconds });
         }
         const newAllDays = {};
         for (const [date, rows] of Object.entries(grouped)) {
@@ -693,19 +730,96 @@
             document.getElementById('upload-zone').style.display = isAdmin ? 'flex' : 'none';
             document.getElementById('dashboard-content').style.display = 'none';
             document.getElementById('addFilesButton').style.display = 'none';
+            document.getElementById('date-picker-btn').style.display = 'none';
             return;
         }
         document.getElementById('upload-zone').style.display = 'none';
         document.getElementById('dashboard-content').style.display = '';
         if (isAdmin) document.getElementById('addFilesButton').style.display = 'inline-block';
+
         const sortedDates = Object.keys(allDaysData).sort();
-        // Default to the most recent date so newly uploaded data is shown first
-        const currentDate = DATA ? DATA.date : null;
-        const targetDate = (currentDate && allDaysData[currentDate]) ? currentDate : sortedDates[sortedDates.length - 1];
-        setActiveDate(targetDate);
+        if (!activeDate && !activeMonth) {
+            activeDate = sortedDates[sortedDates.length-1];
+            dpMode = 'day';
+        }
+        if (dpMode === 'day') {
+            if (!activeDate || !allDaysData[activeDate]) activeDate = sortedDates[sortedDates.length-1];
+            setActiveDay(activeDate);
+        } else {
+            const monthCandidates = [...new Set(allSessions.map(s => s.date.slice(0,7)))].sort();
+            if (!activeMonth || !monthCandidates.includes(activeMonth)) activeMonth = monthCandidates[monthCandidates.length-1];
+            setActiveMonth(activeMonth);
+        }
     }
 
-    // ----- Robust CSV parsing -----
+    // ---- process files with progress ----
+    async function processFiles(files) {
+        if (!isAdmin) { showToast('Only administrators can upload files.', false); return; }
+        const totalFiles = files.length;
+        let allRows = [];
+        const statusDiv = document.getElementById('upload-status');
+        statusDiv.innerHTML = `<div>Processing file 0 of ${totalFiles}...</div><div class="progress-bar"><div class="progress-bar-fill" id="progress-fill" style="width:0%"></div></div>`;
+        const progressFill = document.getElementById('progress-fill');
+
+        for (let i = 0; i < totalFiles; i++) {
+            const file = files[i];
+            try {
+                let text = await file.text();
+                if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+                const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+                if (lines.length === 0) continue;
+
+                let startIdx = 0;
+                let colMap = { dateIdx:0, agentIdx:1, startIdx:2, endIdx:3 };
+
+                const firstCols = parseCSVLine(lines[0]);
+                if (isHeaderRow(firstCols)) {
+                    const lower = firstCols.map(c => c.toLowerCase());
+                    colMap = {
+                        dateIdx: lower.findIndex(c => c === 'date'),
+                        agentIdx: lower.findIndex(c => c === 'agent' || c === 'name'),
+                        startIdx: lower.findIndex(c => c === 'start' || c === 'start_time'),
+                        endIdx: lower.findIndex(c => c === 'end' || c === 'end_time')
+                    };
+                    startIdx = 1;
+                } else {
+                    startIdx = 0;
+                }
+
+                for (let j = startIdx; j < lines.length; j++) {
+                    const cols = parseCSVLine(lines[j]);
+                    if (cols.length < 4) continue;
+                    const dateVal = cols[colMap.dateIdx]?.trim();
+                    const agent = cols[colMap.agentIdx]?.trim();
+                    const start = cols[colMap.startIdx]?.trim();
+                    const end = cols[colMap.endIdx]?.trim();
+                    if (!dateVal || !agent || !start || !end) continue;
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateVal)) continue;
+                    if (!/^\d{2}:\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}:\d{2}$/.test(end)) continue;
+                    const secs = (timeToSec(end) - timeToSec(start) + 86400) % 86400;
+                    if (secs <= 0) continue;
+                    allRows.push({ date: dateVal, agent, start, end, secs });
+                }
+            } catch(e) {
+                console.error('Error parsing', file.name, e);
+            }
+            const pct = Math.round(((i+1)/totalFiles)*100);
+            progressFill.style.width = pct + '%';
+            statusDiv.innerHTML = `<div>Processing file ${i+1} of ${totalFiles}...</div><div class="progress-bar"><div class="progress-bar-fill" style="width:${pct}%"></div></div>`;
+            await new Promise(r => setTimeout(r, 0));
+        }
+
+        if (allRows.length === 0) {
+            statusDiv.innerHTML = '';
+            showToast('No valid session rows found.', false);
+            return;
+        }
+        statusDiv.innerHTML = `<div>Parsed ${allRows.length} sessions — saving to database...</div>`;
+        const success = await saveSessionRows(allRows);
+        statusDiv.innerHTML = '';
+        if (success) await refreshFromSupabase();
+    }
+
     function parseCSVLine(line) {
         const result = [];
         let cur = '';
@@ -733,73 +847,7 @@
                lower.some(c => c === 'end' || c === 'end_time');
     }
 
-    function extractDateFromFilename(fname) {
-        const match = fname.match(/(\d{4}-\d{2}-\d{2})/);
-        return match ? match[1] : null;
-    }
-
-    async function processFiles(files) {
-        if (!isAdmin) {
-            showToast('Only administrators can upload files.', false);
-            return;
-        }
-        let allRows = [];
-        for (const file of files) {
-            try {
-                let text = await file.text();
-                // Remove BOM
-                if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
-                const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
-                if (lines.length === 0) continue;
-
-                let startIdx = 0;
-                let colMap = null; // { dateIdx, agentIdx, startIdx, endIdx }
-
-                // Check first line for header
-                const firstCols = parseCSVLine(lines[0]);
-                if (isHeaderRow(firstCols)) {
-                    console.log('Detected header row:', firstCols);
-                    const lower = firstCols.map(c => c.toLowerCase());
-                    colMap = {
-                        dateIdx: lower.findIndex(c => c === 'date'),
-                        agentIdx: lower.findIndex(c => c === 'agent' || c === 'name'),
-                        startIdx: lower.findIndex(c => c === 'start' || c === 'start_time'),
-                        endIdx: lower.findIndex(c => c === 'end' || c === 'end_time')
-                    };
-                    startIdx = 1;
-                } else {
-                    // No header – assume column order: date, agent, start, end
-                    colMap = { dateIdx: 0, agentIdx: 1, startIdx: 2, endIdx: 3 };
-                    startIdx = 0;
-                }
-
-                for (let i = startIdx; i < lines.length; i++) {
-                    const cols = parseCSVLine(lines[i]);
-                    if (cols.length < 4) continue;
-                    const dateVal = cols[colMap.dateIdx]?.trim();
-                    const agent = cols[colMap.agentIdx]?.trim();
-                    const start = cols[colMap.startIdx]?.trim();
-                    const end = cols[colMap.endIdx]?.trim();
-                    if (!dateVal || !agent || !start || !end) continue;
-                    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateVal)) continue;
-                    if (!/^\d{2}:\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}:\d{2}$/.test(end)) continue;
-                    const secs = (timeToSec(end) - timeToSec(start) + 86400) % 86400;
-                    if (secs <= 0) continue;
-                    allRows.push({ date: dateVal, agent, start, end, secs });
-                }
-            } catch(e) { console.error(e); showToast('Error parsing '+file.name, false); }
-        }
-        if (allRows.length === 0) {
-            showToast('No valid session rows found.', false);
-            return;
-        }
-        const uniqueDates = [...new Set(allRows.map(r => r.date))];
-        showToast(`Parsed ${allRows.length} sessions across ${uniqueDates.length} day(s) — saving...`, true);
-        const success = await saveSessionRows(allRows);
-        if (success) await refreshFromSupabase();
-    }
-
-    // ----- UI rendering (unchanged from previous working version) -----
+    // ---- UI rendering ----
     function renderTable() {
         if(!DATA) return;
         const agentFilter = activeAgent || document.getElementById('agent-filter').value;
@@ -818,10 +866,11 @@
         });
         document.getElementById('session-count').textContent = `${filtered.length} sessions`;
         document.getElementById('session-body').innerHTML = filtered.map(r => `
-            <tr><td style="color:${agentColor(r.agent)};font-weight:500">${r.agent}</td>
-            <td>${r.start}</td><td>${r.end}</td>
-            <td><span class="dur-pill ${durClass(r.secs)}">${r.duration}</span></td>
-        </tr>`).join('');
+            <tr>
+                <td style="color:${agentColor(r.agent)};font-weight:500">${lastName(r.agent)}</td>
+                <td>${r.start}</td><td>${r.end}</td>
+                <td><span class="dur-pill ${durClass(r.secs)}">${r.duration}</span></td>
+            </tr>`).join('');
     }
 
     function drawTimeline() {
@@ -847,17 +896,18 @@
     function buildDashboard() {
         if(!DATA) return;
         dashboardBuilt = true;
-        // date shown in date picker button now
         const sorted = [...DATA.summary].sort((a,b)=>b.total_secs - a.total_secs);
         const top = sorted[0];
         const peakEntry = Object.entries(DATA.bucket_totals).sort((a,b)=>b[1]-a[1])[0];
         document.getElementById('stats-row').innerHTML = `
             <div class="stat-card"><div class="stat-label">Team Admin Total</div><div class="stat-value">${(DATA.grand_total_secs/60).toFixed(0)}<span> min</span></div><div class="stat-sub">${DATA.rows.length} sessions · ${DATA.agents.length} agents</div></div>
             <div class="stat-card"><div class="stat-label">Agent Average</div><div class="stat-value">${(DATA.team_avg_secs/60).toFixed(1)}<span> min</span></div><div class="stat-sub">per agent</div></div>
-            <div class="stat-card" style="border-color:rgba(79,140,255,0.3)"><div class="stat-label">Highest Volume</div><div class="stat-value" style="color:var(--accent)">${top.total_mins}<span> min</span></div><div class="stat-sub">${top.agent} · ${top.sessions} sessions</div></div>
+            <div class="stat-card" style="border-color:rgba(79,140,255,0.3)"><div class="stat-label">Highest Volume</div><div class="stat-value" style="color:var(--accent)">${top.total_mins}<span> min</span></div><div class="stat-sub">${lastName(top.agent)} · ${top.sessions} sessions</div></div>
             <div class="stat-card"><div class="stat-label">Peak Window</div><div class="stat-value">${peakEntry?.[0]||'—'}</div><div class="stat-sub">${peakEntry ? (peakEntry[1]/60).toFixed(1)+' min' : ''}</div></div>
         `;
         document.getElementById('peak-badge').textContent = peakEntry ? `Peak · ${peakEntry[0]}` : 'Peak · —';
+
+        // Sidebar with last names
         const sidebar = document.getElementById('sidebar-agents');
         sidebar.innerHTML = '';
         DATA.agents.forEach(ag => {
@@ -865,10 +915,12 @@
             const div = document.createElement('div');
             div.className = 'agent-item';
             div.dataset.agent = ag;
-            div.innerHTML = `<div class="agent-dot" style="background:${agentColor(ag)}"></div><span class="agent-name">${ag.split(' ')[0]}</span><span class="agent-mins">${s? s.total_mins : 0}m</span>`;
+            div.innerHTML = `<div class="agent-dot" style="background:${agentColor(ag)}"></div><span class="agent-name">${lastName(ag)}</span><span class="agent-mins">${s? s.total_mins : 0}m</span>`;
             div.addEventListener('click', ()=>{ activeAgent = activeAgent===ag ? null : ag; document.querySelectorAll('.agent-item').forEach(el=>el.classList.toggle('active', el.dataset.agent===activeAgent)); renderTable(); });
             sidebar.appendChild(div);
         });
+
+        // Bar chart with last names
         const barList = document.getElementById('bar-list');
         barList.innerHTML = '';
         const maxMins = sorted[0].total_mins;
@@ -876,10 +928,12 @@
             const pct = (s.total_mins/maxMins)*100;
             const div = document.createElement('div');
             div.className = 'bar-item';
-            div.innerHTML = `<span class="bar-label" style="color:${agentColor(s.agent)}">${s.agent.split(' ')[0]}</span><div class="bar-track" onmouseenter="showTip(event,'<b>${s.agent}</b><br>${s.total_mins} min · ${s.sessions} sessions')" onmouseleave="hideTip()"><div class="bar-fill" style="width:${pct}%;background:${agentColor(s.agent)}">${s.total_mins}m</div></div><span class="bar-val">${s.sessions} sess</span>`;
+            div.innerHTML = `<span class="bar-label" style="color:${agentColor(s.agent)}">${lastName(s.agent)}</span><div class="bar-track" onmouseenter="showTip(event,'<b>${s.agent}</b><br>${s.total_mins} min · ${s.sessions} sessions')" onmouseleave="hideTip()"><div class="bar-fill" style="width:${pct}%;background:${agentColor(s.agent)}">${s.total_mins}m</div></div><span class="bar-val">${s.sessions} sess</span>`;
             div.querySelector('.bar-track').addEventListener('click',()=>{ activeAgent = s.agent; renderTable(); });
             barList.appendChild(div);
         });
+
+        // Heatmap with last names
         const hm = document.getElementById('heatmap');
         hm.innerHTML = '';
         const agentsSorted = [...DATA.agents].sort((a,b)=> (DATA.summary.find(x=>x.agent===b).total_secs - DATA.summary.find(x=>x.agent===a).total_secs));
@@ -889,7 +943,12 @@
         const corner = document.createElement('div'); corner.className='hm-corner'; hm.appendChild(corner);
         DATA.buckets.forEach(b=>{ let d=document.createElement('div'); d.className='hm-time-label'; d.textContent=b; hm.appendChild(d); });
         agentsSorted.forEach(ag=>{
-            const label=document.createElement('div'); label.className='hm-agent-label'; label.textContent=ag.split(' ')[0]; label.style.color=agentColor(ag); label.style.cursor='pointer'; label.addEventListener('click',()=>{ activeAgent=ag; renderTable(); });
+            const label=document.createElement('div');
+            label.className='hm-agent-label';
+            label.textContent = lastName(ag);
+            label.style.color = agentColor(ag);
+            label.style.cursor='pointer';
+            label.addEventListener('click',()=>{ activeAgent=ag; renderTable(); });
             hm.appendChild(label);
             DATA.buckets.forEach(b=>{
                 const val = DATA.timeline[ag]?.[b]||0;
@@ -903,6 +962,8 @@
                 hm.appendChild(cell);
             });
         });
+
+        // Agent dropdown filter (full name remains for filtering)
         const agentSelect = document.getElementById('agent-filter');
         agentSelect.innerHTML = '<option value="all">All agents</option>';
         DATA.agents.forEach(ag=>{ let opt = document.createElement('option'); opt.value=ag; opt.textContent=ag; agentSelect.appendChild(opt); });
@@ -914,20 +975,18 @@
     }
 
     function resetDashboard() { dashboardBuilt=false; buildDashboard(); }
-    // ── Date Picker: Month → Week → Day drill-down ──────────────────────────
-    const dpState = { view: 'month', month: null, week: null };
+
+    // ---- Date picker with Day/Month modes ----
+    function monthLabel(ym) {
+        const [y, m] = ym.split('-');
+        return new Date(+y, +m - 1, 1).toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+    }
 
     function weekLabel(dateStr) {
-        // Returns "W23" style ISO week label
         const d = new Date(dateStr);
         const jan4 = new Date(d.getFullYear(), 0, 4);
         const week = Math.ceil(((d - jan4) / 86400000 + jan4.getDay() + 1) / 7);
         return `W${String(week).padStart(2,'0')}`;
-    }
-
-    function monthLabel(ym) {
-        const [y, m] = ym.split('-');
-        return new Date(+y, +m - 1, 1).toLocaleString('en-GB', { month: 'long', year: 'numeric' });
     }
 
     function dpClose() {
@@ -935,13 +994,65 @@
         document.getElementById('date-picker-btn').classList.remove('open');
     }
 
-    function dpRender(activeKey) {
-        const panel = document.getElementById('date-picker-panel');
-        const nav   = document.getElementById('dp-nav');
-        const body  = document.getElementById('dp-body');
-        const dates = Object.keys(allDaysData).sort().reverse();
+    function setActiveDay(dateKey) {
+        if (!allDaysData[dateKey]) return;
+        DATA = allDaysData[dateKey];
+        activeDate = dateKey;
+        activeAgent = null;
+        sortCol='start'; sortDir=1;
+        resetDashboard();
+        updateDatePickerUI();
+    }
 
-        // Build lookup structures
+    function setActiveMonth(monthKey) {
+        const monthRows = allSessions
+            .filter(s => s.date.startsWith(monthKey))
+            .map(s => ({ agent: s.agent_name, start: s.start_time, end: s.end_time, secs: s.duration_seconds }));
+        if (monthRows.length === 0) return;
+        DATA = buildDataForDate(monthRows, monthKey);
+        activeMonth = monthKey;
+        activeDate = null;
+        activeAgent = null;
+        sortCol='start'; sortDir=1;
+        resetDashboard();
+        updateDatePickerUI();
+    }
+
+    function updateDatePickerUI() {
+        const btn = document.getElementById('date-picker-btn');
+        const label = document.getElementById('dp-current-label');
+        const titleEl = document.getElementById('topbar-title');
+        if (dpMode === 'day' && activeDate) {
+            label.textContent = activeDate;
+            btn.style.display = 'flex';
+            titleEl.textContent = 'Per Agent · Per Day Analysis';
+        } else if (dpMode === 'month' && activeMonth) {
+            label.textContent = monthLabel(activeMonth);
+            btn.style.display = 'flex';
+            titleEl.textContent = 'Per Agent · Monthly Analysis';
+        } else {
+            btn.style.display = 'none';
+        }
+        document.querySelectorAll('.dp-mode-tab').forEach(tab => {
+            tab.classList.toggle('active', tab.dataset.mode === dpMode);
+        });
+        document.getElementById('dp-day-container').style.display = dpMode === 'day' ? '' : 'none';
+        document.getElementById('dp-month-container').style.display = dpMode === 'month' ? '' : 'none';
+    }
+
+    function buildDatePicker() {
+        if (dpMode === 'day') {
+            buildDayPicker();
+        } else {
+            buildMonthPicker();
+        }
+    }
+
+    const dpState = { view: 'month', month: null, week: null };
+
+    function buildDayPicker() {
+        const activeKey = activeDate;
+        const dates = Object.keys(allDaysData).sort().reverse();
         const byMonth = {};
         const byWeek  = {};
         dates.forEach(d => {
@@ -953,13 +1064,13 @@
             byWeek[wk].push(d);
         });
 
+        const nav   = document.getElementById('dp-nav');
+        const body  = document.getElementById('dp-body');
         body.innerHTML = '';
         nav.innerHTML  = '';
 
         if (dpState.view === 'month') {
-            // Breadcrumb: just "All Months"
             nav.innerHTML = `<span class="dp-crumb active">All months</span>`;
-
             const grid = document.createElement('div');
             grid.className = 'dp-grid';
             Object.keys(byMonth).sort().reverse().forEach(mo => {
@@ -971,135 +1082,144 @@
                     e.stopPropagation();
                     dpState.view = 'week';
                     dpState.month = mo;
-                    dpRender(activeKey);
+                    buildDayPicker();
                 });
                 grid.appendChild(chip);
             });
             body.appendChild(grid);
-
         } else if (dpState.view === 'week') {
             const mo = dpState.month;
-            // Breadcrumb: "All months > June 2026"
-            const bc1 = document.createElement('span');
-            bc1.className = 'dp-crumb'; bc1.textContent = 'All months';
-            bc1.addEventListener('click', (e) => { e.stopPropagation(); dpState.view='month'; dpState.week=null; dpRender(activeKey); });
+            const bc1 = document.createElement('span'); bc1.className = 'dp-crumb'; bc1.textContent = 'All months';
+            bc1.addEventListener('click', (e) => { e.stopPropagation(); dpState.view='month'; dpState.week=null; buildDayPicker(); });
             nav.appendChild(bc1);
             nav.insertAdjacentHTML('beforeend', '<span class="dp-crumb-sep">›</span>');
-            const bc2 = document.createElement('span');
-            bc2.className = 'dp-crumb active'; bc2.textContent = monthLabel(mo);
+            const bc2 = document.createElement('span'); bc2.className = 'dp-crumb active'; bc2.textContent = monthLabel(mo);
             nav.appendChild(bc2);
-
-            // Weeks inside this month
             const weeksInMonth = Object.keys(byWeek).filter(k => k.startsWith(mo + '|')).sort().reverse();
-            const grid = document.createElement('div');
-            grid.className = 'dp-grid';
+            const grid = document.createElement('div'); grid.className = 'dp-grid';
             weeksInMonth.forEach(wk => {
-                const wkDates = byWeek[wk];
-                const wkKey = wk.split('|')[1];
-                const hasActive = wkDates.includes(activeKey);
-                // show date range for this week
+                const wkDates = byWeek[wk]; const wkKey = wk.split('|')[1];
                 const sorted = [...wkDates].sort();
                 const rangeStr = sorted[0].slice(5) + (sorted.length > 1 ? ' – ' + sorted[sorted.length-1].slice(5) : '');
                 const chip = document.createElement('button');
-                chip.className = 'dp-chip' + (hasActive ? ' has-active' : '');
+                chip.className = 'dp-chip' + (wkDates.includes(activeKey) ? ' has-active' : '');
                 chip.innerHTML = `<span style="opacity:.6;font-size:9px;margin-right:4px">${wkKey}</span>${rangeStr}`;
                 chip.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    dpState.view = 'day';
-                    dpState.week = wk;
-                    dpRender(activeKey);
+                    dpState.view = 'day'; dpState.week = wk; buildDayPicker();
                 });
                 grid.appendChild(chip);
             });
             body.appendChild(grid);
-
         } else if (dpState.view === 'day') {
-            const wk = dpState.week;
-            const mo = dpState.month;
-            const wkKey = wk.split('|')[1];
-            // Breadcrumb: "All months > June 2026 > W23"
-            const bc1 = document.createElement('span');
-            bc1.className = 'dp-crumb'; bc1.textContent = 'All months';
-            bc1.addEventListener('click', (e) => { e.stopPropagation(); dpState.view='month'; dpState.week=null; dpRender(activeKey); });
+            const wk = dpState.week; const mo = dpState.month;
+            const bc1 = document.createElement('span'); bc1.className = 'dp-crumb'; bc1.textContent = 'All months';
+            bc1.addEventListener('click', (e) => { e.stopPropagation(); dpState.view='month'; dpState.week=null; buildDayPicker(); });
             nav.appendChild(bc1);
             nav.insertAdjacentHTML('beforeend', '<span class="dp-crumb-sep">›</span>');
-            const bc2 = document.createElement('span');
-            bc2.className = 'dp-crumb'; bc2.textContent = monthLabel(mo);
-            bc2.addEventListener('click', (e) => { e.stopPropagation(); dpState.view='week'; dpState.week=null; dpRender(activeKey); });
+            const bc2 = document.createElement('span'); bc2.className = 'dp-crumb'; bc2.textContent = monthLabel(mo);
+            bc2.addEventListener('click', (e) => { e.stopPropagation(); dpState.view='week'; dpState.week=null; buildDayPicker(); });
             nav.appendChild(bc2);
             nav.insertAdjacentHTML('beforeend', '<span class="dp-crumb-sep">›</span>');
-            const bc3 = document.createElement('span');
-            bc3.className = 'dp-crumb active'; bc3.textContent = wkKey;
+            const bc3 = document.createElement('span'); bc3.className = 'dp-crumb active'; bc3.textContent = wk.split('|')[1];
             nav.appendChild(bc3);
-
             const daysInWeek = (byWeek[wk] || []).sort().reverse();
-            const grid = document.createElement('div');
-            grid.className = 'dp-grid';
+            const grid = document.createElement('div'); grid.className = 'dp-grid';
             daysInWeek.forEach(d => {
-                const dayDate = new Date(d);
-                const dayName = dayDate.toLocaleString('en-GB', { weekday: 'short' });
-                const dayNum  = d.slice(8);
+                const dayDate = new Date(d); const dayName = dayDate.toLocaleString('en-GB', { weekday: 'short' }); const dayNum = d.slice(8);
                 const chip = document.createElement('button');
                 chip.className = 'dp-chip' + (d === activeKey ? ' active' : '');
                 chip.innerHTML = `<span style="opacity:.5;font-size:9px;margin-right:4px">${dayName}</span>${dayNum}`;
-                chip.title = d;
+                chip.addEventListener('click', (e) => { e.stopPropagation(); setActiveDay(d); dpClose(); });
+                grid.appendChild(chip);
+            });
+            body.appendChild(grid);
+        }
+    }
+
+    function buildMonthPicker() {
+        const body = document.getElementById('dp-month-body');
+        body.innerHTML = '';
+        const months = [...new Set(allSessions.map(s => s.date.slice(0,7)))].sort().reverse();
+        if (months.length === 0) {
+            body.innerHTML = '<div class="no-data">No months available</div>';
+            return;
+        }
+        const byYear = {};
+        months.forEach(m => {
+            const y = m.slice(0,4);
+            if (!byYear[y]) byYear[y] = [];
+            byYear[y].push(m);
+        });
+        const container = document.createElement('div');
+        Object.keys(byYear).sort().reverse().forEach(year => {
+            const yearLabel = document.createElement('div');
+            yearLabel.className = 'dp-section-label';
+            yearLabel.textContent = year;
+            container.appendChild(yearLabel);
+            const grid = document.createElement('div');
+            grid.className = 'dp-grid';
+            byYear[year].forEach(mo => {
+                const chip = document.createElement('button');
+                chip.className = 'dp-chip' + (mo === activeMonth ? ' active' : '');
+                chip.textContent = monthLabel(mo);
                 chip.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    setActiveDate(d);
+                    setActiveMonth(mo);
                     dpClose();
                 });
                 grid.appendChild(chip);
             });
-            body.appendChild(grid);
-        }
+            container.appendChild(grid);
+        });
+        body.appendChild(container);
     }
 
-    function buildDatePicker(activeKey) {
-        const btn   = document.getElementById('date-picker-btn');
+    function initDatePicker() {
+        const btn = document.getElementById('date-picker-btn');
         const panel = document.getElementById('date-picker-panel');
-        const label = document.getElementById('dp-current-label');
-        const dates = Object.keys(allDaysData);
+        document.querySelectorAll('.dp-mode-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                const newMode = tab.dataset.mode;
+                if (dpMode === newMode) return;
+                dpMode = newMode;
+                if (dpMode === 'day') {
+                    if (activeMonth) {
+                        const daysInMonth = Object.keys(allDaysData).filter(d => d.startsWith(activeMonth)).sort();
+                        activeDate = daysInMonth.length ? daysInMonth[daysInMonth.length-1] : null;
+                        if (activeDate) setActiveDay(activeDate);
+                    }
+                } else {
+                    if (activeDate) {
+                        activeMonth = activeDate.slice(0,7);
+                        setActiveMonth(activeMonth);
+                    }
+                }
+                updateDatePickerUI();
+                if (panel.classList.contains('open')) buildDatePicker();
+            });
+        });
 
-        if (dates.length === 0) { btn.style.display = 'none'; return; }
-
-        btn.style.display = 'flex';
-        label.textContent = activeKey;
-
-        // Set initial drill-down state to the active date's month
-        if (!dpState.month || !activeKey.startsWith(dpState.month)) {
-            dpState.month = activeKey.slice(0, 7);
-            dpState.week  = null;
-            dpState.view  = 'month';
-        }
-
-        dpRender(activeKey);
-
-        // Only wire up toggle once (replace onclick each time, no stacking)
         btn.onclick = (e) => {
             e.stopPropagation();
             const isOpen = panel.classList.toggle('open');
             btn.classList.toggle('open', isOpen);
-            if (isOpen) dpRender(activeKey); // refresh in case data changed
+            if (isOpen) {
+                if (dpMode === 'day' && activeDate) {
+                    dpState.view = 'month';
+                    dpState.month = activeDate.slice(0,7);
+                    dpState.week = null;
+                }
+                buildDatePicker();
+            }
         };
-    }
 
-    // Single outside-click listener, never stacked
-    document.addEventListener('click', (e) => {
-        const panel = document.getElementById('date-picker-panel');
-        const btn   = document.getElementById('date-picker-btn');
-        if (panel && !panel.contains(e.target) && e.target !== btn) {
-            panel.classList.remove('open');
-            btn.classList.remove('open');
-        }
-    });
-
-    function setActiveDate(dateKey){
-        if(!allDaysData[dateKey]) return;
-        DATA = allDaysData[dateKey];
-        activeAgent = null;
-        sortCol='start'; sortDir=1;
-        resetDashboard();
-        buildDatePicker(dateKey);
+        document.addEventListener('click', (e) => {
+            if (panel && !panel.contains(e.target) && e.target !== btn) {
+                panel.classList.remove('open');
+                btn.classList.remove('open');
+            }
+        });
     }
 
     async function init() {
@@ -1142,6 +1262,8 @@
         } else {
             addFilesBtn.style.display = 'none';
         }
+
+        initDatePicker();
 
         const { error: testError } = await sb.from('admin_sessions').select('id').limit(1);
         if (testError) {
