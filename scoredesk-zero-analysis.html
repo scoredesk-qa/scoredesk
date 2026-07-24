@@ -287,6 +287,7 @@ body::after {
             <option value="2" selected>Last 2 weeks</option>
             <option value="4">Last 4 weeks</option>
             <option value="8">Last 8 weeks</option>
+            <option value="all">All time</option>
           </select>
         </div>
         <button class="action-btn" id="refreshBtn">↺ &nbsp;Refresh</button>
@@ -388,7 +389,8 @@ async function onLogin() {
   }
 
   document.getElementById('windowSelect').addEventListener('change', (e) => {
-    recentWindowSize = parseInt(e.target.value, 10) || 2;
+    const v = e.target.value;
+    recentWindowSize = v === 'all' ? Infinity : (parseInt(v, 10) || 2);
     renderAll();
   });
 
@@ -586,7 +588,10 @@ function renderAll() {
   const weekMap = {};
   enriched.forEach(c => { weekMap[c._weekKey] = c._weekMonday; });
   const weeksSorted = Object.keys(weekMap).sort((a, b) => weekMap[a] - weekMap[b]);
-  const currentWeeksSet = new Set(weeksSorted.slice(-recentWindowSize));
+  const currentWeeksSet = new Set(
+    recentWindowSize === Infinity ? weeksSorted : weeksSorted.slice(-recentWindowSize)
+  );
+  const windowLabel = recentWindowSize === Infinity ? 'all time' : `last ${recentWindowSize} week${recentWindowSize > 1 ? 's' : ''}`;
 
   // ---- Build per-agent per-criteria / per-auto-fail timelines ----
   const critTimeline = {};
@@ -636,19 +641,22 @@ function renderAll() {
   // ---- Status computation: recurring / new / resolved / watch ----
   function computeStatus(occList) {
     const occ = occList.slice().sort((a, b) => a.date - b.date);
-    const current = occ.filter(o => currentWeeksSet.has(o.weekKey));
-    const prior = occ.filter(o => !currentWeeksSet.has(o.weekKey));
-    const failedCurrent = current.some(o => o.fail);
-    const failedPrior = prior.some(o => o.fail);
     const totalFails = occ.filter(o => o.fail).length;
     if (totalFails === 0) return null;
+    const lastOcc = occ[occ.length - 1];
+    const hadFailBefore = occ.slice(0, -1).some(o => o.fail);
+    const lastIsRecent = currentWeeksSet.has(lastOcc.weekKey);
     let status;
-    if (failedCurrent) status = failedPrior ? 'recurring' : 'new';
-    else if (current.length > 0) status = 'resolved';
-    else status = 'watch';
+    if (lastOcc.fail) {
+      // Most recent scored call for this criteria was a fail
+      status = !lastIsRecent ? 'watch' : (hadFailBefore ? 'recurring' : 'new');
+    } else {
+      // Most recent scored call passed
+      status = lastIsRecent ? 'resolved' : 'watch';
+    }
     const lastFail = [...occ].reverse().find(o => o.fail);
     const firstFail = occ.find(o => o.fail);
-    return { status, totalFails, totalOcc: occ.length, lastFail, firstFail, lastOcc: occ[occ.length - 1] };
+    return { status, totalFails, totalOcc: occ.length, lastFail, firstFail, lastOcc };
   }
 
   const agentCritStatus = {};   // agent -> [{label, section, ...status}]
@@ -699,6 +707,7 @@ function renderAll() {
 
   window.__weakAreaRows = weakList;
   window.__improvedRows = improvedList;
+  window.__allAgentNames = allAgents.slice().sort((a, b) => a.localeCompare(b));
   window.__progressRows = [];
   allAgents.forEach(agent => {
     [...agentCritStatus[agent], ...agentAfStatus[agent]].forEach(row => {
@@ -728,7 +737,7 @@ function renderAll() {
       <div class="section-hdr-left"><div>
         <div class="section-label">Coaching Priority</div>
         <div class="section-title">Weak Areas — Needs Coaching Now</div>
-        <div class="section-desc">Criteria currently failing (this window: last ${recentWindowSize} week${recentWindowSize>1?'s':''}), ranked by how many agents are affected</div>
+        <div class="section-desc">Criteria currently failing (window: ${windowLabel}), ranked by how many agents are affected</div>
       </div></div>
       ${weakList.length ? `<button class="action-btn" onclick="downloadProgressXlsx()">⬇ &nbsp;Download Full Report</button>` : ''}
     </div>`;
@@ -855,7 +864,7 @@ function renderAll() {
     function buildStatusTable(rows, emptyMsg) {
       if (!rows.length) return `<div class="empty-sub" style="padding:16px 0;">${emptyMsg}</div>`;
       let t = `<div class="table-card" style="margin-bottom:16px;"><table class="zero-table">
-        <thead><tr><th>Criteria</th><th>Section</th><th>Status</th><th>Failed / Checked</th><th>First → Last Failed</th><th>Latest Feedback</th></tr></thead>
+        <thead><tr><th>Criteria</th><th>Section</th><th>Status</th><th>Failed / Checked</th><th>First → Last Failed</th></tr></thead>
         <tbody>`;
       rows.forEach(r => {
         const sm = statusMeta[r.status];
@@ -867,7 +876,6 @@ function renderAll() {
           <td><span class="status-badge ${sm.cls}">${sm.label}</span></td>
           <td><span class="zero-count-badge" style="${r.status==='resolved' ? 'background:rgba(34,211,160,.1);border-color:rgba(34,211,160,.25);color:var(--pass)' : ''}">${r.totalFails}/${r.totalOcc}</span></td>
           <td><span class="section-cell">${firstD} → ${lastD}</span></td>
-          <td><div class="feedback-cell">${(r.lastFail && r.lastFail.feedback) || '—'}</div></td>
         </tr>`;
       });
       t += `</tbody></table></div>`;
@@ -920,11 +928,17 @@ function downloadProgressXlsx() {
   }
   const wb = XLSX.utils.book_new();
 
-  const weakData = weak.map((w, i) => ({
-    Rank: i + 1, Criteria: w.label, Section: w.section || '—', Type: w.type,
-    'Agents Affected': w.agents.length,
-    'Agents': w.agents.map(a => `${a.agent} (${a.totalFails}×, ${a.status})`).join(', ')
-  }));
+  const agentNames = window.__allAgentNames || [];
+  const weakData = weak.map((w, i) => {
+    const row = {
+      Rank: i + 1, Criteria: w.label, Section: w.section || '—', Type: w.type,
+      'Agents Affected': w.agents.length
+    };
+    const failCountByAgent = {};
+    w.agents.forEach(a => { failCountByAgent[a.agent] = a.totalFails; });
+    agentNames.forEach(name => { row[name] = failCountByAgent[name] || ''; });
+    return row;
+  });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(weakData.length ? weakData : [{ Info: 'No active weak areas' }]), 'Weak Areas');
 
   const impData = improved.map((w, i) => ({
