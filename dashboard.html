@@ -332,12 +332,23 @@ async function onLogin() {
 
 // ========== ALL ORIGINAL DASHBOARD FUNCTIONS (unchanged except removed agent notes) ==========
 async function loadScorecards() {
-  let query = sb.from('scorecards').select('*').order('created_at',{ascending:true});
-  if (!isAdmin && currentAgentName) {
-    query = query.eq('agent_name', currentAgentName);
+  // Supabase/PostgREST caps a single select() at 1000 rows by default. Past that,
+  // rows are silently dropped rather than erroring - page through with .range() so
+  // nothing uploaded after the 1000th record gets left out.
+  var pageSize = 1000, from = 0, allRows = [], keepGoing = true;
+  while (keepGoing) {
+    let query = sb.from('scorecards').select('*').order('created_at',{ascending:true}).range(from, from+pageSize-1);
+    if (!isAdmin && currentAgentName) {
+      query = query.eq('agent_name', currentAgentName);
+    }
+    var page = await query;
+    if (page.error) { showToast('Load error: '+page.error.message, false); return; }
+    var batch = page.data || [];
+    allRows = allRows.concat(batch);
+    keepGoing = batch.length === pageSize;
+    from += pageSize;
   }
-  var r = await query;
-  if (r.error) { showToast('Load error: '+r.error.message, false); return; }
+  var r = { data: allRows };
   agentMap = {};
   document.getElementById('filesList').innerHTML = '';
   if (r.data && r.data.length>0) {
@@ -427,6 +438,31 @@ async function parseFile(file) {
   reader.readAsArrayBuffer(file);
 }
 
+function formatCallDate(raw){
+  if(raw===undefined||raw===null||raw==='')return'';
+  if(typeof raw==='number'){
+    var d=new Date(Math.round((raw-25569)*86400*1000));
+    return d.toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});
+  }
+  var s=String(raw).trim();
+  // Spreadsheets sometimes store the call date as plain text like "13/09/2026" instead of
+  // a real Excel date. That's ambiguous (DD/MM vs MM/DD) and Postgres rejects it outright
+  // once the day is >12, which is exactly why later-in-the-month rows fail to save.
+  // Normalise anything that looks like a slash/dash date into an unambiguous "DD Mon YYYY" form.
+  var m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})(?:[,\s]+(\d{1,2}):(\d{2}))?/);
+  if(m){
+    var day=parseInt(m[1],10),month=parseInt(m[2],10),year=parseInt(m[3],10);
+    if(month>12&&day<=12){var t=day;day=month;month=t;} // swap only if the given order is impossible
+    var mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    if(month>=1&&month<=12&&day>=1&&day<=31){
+      var out=String(day).padStart(2,'0')+' '+mo[month-1]+' '+year;
+      if(m[4])out+=', '+String(m[4]).padStart(2,'0')+':'+m[5];
+      return out;
+    }
+  }
+  return s;
+}
+
 function extractScorecard(rows,fileName){
   function fv(pat,col){col=col||2;var r=rows.find(r=>pat.test(String(r[0]||'')));return r?String(r[col]||'').trim():'';}
   var name=fv(/advisor name/i)||fileName.replace(/\.xlsx?$/i,'');
@@ -434,7 +470,7 @@ function extractScorecard(rows,fileName){
   var auditor=fv(/auditor/i);
   var callDate='';
   var cdr=rows.find(r=>/call date/i.test(String(r[0]||'')));
-  if(cdr){var raw=cdr[2];if(typeof raw==='number'){var d=new Date(Math.round((raw-25569)*86400*1000));callDate=d.toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});}else callDate=String(raw||'').trim();}
+  if(cdr){callDate=formatCallDate(cdr[2]);}
   var pfRow=rows.find(r=>/^pass\s*\/?\s*fail/i.test(String(r[0]||'')));
   var pfResult=pfRow?String(pfRow[1]||'').trim().toUpperCase():'';
   var pfReason=pfRow?String(pfRow[2]||'').trim():'';
