@@ -212,17 +212,17 @@ tr:hover td{background:rgba(79,140,255,.03);}
       <div class="charts-section">
         <div class="charts-row">
           <div class="chart-card full">
-            <div class="chart-header"><div><div class="chart-title">Call Quality — Weekly Trend</div><div class="chart-sub">Number of passed calls per week</div></div></div>
+            <div class="chart-header"><div><div class="chart-title">Call Quality — Monthly Trend</div><div class="chart-sub">Number of passed calls per month</div></div></div>
             <canvas id="weeklyChart" height="80"></canvas>
           </div>
         </div>
         <div class="charts-row">
           <div class="chart-card">
-            <div class="chart-header"><div><div class="chart-title">Pass vs Fail by Week</div><div class="chart-sub">Volume of calls per week</div></div></div>
+            <div class="chart-header"><div><div class="chart-title">Pass vs Fail by Month</div><div class="chart-sub">Volume of calls per month</div></div></div>
             <canvas id="stackedChart" height="140"></canvas>
           </div>
           <div class="chart-card">
-            <div class="chart-header"><div><div class="chart-title">Total Calls Scored per Week</div><div class="chart-sub">Total calls scored each week</div></div></div>
+            <div class="chart-header"><div><div class="chart-title">Total Calls Scored per Month</div><div class="chart-sub">Total calls scored each month</div></div></div>
             <canvas id="agentChart" height="140"></canvas>
           </div>
         </div>
@@ -522,12 +522,11 @@ function renderSummary(agents){
 }
 function mc(l,v,c,b,col){return '<div class="stat-card"><div class="stat-label">'+l+'</div><div class="stat-value '+c+'">'+v+'</div><div class="stat-bar"><div class="stat-bar-fill" style="background:'+col+';width:'+b+'%"></div></div></div>';}
 
-function getWeekLabel(ds){
+function getMonthLabel(ds){
   if(!ds)return'Unknown';
   var d=new Date(ds);
   if(isNaN(d)){var m=ds.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/);if(m){var mo={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};d=new Date(parseInt(m[3]),mo[m[2]]!==undefined?mo[m[2]]:0,parseInt(m[1]));}else return'Unknown';}
-  var day=d.getDay(),diff=(day===0?-6:1-day),mon=new Date(d);mon.setDate(d.getDate()+diff);
-  return mon.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+  return d.toLocaleDateString('en-GB',{month:'short',year:'numeric'});
 }
 var threshPlugin={id:'threshold',afterDraw:function(chart){if(!chart.scales||!chart.scales.y)return;var ctx=chart.ctx,ca=chart.chartArea,y=chart.scales.y,yp=y.getPixelForValue(90);ctx.save();ctx.setLineDash([6,4]);ctx.strokeStyle='rgba(244,63,94,0.45)';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(ca.left,yp);ctx.lineTo(ca.right,yp);ctx.stroke();ctx.fillStyle='rgba(244,63,94,0.6)';ctx.font="10px 'DM Mono',monospace";ctx.fillText('90%',ca.left+4,yp-4);ctx.restore();}};
 Chart.register(threshPlugin);
@@ -535,8 +534,8 @@ Chart.register(threshPlugin);
 function renderCharts(){
   var all=Object.values(agentMap).reduce((arr,a)=>arr.concat(a.calls),[]); if(!all.length)return;
   var wm={};
-  all.forEach(c=>{var wk=getWeekLabel(c.callDate);if(!wm[wk])wm[wk]={pass:0,fail:0,total:0};c.pass?wm[wk].pass++:wm[wk].fail++;wm[wk].total++;});
-  var weeks=Object.keys(wm).sort((a,b)=>{function p(s){var m=s.match(/(\d+)\s(\w+)/);return m?new Date('2026 '+m[2]+' '+m[1]):new Date(0);}return p(a)-p(b);});
+  all.forEach(c=>{var wk=getMonthLabel(c.callDate);if(!wm[wk])wm[wk]={pass:0,fail:0,total:0};c.pass?wm[wk].pass++:wm[wk].fail++;wm[wk].total++;});
+  var weeks=Object.keys(wm).sort((a,b)=>{function p(s){var m=s.match(/(\w+)\s(\d+)/);return m?new Date(m[2]+' '+m[1]+' 1'):new Date(0);}return p(a)-p(b);});
   var pc=weeks.map(w=>wm[w].pass),fc=weeks.map(w=>wm[w].fail),tc=weeks.map(w=>wm[w].total);
   var tt={backgroundColor:'#191d28',borderColor:'#242938',borderWidth:1,titleColor:'#e8ecf4',bodyColor:'#6b7694'};
   function gs(id){return document.getElementById(id);}
