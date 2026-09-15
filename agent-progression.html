@@ -105,14 +105,14 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   <div class="page-hdr">
     <div class="page-eyebrow">Call Analytics</div>
     <div class="page-title">Agent Progression</div>
-    <div class="page-sub">Upload a ZZPS 3CX CallStats Excel — data stored in Supabase</div>
+    <div class="page-sub">Upload a 3CX raw stats export — data stored in Supabase</div>
   </div>
 
   <div class="upload-zone" id="uploadZone" style="display:none;">
     <input type="file" id="fileInput" accept=".xlsx,.xls">
     <span class="upload-icon">📊</span>
     <div class="upload-title">Upload Call Stats Excel</div>
-    <div class="upload-sub">ZZPS_CallStats 3CX format &nbsp;·&nbsp; one sheet per agent</div>
+    <div class="upload-sub">3CX raw export &nbsp;·&nbsp; "RawDailyAgentStats" sheet, ZZPS Limited queue</div>
     <div class="upload-sub" style="margin-top:4px;">Drag & drop or click to choose</div>
     <button class="upload-cta" onclick="event.stopPropagation();document.getElementById('fileInput').click()">Choose File</button>
   </div>
@@ -430,37 +430,49 @@ async function loadFromSupabase() {
 }
 
 // ==================== UPLOAD – deduplication + batch upsert ====================
+// Expects a 3CX raw stats export workbook containing a "RawDailyAgentStats" sheet:
+// Date | QueueNo | Queue | Extension | Agent | Answered | Ignored | HandledPct | TalkTime | TalkSeconds | AvgTalkTime
+// Only rows for the "ZZPS Limited" queue are imported (agents may also appear under other queues, which are ignored).
+const TARGET_QUEUE = 'ZZPS Limited';
+
 async function parseAndUpload(file) {
   const reader = new FileReader();
   reader.onload = async function(e) {
     try {
       const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+      const sheetName = wb.SheetNames.find(n => n.trim().toLowerCase() === 'rawdailyagentstats');
+      if (!sheetName) {
+        showToast('No "RawDailyAgentStats" sheet found — is this a 3CX raw stats export?', false);
+        return;
+      }
+
+      const ws = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
       const allDailyRows = [];
-      
-      for (const sn of wb.SheetNames) {
-        const ws = wb.Sheets[sn];
-        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
-        const agentName = sn.replace(/^\d+\s*/, '').trim();
+
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        if (!r || r[0] == null || r[4] == null) continue;
+        if (r[2] !== TARGET_QUEUE) continue; // skip other queues (PCN, GCTT, IPMB, etc.)
+
+        let date;
+        const dv = r[0];
+        if (dv instanceof Date) {
+          date = dv;
+        } else if (typeof dv === 'number' && dv > 19000000) {
+          const s = String(Math.round(dv));
+          if (s.length === 8) date = new Date(parseInt(s.slice(0,4)), parseInt(s.slice(4,6))-1, parseInt(s.slice(6,8)));
+        }
+        if (!date || isNaN(date.getTime())) continue;
+
+        const agentName = String(r[4]).trim();
         if (!agentName) continue;
-        
-        for (let i = 3; i < rows.length; i++) {
-          const r = rows[i];
-          if (!r || r[0] == null) continue;
-          let date;
-          const dv = r[0];
-          if (typeof dv === 'number' && dv > 19000000) {
-            const s = String(Math.round(dv));
-            if (s.length === 8) date = new Date(parseInt(s.slice(0,4)), parseInt(s.slice(4,6))-1, parseInt(s.slice(6,8)));
-          } else if (dv instanceof Date) {
-            date = dv;
-          }
-          if (!date || isNaN(date.getTime())) continue;
-          
-          const calls = parseFloat(r[1]) || 0;
-          const ignored = parseFloat(r[2]) || 0;
-          const totalHrs = parseFloat(th(r[4]).toFixed(2));
-          const talkMinutes = totalHrs * 60;
-          
+
+        const calls = parseFloat(r[5]) || 0;      // Answered
+        const ignored = parseFloat(r[6]) || 0;     // Ignored
+        const talkSeconds = parseFloat(r[9]) || 0; // TalkSeconds
+        const talkMinutes = talkSeconds / 60;
+
           // Format date as string WITHOUT timezone conversion to avoid date shifts
           const year = date.getFullYear();
           const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -474,11 +486,10 @@ async function parseAndUpload(file) {
             ignored,
             talk_time_minutes: talkMinutes
           });
-        }
       }
       
       if (allDailyRows.length === 0) {
-        showToast('No valid agent data found in the Excel file.', false);
+        showToast(`No "${TARGET_QUEUE}" agent data found in the file.`, false);
         return;
       }
       
