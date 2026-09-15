@@ -444,6 +444,20 @@ async function loadFromSupabase() {
 //    won't wipe out the ignored/talk-time figures already stored for that date.
 const TARGET_QUEUE = 'ZZPS Limited';
 
+// Only these agents are imported — everyone else on the ZZPS Limited queue
+// (backup/shared extensions, other teams' agents, spares) is skipped.
+// Update this list if the roster changes.
+const TEAM_AGENTS = new Set([
+  'Saad Essajai', 'Marwa Elayoubi', 'Hind Ogri', 'Khadija Erachidi',
+  'Driss Ourhou', 'Abdulkarim Sghir', 'Khalil Ibrahim', 'Zahra Zahir',
+  'Mohammed Mesti', 'Oumaima Magharni', 'Aya Achouih', 'Chaima Boulafdour',
+  'Souhaila Ouahi'
+].map(n => n.trim().toLowerCase()));
+
+function isTeamAgent(name) {
+  return TEAM_AGENTS.has(String(name).trim().toLowerCase());
+}
+
 function toDateStr(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -466,7 +480,7 @@ function parseRawDailyAgentStats(wb, sheetName) {
     const date = r[0] instanceof Date ? r[0] : null;
     if (!date || isNaN(date.getTime())) continue;
     const agentName = String(r[4]).trim();
-    if (!agentName) continue;
+    if (!agentName || !isTeamAgent(agentName)) continue;
     out.push({
       agent_name: agentName,
       date: toDateStr(date),
@@ -486,7 +500,8 @@ function parseCallsSummary(wb, sheetName) {
   const headerRow = rows[headerIdx];
   const agentCols = [];
   for (let c = 1; c < headerRow.length; c++) {
-    if (headerRow[c]) agentCols.push({ col: c, name: String(headerRow[c]).trim() });
+    const name = headerRow[c] ? String(headerRow[c]).trim() : '';
+    if (name && isTeamAgent(name)) agentCols.push({ col: c, name }); // also drops the "Daily Total" column
   }
   const out = [];
   for (let i = headerIdx + 1; i < rows.length; i++) {
