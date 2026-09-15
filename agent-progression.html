@@ -430,84 +430,123 @@ async function loadFromSupabase() {
 }
 
 // ==================== UPLOAD – deduplication + batch upsert ====================
-// Expects a 3CX raw stats export workbook containing a "RawDailyAgentStats" sheet:
-// Date | QueueNo | Queue | Extension | Agent | Answered | Ignored | HandledPct | TalkTime | TalkSeconds | AvgTalkTime
-// Only rows for the "ZZPS Limited" queue are imported (agents may also appear under other queues, which are ignored).
+// Supports two export shapes, tried in this order:
+//
+// 1) "RawDailyAgentStats" sheet (richest — includes ignored + talk time):
+//    Date | QueueNo | Queue | Extension | Agent | Answered | Ignored | HandledPct | TalkTime | TalkSeconds | AvgTalkTime
+//    Only rows for the "ZZPS Limited" queue are imported.
+//
+// 2) "Calls Summary" sheet (fallback — totals-only export, one column per agent):
+//    Date | <Agent 1> | <Agent 2> | ... , one row per day, values are total calls.
+//    This shape carries no ignored/talk-time data, so those fields are left OUT of
+//    the upsert payload entirely (not set to 0) — that way, re-uploading a
+//    totals-only file for a date that already has richer data from format (1)
+//    won't wipe out the ignored/talk-time figures already stored for that date.
 const TARGET_QUEUE = 'ZZPS Limited';
+
+function toDateStr(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function findSheet(wb, keyword) {
+  return wb.SheetNames.find(n => n.trim().toLowerCase() === keyword);
+}
+
+function parseRawDailyAgentStats(wb, sheetName) {
+  const ws = wb.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+  const out = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || r[0] == null || r[4] == null) continue;
+    if (r[2] !== TARGET_QUEUE) continue; // skip other queues (PCN, GCTT, IPMB, etc.)
+    const date = r[0] instanceof Date ? r[0] : null;
+    if (!date || isNaN(date.getTime())) continue;
+    const agentName = String(r[4]).trim();
+    if (!agentName) continue;
+    out.push({
+      agent_name: agentName,
+      date: toDateStr(date),
+      calls: parseFloat(r[5]) || 0,          // Answered
+      ignored: parseFloat(r[6]) || 0,        // Ignored
+      talk_time_minutes: (parseFloat(r[9]) || 0) / 60 // TalkSeconds -> minutes
+    });
+  }
+  return out;
+}
+
+function parseCallsSummary(wb, sheetName) {
+  const ws = wb.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+  const headerIdx = rows.findIndex(r => r && r[0] === 'Date');
+  if (headerIdx === -1) return null;
+  const headerRow = rows[headerIdx];
+  const agentCols = [];
+  for (let c = 1; c < headerRow.length; c++) {
+    if (headerRow[c]) agentCols.push({ col: c, name: String(headerRow[c]).trim() });
+  }
+  const out = [];
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || !(r[0] instanceof Date)) continue; // stops at the TOTALS row / blank rows
+    const dateStr = toDateStr(r[0]);
+    for (const { col, name } of agentCols) {
+      // No 'ignored' / 'talk_time_minutes' keys — see note above.
+      out.push({ agent_name: name, date: dateStr, calls: parseFloat(r[col]) || 0 });
+    }
+  }
+  return out;
+}
 
 async function parseAndUpload(file) {
   const reader = new FileReader();
   reader.onload = async function(e) {
     try {
       const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
-      const sheetName = wb.SheetNames.find(n => n.trim().toLowerCase() === 'rawdailyagentstats');
-      if (!sheetName) {
-        showToast('No "RawDailyAgentStats" sheet found — is this a 3CX raw stats export?', false);
-        return;
-      }
 
-      const ws = wb.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
-      const allDailyRows = [];
+      let allDailyRows = [];
+      let mode = null;
 
-      for (let i = 1; i < rows.length; i++) {
-        const r = rows[i];
-        if (!r || r[0] == null || r[4] == null) continue;
-        if (r[2] !== TARGET_QUEUE) continue; // skip other queues (PCN, GCTT, IPMB, etc.)
-
-        let date;
-        const dv = r[0];
-        if (dv instanceof Date) {
-          date = dv;
-        } else if (typeof dv === 'number' && dv > 19000000) {
-          const s = String(Math.round(dv));
-          if (s.length === 8) date = new Date(parseInt(s.slice(0,4)), parseInt(s.slice(4,6))-1, parseInt(s.slice(6,8)));
+      const rawSheetName = findSheet(wb, 'rawdailyagentstats');
+      if (rawSheetName) {
+        mode = 'raw';
+        allDailyRows = parseRawDailyAgentStats(wb, rawSheetName);
+      } else {
+        const summarySheetName = findSheet(wb, 'calls summary');
+        if (summarySheetName) {
+          mode = 'summary';
+          allDailyRows = parseCallsSummary(wb, summarySheetName) || [];
         }
-        if (!date || isNaN(date.getTime())) continue;
-
-        const agentName = String(r[4]).trim();
-        if (!agentName) continue;
-
-        const calls = parseFloat(r[5]) || 0;      // Answered
-        const ignored = parseFloat(r[6]) || 0;     // Ignored
-        const talkSeconds = parseFloat(r[9]) || 0; // TalkSeconds
-        const talkMinutes = talkSeconds / 60;
-
-          // Format date as string WITHOUT timezone conversion to avoid date shifts
-          const year = date.getFullYear();
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const day = String(date.getDate()).padStart(2, '0');
-          const dateStr = `${year}-${month}-${day}`;
-          
-          allDailyRows.push({
-            agent_name: agentName,
-            date: dateStr,
-            calls,
-            ignored,
-            talk_time_minutes: talkMinutes
-          });
       }
-      
-      if (allDailyRows.length === 0) {
-        showToast(`No "${TARGET_QUEUE}" agent data found in the file.`, false);
+
+      if (!mode) {
+        showToast('No "RawDailyAgentStats" or "Calls Summary" sheet found — check the file format.', false);
         return;
       }
-      
-      // Deduplicate by agent_name + date
+      if (allDailyRows.length === 0) {
+        showToast(mode === 'raw' ? `No "${TARGET_QUEUE}" agent data found in the file.` : 'No data rows found in "Calls Summary".', false);
+        return;
+      }
+
+      // Deduplicate by agent_name + date. Only sum fields that are actually present
+      // on the row, so the totals-only path never fabricates ignored/talk-time values.
       const uniqueMap = new Map();
       for (const row of allDailyRows) {
         const key = `${row.agent_name}|${row.date}`;
         if (uniqueMap.has(key)) {
           const existing = uniqueMap.get(key);
           existing.calls += row.calls;
-          existing.ignored += row.ignored;
-          existing.talk_time_minutes += row.talk_time_minutes;
+          if ('ignored' in row) existing.ignored = (existing.ignored || 0) + row.ignored;
+          if ('talk_time_minutes' in row) existing.talk_time_minutes = (existing.talk_time_minutes || 0) + row.talk_time_minutes;
         } else {
           uniqueMap.set(key, { ...row });
         }
       }
       const uniqueRows = Array.from(uniqueMap.values());
-      console.log(`Deduplicated: ${allDailyRows.length} rows → ${uniqueRows.length} unique rows`);
+      console.log(`Deduplicated: ${allDailyRows.length} rows → ${uniqueRows.length} unique rows (mode: ${mode})`);
       
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw new Error('Not authenticated');
@@ -520,7 +559,10 @@ async function parseAndUpload(file) {
       
       if (upsertError) throw upsertError;
       
-      showToast(`Uploaded ${uniqueRows.length} unique rows (${allDailyRows.length} total rows deduplicated)`, true);
+      const msg = mode === 'raw'
+        ? `Uploaded ${uniqueRows.length} unique rows (${allDailyRows.length} total rows deduplicated)`
+        : `Uploaded ${uniqueRows.length} rows of Total Calls (this file had no ignored/talk-time data)`;
+      showToast(msg, true);
       await loadFromSupabase();
       
     } catch (err) {
