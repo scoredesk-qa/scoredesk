@@ -1134,6 +1134,12 @@ document.addEventListener('drop', e => {
   if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && PENDING) { PENDING = null; $('modalRoot').innerHTML = ''; } });
+// The Dashboard tab can ask this page to open an agent.
+window.addEventListener('message', e => {
+  if (e.data?.type !== 'sd-agent' || !VIEW) return;
+  const hit = VIEW.agents.find(a => key(a.name) === key(e.data.agent));
+  if (hit) selectAgent(hit.name);
+});
 
 async function init() {
   const { data: { user } } = await supabase.auth.getUser();

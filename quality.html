@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScoreDesk – Quality</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+<div class="main">
+  <div class="hdr">
+    <div>
+      <div class="eyebrow">Call Quality</div>
+      <div class="title">Quality Scorecards</div>
+      <div class="sub" id="subLine">Loading…</div>
+    </div>
+    <div class="actions">
+      <button class="btn adm hidden" id="syncBtn">⟳ Sync Google Drive</button>
+      <button class="btn adm hidden" id="driveBtn">⚙ Drive folder</button>
+      <button class="btn primary adm hidden" id="uploadBtn">⬆ Upload scorecards</button>
+    </div>
+  </div>
+  <input type="file" id="fileInput" accept=".xlsx,.xls,.xlsm" multiple class="hidden">
+
+  <div id="driveBanner"></div>
+  <div id="loading" class="loading">Loading scorecards…</div>
+
+  <div id="empty" class="hidden">
+    <div class="drop" id="dropZone">
+      <div class="ic">📋</div>
+      <div class="h">No scorecards yet</div>
+      <div class="p">Drop scorecard Excel files here, or connect a Google Drive folder so new scorecards are imported automatically.</div>
+    </div>
+  </div>
+
+  <div id="content" class="hidden">
+    <div id="dataBanner"></div>
+    <div class="toolbar">
+      <div class="seg" id="rangeSeg">
+        <button data-r="7">7 days</button><button data-r="30">30 days</button><button data-r="mtd">This month</button>
+        <button data-r="lm">Last month</button><button data-r="90">90 days</button><button data-r="all">All time</button>
+      </div>
+      <span class="range-lbl" id="rangeLbl"></span>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+
+    <div class="grid2">
+      <div class="card">
+        <div class="cl"><span>Scored calls &amp; pass rate per week</span></div>
+        <div class="leg"><span><i style="background:var(--pass)"></i>Passed</span><span><i style="background:var(--fail)"></i>Failed</span><span><i style="background:var(--accent);height:2px"></i>Pass rate</span></div>
+        <div class="chart" style="height:340px"><canvas id="chWeek"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="cl"><span>Top reasons for failing</span><span class="cm" id="failCnt"></span></div>
+        <div id="reasons" class="list"></div>
+      </div>
+    </div>
+
+    <div class="sec"><div><div class="k">By agent</div><div class="t">Agent quality</div></div><span class="pill" id="agCnt"></span></div>
+    <div class="card flush mb"><div class="tw"><table class="dt" id="board"><thead></thead><tbody></tbody></table></div></div>
+  </div>
+</div>
+<div id="modalRoot"></div>
+
+<script src="shared.js"></script>
+<script>
+// Optional: put your Google OAuth Client ID here so every admin gets it.
+// Admins can also paste it in "Drive folder" settings (saved in their browser).
+const GOOGLE_CLIENT_ID = '';
+const DRIVE_KEY = 'scoredesk.drive.v1';
+const PASS_TARGET = 90;
+
+const { $, esc, fmtN, toast } = SD;
+let ME = null, RAW = [], CARDS = [], KEYS = new Set();
+let RANGE = '30', SORT = { key: 'scored', dir: -1 }, OPEN = null, CH = [];
+
+// ============================================================ load & render
+async function load() {
+  $('loading').classList.remove('hidden');
+  try {
+    RAW = await SD.fetchAll('scorecards', '*', q => (!ME.isAdmin && ME.agentName) ? q.eq('agent_name', ME.agentName) : q);
+  } catch (e) { $('loading').textContent = 'Could not load scorecards: ' + e.message; return; }
+  const resolve = SD.nameResolver();
+  CARDS = RAW.map(r => SD.enrichScorecard(r, resolve));
+  KEYS = new Set(RAW.map(SD.scorecardKey));
+  $('loading').classList.add('hidden');
+  $('empty').classList.toggle('hidden', CARDS.length > 0);
+  $('content').classList.toggle('hidden', !CARDS.length);
+  if (CARDS.length) render();
+  $('subLine').textContent = `${fmtN(CARDS.length)} scorecards · ${new Set(CARDS.map(c => c.agent)).size} agents`;
+}
+
+function passBadge(p) {
+  if (p == null) return '<span class="bdg n">—</span>';
+  return `<span class="bdg ${p >= PASS_TARGET ? 'ok' : p >= 75 ? 'w' : 'bad'}">${p.toFixed(0)}%</span>`;
+}
+const passClass = p => p == null ? 'cm' : p >= PASS_TARGET ? 'cg' : p >= 75 ? 'cw' : 'cr';
+
+function stats(cards) {
+  const n = cards.length, passed = cards.filter(c => c.pass).length;
+  const scored = cards.filter(c => c.score != null);
+  return {
+    n, passed, failed: n - passed, passRate: SD.pct(passed, n),
+    avgScore: scored.length ? scored.reduce((a, c) => a + c.score, 0) / scored.length : null,
+    afCalls: cards.filter(c => c.afTriggered > 0).length,
+    last: cards.map(c => c.date).filter(Boolean).sort().pop() || null
+  };
+}
+
+function render() {
+  const dated = CARDS.filter(c => c.date);
+  const undated = CARDS.filter(c => !c.date);
+  const dates = dated.map(c => c.date).sort();
+  const maxDate = dates[dates.length - 1] || SD.today(), minDate = dates[0] || maxDate;
+  const [from, to] = SD.rangeBounds(RANGE, maxDate, minDate);
+  const inR = dated.filter(c => c.date >= from && c.date <= to);
+  document.querySelectorAll('#rangeSeg button').forEach(b => b.classList.toggle('on', b.dataset.r === RANGE));
+  $('rangeLbl').textContent = `${SD.fmtDate(from)} – ${SD.fmtDate(to)} · latest scorecard ${SD.fmtDate(maxDate)}`;
+
+  // Data-quality banner: undated cards can't appear in any period.
+  $('dataBanner').innerHTML = undated.length && ME.isAdmin
+    ? `<div class="banner warn"><span>⚠️</span><span class="grow">${undated.length} scorecard${undated.length > 1 ? 's have' : ' has'} a call date that can't be read, so ${undated.length > 1 ? "they don't" : "it doesn't"} show in any period.</span><button class="btn" id="showUndated">Show</button></div>` : '';
+  if ($('showUndated')) $('showUndated').onclick = () => showList('Scorecards with unreadable call dates', undated);
+
+  const s = stats(inR);
+  $('kpis').innerHTML = [
+    ['Calls scored', `<span class="cb">${fmtN(s.n)}</span>`, `${new Set(inR.map(c => c.agent)).size} agents`],
+    ['Pass rate', `<span class="${passClass(s.passRate)}">${s.passRate == null ? '—' : s.passRate.toFixed(1)}<small>%</small></span>`, `target ${PASS_TARGET}%`],
+    ['Passed', `<span class="cg">${fmtN(s.passed)}</span>`, ''],
+    ['Failed', `<span class="cr">${fmtN(s.failed)}</span>`, ''],
+    ['Avg score', `${s.avgScore == null ? '—' : s.avgScore.toFixed(1)}<small>%</small>`, 'from criteria marks'],
+    ['Auto-fails', `<span class="${s.afCalls ? 'cr' : 'cg'}">${fmtN(s.afCalls)}</span>`, 'calls with an auto-fail']
+  ].map(([l, v, sub]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`).join('');
+
+  renderChart(inR, from, to);
+  renderReasons(inR);
+  renderBoard(inR, dated, from, to);
+}
+
+function renderChart(cards, from, to) {
+  CH.forEach(c => c.destroy()); CH = [];
+  const weeks = SD.weekList(from, to);
+  const by = new Map(weeks.map(w => [w, []]));
+  cards.forEach(c => by.get(SD.mondayOf(c.date))?.push(c));
+  const ws = weeks.map(w => stats(by.get(w)));
+  CH.push(new Chart($('chWeek'), {
+    type: 'bar',
+    data: { labels: weeks.map(SD.shortDate), datasets: [
+      { label: 'Passed', data: ws.map(w => w.passed), backgroundColor: 'rgba(34,211,160,.7)', borderRadius: 3, stack: 's', yAxisID: 'y', order: 2 },
+      { label: 'Failed', data: ws.map(w => w.failed), backgroundColor: 'rgba(244,63,94,.7)', borderRadius: 3, stack: 's', yAxisID: 'y', order: 2 },
+      { type: 'line', label: 'Pass rate', data: ws.map(w => w.passRate == null ? null : +w.passRate.toFixed(1)), borderColor: '#4f8cff', backgroundColor: '#4f8cff', pointRadius: 2.5, tension: .3, yAxisID: 'y2', order: 1, spanGaps: true }
+    ] },
+    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { ...TIP, callbacks: { title: i => 'Week of ' + SD.fmtDate(weeks[i[0].dataIndex]), label: c => ` ${c.dataset.label}: ${c.dataset.label === 'Pass rate' ? c.parsed.y + '%' : c.parsed.y}` } } },
+      scales: { x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, maxTicksLimit: 12 } },
+        y: { stacked: true, beginAtZero: true, grid: { color: GRID } },
+        y2: { position: 'right', min: 0, max: 100, grid: { display: false }, ticks: { callback: v => v + '%' } } } }
+  }));
+}
+
+function renderReasons(cards) {
+  const failed = cards.filter(c => !c.pass);
+  $('failCnt').textContent = `${failed.length} failed calls`;
+  const m = new Map();
+  const bump = (k, label, type, c) => { if (!m.has(k)) m.set(k, { label, type, calls: new Set(), agents: new Set() }); m.get(k).calls.add(c.id); m.get(k).agents.add(c.agent); };
+  for (const c of failed) {
+    c.afs.filter(a => a.triggered).forEach(a => bump('a' + SD.critKey(SD.canonicalAF(a.label)), SD.canonicalAF(a.label), 'Auto-fail', c));
+    c.crit.filter(x => parseFloat(x.weight) > 0 && parseFloat(x.score) === 0).forEach(x => bump('c' + SD.critKey(x.label), x.label, 'Zero score', c));
+  }
+  const top = [...m.values()].sort((a, b) => b.calls.size - a.calls.size).slice(0, 6);
+  if (!top.length) { $('reasons').innerHTML = '<div class="tbl-note">No failed calls in this period 🎉</div>'; return; }
+  const max = top[0].calls.size;
+  $('reasons').innerHTML = top.map(r => `<div class="item"><div class="h"><span class="t">${esc(r.label)}</span>
+    <span><span class="bdg ${r.type === 'Auto-fail' ? 'bad' : 'w'}">${r.type}</span> <span class="mono cm" style="font-size:11px">${r.calls.size} calls · ${r.agents.size} agents</span></span></div>
+    <div class="bar" style="width:100%;margin-top:8px"><i style="width:${r.calls.size / max * 100}%;background:${r.type === 'Auto-fail' ? 'var(--fail)' : 'var(--warn)'}"></i></div></div>`).join('');
+}
+
+const COLS = [
+  ['agent', 'Agent'], ['scored', 'Scored'], ['passRate', 'Pass rate'], ['avgScore', 'Avg score'], ['failed', 'Failed'],
+  ['afCalls', 'Auto-fails'], ['trend', 'Pass rate vs prev.'], ['last', 'Last scored'], ['', '']
+];
+
+function renderBoard(cards, allDated, from, to) {
+  const len = SD.daysBetween(from, to) + 1;
+  const pFrom = SD.addDays(from, -len), pTo = SD.addDays(from, -1);
+  const by = new Map();
+  cards.forEach(c => { if (!by.has(c.agent)) by.set(c.agent, []); by.get(c.agent).push(c); });
+  const rows = [...by.entries()].map(([agent, cs]) => {
+    const s = stats(cs);
+    // compared with the same-length window just before this period
+    const prev = stats(allDated.filter(c => c.agent === agent && c.date >= pFrom && c.date <= pTo));
+    return { agent, cards: cs, scored: s.n, passRate: s.passRate, avgScore: s.avgScore, failed: s.failed, afCalls: s.afCalls, last: s.last,
+      trend: s.passRate != null && prev.passRate != null && RANGE !== 'all' ? s.passRate - prev.passRate : null };
+  });
+  rows.sort((a, b) => { const x = a[SORT.key], y = b[SORT.key]; if (x == null) return 1; if (y == null) return -1; return (typeof x === 'string' ? x.localeCompare(y) : x - y) * SORT.dir; });
+  $('agCnt').textContent = `${rows.length} agents`;
+  $('board').querySelector('thead').innerHTML = '<tr>' + COLS.map(([k, t]) => `<th class="${k ? 'sort' : ''} ${SORT.key === k ? 'on' : ''}" data-k="${k}">${t}${SORT.key === k ? (SORT.dir < 0 ? ' ↓' : ' ↑') : ''}</th>`).join('') + '</tr>';
+  $('board').querySelector('tbody').innerHTML = rows.map(r => {
+    const tr = r.trend == null ? '<span class="delta fl">—</span>' : `<span class="delta ${r.trend > 0.5 ? 'up' : r.trend < -0.5 ? 'dn' : 'fl'}">${r.trend > 0 ? '▲' : r.trend < 0 ? '▼' : '●'} ${Math.abs(r.trend).toFixed(0)} pts</span>`;
+    const open = OPEN === r.agent;
+    return `<tr class="${open ? 'sel' : ''}"><td><span class="alink" data-toggle="${esc(r.agent)}">${open ? '▾' : '▸'} ${esc(r.agent)}</span></td>
+      <td class="n">${r.scored}</td><td>${passBadge(r.passRate)}</td>
+      <td class="n">${r.avgScore == null ? '—' : r.avgScore.toFixed(1) + '%'}</td><td class="n ${r.failed ? 'cr' : 'cm'}">${r.failed}</td>
+      <td class="n ${r.afCalls ? 'cr' : 'cm'}">${r.afCalls}</td><td>${tr}</td><td class="n cm">${SD.fmtDate(r.last)}</td>
+      <td><button class="linkbtn" data-toggle="${esc(r.agent)}">${open ? 'Hide' : 'Calls'}</button></td></tr>
+      ${open ? `<tr class="expand"><td colspan="9"><div class="inner">${callsTable(r.cards)}</div></td></tr>` : ''}`;
+  }).join('') || '<tr><td colspan="9" class="tbl-note">No scorecards in this period.</td></tr>';
+}
+
+function callsTable(cards) {
+  const cs = [...cards].sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
+  return `<table class="dt" style="min-width:0"><thead><tr><th>Call date</th><th>Account</th><th>Auditor</th><th>Result</th><th>Score</th><th>Reason</th><th></th></tr></thead><tbody>
+    ${cs.map(c => `<tr><td class="n">${SD.fmtDate(c.date)} ${c.time ? '<span class="cm">' + esc(c.time) + '</span>' : ''}</td>
+      <td class="n cm">${esc(c.account_ref || '—')}</td><td class="n cm">${esc(c.auditor || '—')}</td>
+      <td><span class="bdg ${c.pass ? 'ok' : 'bad'}">${c.pass ? 'PASS' : 'FAIL'}</span></td>
+      <td class="n">${c.score == null ? '—' : c.score.toFixed(0) + '%'}</td>
+      <td style="white-space:normal;max-width:320px;font-size:11px" class="${c.pass ? 'cm' : 'cr'}">${c.pass ? '—' : esc(c.pf_reason || 'No reason recorded')}</td>
+      <td><button class="linkbtn" data-card="${c.id}">View</button></td></tr>`).join('')}</tbody></table>`;
+}
+
+// ============================================================ call detail
+async function openCard(id) {
+  const c = CARDS.find(x => String(x.id) === String(id)); if (!c) return;
+  const trig = c.afs.filter(a => a.triggered), okAf = c.afs.filter(a => !a.triggered);
+  const secs = [];
+  c.crit.forEach(cr => { const s = cr.section || 'General'; if (!secs.includes(s)) secs.push(s); });
+  const noteKey = 'call:' + encodeURIComponent(c.agent_name + '||' + c.file_name);
+  let note = '';
+  try { const { data } = await SD.sb.from('notes').select('content').eq('note_key', noteKey).maybeSingle(); note = data?.content || ''; } catch (e) {}
+
+  modal(`<div class="mh"><div><div class="eyebrow">Scorecard</div><div class="t">${esc(c.agent)}</div>
+      <div class="sub">${[SD.fmtDate(c.date) + (c.time ? ' ' + c.time : ''), c.account_ref && 'Account ' + c.account_ref, c.auditor && 'Auditor ' + c.auditor].filter(Boolean).map(esc).join(' · ')}</div></div>
+      <button class="xbtn" data-close>✕</button></div>
+    <div class="mb2">
+      <div class="result ${c.pass ? 'pass' : 'fail'}"><span class="big ${c.pass ? 'cg' : 'cr'}">${c.pass ? 'PASSED' : 'FAILED'}</span>
+        ${c.score != null ? `<span class="mono">Score <b>${c.score.toFixed(1)}%</b></span>` : ''}
+        ${!c.pass && c.pf_reason ? `<span class="mono cr" style="font-size:12px">${esc(c.pf_reason)}</span>` : ''}</div>
+      ${trig.length ? `<div class="sech" style="color:var(--fail)">Auto-fail triggered (${trig.length})</div>${trig.map(a => critRow(a.label, 'NO', 'cr', a.feedback, a.section)).join('')}` : ''}
+      ${secs.map(s => `<div class="sech">${esc(s)}</div>` + c.crit.filter(cr => (cr.section || 'General') === s).map(cr => {
+        const w = parseFloat(cr.weight), v = parseFloat(cr.score);
+        const cls = !isFinite(v) ? 'cm' : v >= w ? 'cg' : v > 0 ? 'cw' : 'cr';
+        return critRow(cr.label, isFinite(v) ? `${v} / ${w}` : `— / ${w}`, cls, cr.feedback);
+      }).join('')).join('')}
+      ${okAf.length ? `<div class="sech">Auto-fail checks</div>${okAf.map(a => critRow(a.label, a.value || 'N/A', a.value === 'YES' ? 'cg' : 'cm', a.feedback, a.section)).join('')}` : ''}
+      ${!c.crit.length && !c.afs.length ? '<div class="banner warn" style="margin-top:14px">No criteria were read from this file. Re-upload it so the parser can pick them up.</div>' : ''}
+      <div class="sech">Notes</div>
+      ${ME.isAdmin ? `<textarea class="notes" id="noteArea" placeholder="Notes about this call…">${esc(note)}</textarea>` : `<div class="item mono" style="font-size:12px">${esc(note) || '<span class="cm">No notes</span>'}</div>`}
+      <div class="sub" style="margin-top:10px">File: ${esc(c.file_name)}</div>
+    </div>
+    ${ME.isAdmin ? `<div class="mf"><button class="btn danger" id="delCard">Delete scorecard</button><span class="grow"></span><button class="btn primary" id="saveNote">Save notes</button></div>` : ''}`, true);
+
+  if (ME.isAdmin) {
+    $('saveNote').onclick = async () => {
+      const { error } = await SD.sb.from('notes').upsert({ note_key: noteKey, content: $('noteArea').value, updated_by: ME.user.id }, { onConflict: 'note_key' });
+      toast(error ? 'Save failed: ' + error.message : 'Notes saved', !error);
+    };
+    $('delCard').onclick = async () => {
+      if (!confirm(`Delete this scorecard for ${c.agent} (${SD.fmtDate(c.date)})?`)) return;
+      const { error } = await SD.sb.from('scorecards').delete().eq('id', c.id);
+      if (error) return toast('Delete failed: ' + error.message, false);
+      closeModal(); toast('Scorecard deleted', true); await load();
+    };
+  }
+}
+const critRow = (label, score, cls, fb, section) =>
+  `<div class="crit"><span class="lb">${esc(label)}${section && section !== 'ZZPS Summary' && section !== 'General' ? ` <span class="cm mono" style="font-size:10px">${esc(section)}</span>` : ''}</span><span class="sc ${cls}">${esc(score)}</span>${fb ? `<span class="fb2">${esc(fb)}</span>` : ''}</div>`;
+
+function showList(title, cards) {
+  modal(`<div class="mh"><div class="t">${esc(title)}</div><button class="xbtn" data-close>✕</button></div>
+    <div class="mb2"><div class="rep">${cards.map(c => `<div><span class="err">✕</span><span>${esc(c.agent)} · ${esc(c.file_name)} · call date "${esc(c.call_date)}"</span><button class="linkbtn" data-card="${c.id}" style="margin-left:auto">View</button></div>`).join('')}</div>
+    <p class="sub" style="margin-top:12px">Fix the Call Date in these files and upload them again (or delete them from the detail view).</p></div>`);
+}
+
+function modal(html, wide) {
+  $('modalRoot').innerHTML = `<div class="ov" id="ov"><div class="modal ${wide ? 'wide' : ''}">${html}</div></div>`;
+  $('ov').addEventListener('click', e => {
+    if (e.target.id === 'ov' || e.target.closest('[data-close]')) closeModal();
+    const b = e.target.closest('[data-card]'); if (b) openCard(b.dataset.card);
+  });
+}
+function closeModal() { $('modalRoot').innerHTML = ''; }
+
+// ============================================================ import (upload + drive)
+// Parses workbooks, skips calls already stored, inserts the rest, returns a per-file report.
+async function importWorkbooks(items, progress) {
+  const report = [], toInsert = [];
+  const batchKeys = new Set();
+  for (const it of items) {
+    try {
+      const wb = XLSX.read(new Uint8Array(it.buffer), { type: 'array' });
+      const { row, warnings } = SD.extractScorecard(SD.scorecardRows(wb), it.name);
+      const k = SD.scorecardKey(row);
+      if (KEYS.has(k) || batchKeys.has(k)) { report.push({ name: it.name, st: 'skip', msg: `already stored (${row.agent_name}, ${row.call_date})` }); continue; }
+      batchKeys.add(k);
+      toInsert.push({ it, row: { ...row, uploaded_by: ME.user.id }, warnings });
+    } catch (e) { report.push({ name: it.name, st: 'err', msg: 'could not read file: ' + e.message }); }
+  }
+  for (let i = 0; i < toInsert.length; i += 50) {
+    const chunk = toInsert.slice(i, i + 50);
+    const { error } = await SD.sb.from('scorecards').insert(chunk.map(x => x.row));
+    if (error) {
+      // retry one by one so a single bad file doesn't sink the batch
+      for (const x of chunk) {
+        const r = await SD.sb.from('scorecards').insert(x.row);
+        report.push(r.error ? { name: x.it.name, st: 'err', msg: r.error.message } : { name: x.it.name, st: 'ok', msg: okMsg(x) });
+      }
+    } else chunk.forEach(x => report.push({ name: x.it.name, st: 'ok', msg: okMsg(x) }));
+    progress && progress(Math.min(1, (i + 50) / toInsert.length));
+  }
+  return report;
+}
+const okMsg = x => `${x.row.agent_name} · ${x.row.call_date || 'no date'} · ${x.row.pass ? 'PASS' : 'FAIL'}${x.warnings.length ? ' ⚠ ' + x.warnings.join('; ') : ''}`;
+
+function showReport(title, report) {
+  const n = st => report.filter(r => r.st === st).length;
+  const order = { err: 0, ok: 1, skip: 2 };
+  modal(`<div class="mh"><div><div class="eyebrow">Import report</div><div class="t">${esc(title)}</div>
+      <div class="sub"><span class="cg">${n('ok')} added</span> · <span class="cm">${n('skip')} already stored</span> · <span class="cr">${n('err')} failed</span></div></div><button class="xbtn" data-close>✕</button></div>
+    <div class="mb2"><div class="rep">${[...report].sort((a, b) => order[a.st] - order[b.st]).map(r => `<div><span class="${r.st}">${r.st === 'ok' ? '✓' : r.st === 'skip' ? '•' : '✕'}</span><span><b>${esc(r.name)}</b><br><span class="cm">${esc(r.msg)}</span></span></div>`).join('') || '<div>No files.</div>'}</div></div>
+    <div class="mf"><button class="btn primary" data-close>Done</button></div>`);
+}
+
+async function uploadFiles(files) {
+  if (!ME.isAdmin || !files.length) return;
+  toast(`Reading ${files.length} file${files.length > 1 ? 's' : ''}…`);
+  const items = await Promise.all([...files].map(f => f.arrayBuffer().then(buffer => ({ name: f.name, buffer }))));
+  const report = await importWorkbooks(items);
+  await load();
+  showReport(`${files.length} file${files.length > 1 ? 's' : ''} uploaded`, report);
+}
+
+// ---------------------------------------------------------------- Google Drive
+function driveCfg() { try { return JSON.parse(localStorage.getItem(DRIVE_KEY) || '{}'); } catch (e) { return {}; } }
+function saveDriveCfg(c) { try { localStorage.setItem(DRIVE_KEY, JSON.stringify(c)); } catch (e) {} }
+const clientId = () => driveCfg().clientId || GOOGLE_CLIENT_ID;
+const folderIdFrom = s => { s = String(s || '').trim(); const m = s.match(/folders\/([\w-]+)/) || s.match(/[?&]id=([\w-]+)/); return m ? m[1] : s; };
+
+let gisReady = null, tokenClient = null;
+function loadGis() {
+  if (gisReady) return gisReady;
+  gisReady = new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
+    s.onload = res; s.onerror = () => { gisReady = null; rej(new Error('Could not load Google sign-in')); };
+    document.head.appendChild(s);
+  });
+  return gisReady;
+}
+function cachedToken() {
+  try { const t = JSON.parse(sessionStorage.getItem(DRIVE_KEY + '.tok') || 'null'); return t && t.exp > Date.now() + 60000 ? t.token : null; } catch (e) { return null; }
+}
+// Must be called from a click so Google's popup isn't blocked.
+function requestToken() {
+  return new Promise((res, rej) => {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId(), scope: 'https://www.googleapis.com/auth/drive.readonly',
+      callback: r => { if (r.error) return rej(new Error(r.error_description || r.error));
+        try { sessionStorage.setItem(DRIVE_KEY + '.tok', JSON.stringify({ token: r.access_token, exp: Date.now() + r.expires_in * 1000 })); } catch (e) {}
+        res(r.access_token); },
+      error_callback: e => rej(new Error(e.type === 'popup_closed' ? 'Google sign-in was closed' : (e.message || e.type)))
+    });
+    tokenClient.requestAccessToken({ prompt: driveCfg().consented ? '' : 'consent' });
+  });
+}
+
+async function gfetch(url, token) {
+  const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+  if (r.status === 401) { sessionStorage.removeItem(DRIVE_KEY + '.tok'); throw new Error('Google session expired – click Sync again'); }
+  if (!r.ok) throw new Error(`Google Drive error ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  return r;
+}
+
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const SHEET_MIME = 'application/vnd.google-apps.spreadsheet';
+const FOLDER_MIME = 'application/vnd.google-apps.folder';
+
+// Every spreadsheet in the folder and all its sub-folders.
+async function listDrive(folderId, token) {
+  const out = [], queue = [{ id: folderId, path: '' }], seen = new Set();
+  while (queue.length) {
+    const f = queue.shift(); if (seen.has(f.id)) continue; seen.add(f.id);
+    let pageToken = '';
+    do {
+      const q = encodeURIComponent(`'${f.id}' in parents and trashed = false`);
+      const r = await (await gfetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name,mimeType,modifiedTime)&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true${pageToken ? '&pageToken=' + pageToken : ''}`, token)).json();
+      for (const x of r.files || []) {
+        if (x.mimeType === FOLDER_MIME) queue.push({ id: x.id, path: f.path + x.name + '/' });
+        else if (x.mimeType === SHEET_MIME || /\.(xlsx|xlsm|xls)$/i.test(x.name)) out.push({ ...x, path: f.path + x.name });
+      }
+      pageToken = r.nextPageToken || '';
+    } while (pageToken);
+  }
+  return out;
+}
+
+async function downloadDrive(f, token) {
+  const url = f.mimeType === SHEET_MIME
+    ? `https://www.googleapis.com/drive/v3/files/${f.id}/export?mimeType=${encodeURIComponent(XLSX_MIME)}`
+    : `https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&supportsAllDrives=true`;
+  return (await gfetch(url, token)).arrayBuffer();
+}
+
+let syncing = false;
+async function syncDrive(interactive) {
+  const cfg = driveCfg();
+  if (!clientId() || !cfg.folderId) { if (interactive) openDriveSettings(); return; }
+  if (syncing) return; syncing = true;
+  const btn = $('syncBtn'); btn.disabled = true; btn.textContent = '⟳ Syncing…';
+  try {
+    await loadGis();
+    let token = cachedToken();
+    if (!token) {
+      if (!interactive) { driveBanner('Connect Google Drive to import new scorecards.', true); return; }
+      token = await requestToken();
+      saveDriveCfg({ ...driveCfg(), consented: true });
+    }
+    driveBanner('Checking Google Drive for new scorecards…');
+    const files = await listDrive(cfg.folderId, token);
+    const done = driveCfg().imported || {};
+    const fresh = files.filter(f => done[f.id] !== f.modifiedTime);
+    const items = [];
+    for (let i = 0; i < fresh.length; i += 4) {
+      const part = fresh.slice(i, i + 4);
+      driveBanner(`Downloading ${Math.min(i + 4, fresh.length)} of ${fresh.length} new/changed files…`);
+      const bufs = await Promise.all(part.map(f => downloadDrive(f, token).then(b => ({ name: f.name, buffer: b, f })).catch(e => ({ name: f.name, error: e.message, f }))));
+      items.push(...bufs);
+    }
+    const report = items.filter(x => x.error).map(x => ({ name: x.name, st: 'err', msg: x.error }));
+    report.push(...await importWorkbooks(items.filter(x => !x.error)));
+    const imported = { ...done };
+    const failedNames = new Set(report.filter(r => r.st === 'err').map(r => r.name));
+    items.forEach(x => { if (!failedNames.has(x.name)) imported[x.f.id] = x.f.modifiedTime; });
+    saveDriveCfg({ ...driveCfg(), imported, lastSync: new Date().toISOString(), lastCount: files.length });
+    const added = report.filter(r => r.st === 'ok').length;
+    driveBanner(`Drive synced ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} · ${files.length} files in folder · ${added} new scorecard${added === 1 ? '' : 's'} added${failedNames.size ? ` · ${failedNames.size} failed` : ''}`);
+    if (added || failedNames.size) { await load(); if (interactive || failedNames.size) showReport('Google Drive sync', report); }
+  } catch (e) {
+    console.error(e); driveBanner('Drive sync failed: ' + e.message, true, true);
+  } finally { syncing = false; btn.disabled = false; btn.textContent = '⟳ Sync Google Drive'; }
+}
+
+function driveBanner(msg, action, bad) {
+  $('driveBanner').innerHTML = `<div class="banner ${bad ? 'bad' : 'info'}"><span>☁️</span><span class="grow">${esc(msg)}</span>${action ? '<button class="btn" id="bannerSync">Sync now</button>' : ''}</div>`;
+  if (action) $('bannerSync').onclick = () => syncDrive(true);
+}
+
+function openDriveSettings() {
+  const cfg = driveCfg();
+  modal(`<div class="mh"><div><div class="eyebrow">Google Drive</div><div class="t">Scorecard folder</div>
+      <div class="sub">New scorecards in this folder (and its sub-folders) are imported each time the Quality tab opens.</div></div><button class="xbtn" data-close>✕</button></div>
+    <div class="mb2">
+      <div class="field"><label>Folder link or ID</label><input class="inp" id="dFolder" placeholder="https://drive.google.com/drive/folders/…" value="${esc(cfg.folderUrl || cfg.folderId || '')}"></div>
+      <div class="field"><label>Google OAuth Client ID</label><input class="inp" id="dClient" placeholder="1234-abc.apps.googleusercontent.com" value="${esc(clientId())}"></div>
+      <details ${clientId() ? '' : 'open'}><summary class="sub" style="cursor:pointer">How to get a Client ID (one-off, ~5 minutes)</summary>
+      <ol class="steps" style="margin-top:8px">
+        <li>Open <code>console.cloud.google.com</code>, create a project (e.g. "ScoreDesk").</li>
+        <li>APIs &amp; Services → Library → enable <b>Google Drive API</b>.</li>
+        <li>OAuth consent screen → Internal (or External + add your admins as test users).</li>
+        <li>Credentials → Create credentials → <b>OAuth client ID</b> → Web application.</li>
+        <li>Authorised JavaScript origins → add <code>${esc(location.origin)}</code>.</li>
+        <li>Copy the Client ID into the box above.</li>
+      </ol></details>
+      ${cfg.lastSync ? `<p class="sub" style="margin-top:12px">Last sync ${new Date(cfg.lastSync).toLocaleString('en-GB')} · ${cfg.lastCount} files · ${Object.keys(cfg.imported || {}).length} tracked</p>` : ''}
+    </div>
+    <div class="mf">${cfg.folderId ? '<button class="btn danger" id="dForget">Disconnect</button>' : ''}<span class="grow"></span><button class="btn" data-close>Cancel</button><button class="btn primary" id="dSave">Save &amp; sync</button></div>`);
+  $('dSave').onclick = () => {
+    const folderId = folderIdFrom($('dFolder').value), cid = $('dClient').value.trim();
+    if (!folderId || !cid) return toast('Enter both the folder and the Client ID', false);
+    const prev = driveCfg();
+    saveDriveCfg({ ...prev, clientId: cid, folderId, folderUrl: $('dFolder').value.trim(), imported: prev.folderId === folderId ? prev.imported : {} });
+    closeModal(); syncDrive(true);
+  };
+  if ($('dForget')) $('dForget').onclick = () => { localStorage.removeItem(DRIVE_KEY); sessionStorage.removeItem(DRIVE_KEY + '.tok'); $('driveBanner').innerHTML = ''; closeModal(); toast('Drive disconnected', true); };
+}
+
+// ============================================================ events / init
+$('rangeSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { RANGE = b.dataset.r; render(); } });
+$('board').addEventListener('click', e => {
+  const th = e.target.closest('th.sort');
+  if (th) { const k = th.dataset.k; SORT = SORT.key === k ? { key: k, dir: -SORT.dir } : { key: k, dir: k === 'agent' || k === 'passRate' ? 1 : -1 }; render(); return; }
+  const t = e.target.closest('[data-toggle]'); if (t) { OPEN = OPEN === t.dataset.toggle ? null : t.dataset.toggle; render(); return; }
+  const c = e.target.closest('[data-card]'); if (c) openCard(c.dataset.card);
+});
+$('uploadBtn').onclick = () => $('fileInput').click();
+$('fileInput').onchange = e => { uploadFiles(e.target.files); e.target.value = ''; };
+$('driveBtn').onclick = openDriveSettings;
+$('syncBtn').onclick = () => syncDrive(true);
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+// Dashboard can ask this page to open an agent
+window.addEventListener('message', e => { if (e.data?.type === 'sd-agent' && CARDS.length) { OPEN = e.data.agent; RANGE = 'all'; render(); } });
+
+(async () => {
+  ME = await SD.session();
+  if (!ME) return SD.notSignedIn();
+  if (ME.isAdmin) document.querySelectorAll('.adm').forEach(el => el.classList.remove('hidden'));
+  if (ME.isAdmin && clientId()) loadGis().catch(() => {});
+  await load();
+  if (ME.isAdmin && driveCfg().folderId && clientId()) syncDrive(false);
+})();
+</script>
+</body>
+</html>

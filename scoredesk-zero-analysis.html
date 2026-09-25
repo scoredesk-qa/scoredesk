@@ -3,971 +3,230 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ScoreDesk – Agent Progression &amp; Quality Analysis</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<title>ScoreDesk – Zero Score Issues</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-<style>
-:root {
-  --bg: #07080f;
-  --surface: #0e1018;
-  --surface2: #13161f;
-  --surface3: #181b26;
-  --border: #1e2233;
-  --border2: #252a3a;
-  --accent: #4f8cff;
-  --accent2: #a78bfa;
-  --accent3: #38bdf8;
-  --pass: #22d3a0;
-  --fail: #f43f5e;
-  --warn: #f59e0b;
-  --text: #e8ecf4;
-  --muted: #5a6285;
-  --muted2: #7b85a8;
-  --radius: 14px;
-}
-
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  font-family: 'Syne', sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
-  overflow-x: hidden;
-}
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(79,140,255,0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(79,140,255,0.025) 1px, transparent 1px);
-  background-size: 48px 48px;
-  pointer-events: none;
-  z-index: 0;
-}
-body::after {
-  content: '';
-  position: fixed;
-  top: -200px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 800px;
-  height: 500px;
-  background: radial-gradient(ellipse, rgba(79,140,255,0.06) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: 0;
-}
-
-#app { position: relative; z-index: 1; min-height: 100vh; }
-.main { max-width: 1320px; margin: 0 auto; padding: 36px 40px; }
-
-.page-header {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  margin-bottom: 24px; padding-bottom: 28px; border-bottom: 1px solid var(--border);
-  flex-wrap: wrap; gap: 16px;
-}
-.page-eyebrow {
-  font-family: 'DM Mono', monospace; font-size: 10px; color: var(--accent);
-  letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px;
-  display: flex; align-items: center; gap: 7px;
-}
-.page-eyebrow::before { content: ''; width: 16px; height: 2px; background: var(--accent); display: inline-block; }
-.page-title { font-size: 30px; font-weight: 800; letter-spacing: -0.8px; margin-bottom: 5px; }
-.page-sub { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted2); }
-.page-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.action-btn {
-  display: flex; align-items: center; gap: 7px;
-  background: var(--surface2); border: 1px solid var(--border2);
-  color: var(--text); padding: 10px 20px; border-radius: 10px;
-  font-weight: 700; font-size: 12px; cursor: pointer; transition: all .15s;
-  font-family: inherit;
-}
-.action-btn:hover { border-color: var(--accent); color: var(--accent); }
-.action-btn.primary {
-  background: linear-gradient(135deg, var(--accent), #6366f1);
-  border: none; color: #fff; box-shadow: 0 4px 16px rgba(79,140,255,0.25);
-}
-.action-btn.primary:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(79,140,255,0.35); }
-
-.control-select {
-  background: var(--surface2); border: 1px solid var(--border2); color: var(--text);
-  padding: 10px 14px; border-radius: 10px; font-family: 'DM Mono', monospace;
-  font-size: 11px; font-weight: 500; cursor: pointer; outline: none;
-}
-.control-select:hover { border-color: var(--accent); }
-.control-label { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted2); text-transform: uppercase; letter-spacing: 1px; margin-right: 6px; }
-.control-group { display: flex; align-items: center; gap: 6px; }
-
-.upload-status {
-  margin-top: 14px; font-family: 'DM Mono', monospace; font-size: 12px;
-  color: var(--muted2); line-height: 1.7; padding: 12px 16px;
-  background: var(--surface2); border-radius: 10px; border: 1px solid var(--border);
-  display: none; white-space: pre-line;
-}
-.debug-bar {
-  display: flex; align-items: center; gap: 12px;
-  background: var(--surface2); border: 1px solid var(--border);
-  border-radius: 10px; padding: 12px 18px; margin-bottom: 24px;
-  font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted2);
-  flex-wrap: wrap;
-}
-.debug-dot {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--pass); flex-shrink: 0;
-  box-shadow: 0 0 8px var(--pass);
-  animation: pulse 2s ease-in-out infinite;
-}
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-
-.stat-strip {
-  display: grid; grid-template-columns: repeat(5, 1fr);
-  gap: 14px; margin-bottom: 28px;
-}
-.stat-tile {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 22px 24px;
-  position: relative; overflow: hidden; transition: border-color .2s;
-}
-.stat-tile:hover { border-color: var(--border2); }
-.stat-tile::after {
-  content: attr(data-icon);
-  position: absolute; right: 16px; top: 16px;
-  font-size: 28px; opacity: 0.08;
-}
-.stat-tile-label {
-  font-family: 'DM Mono', monospace; font-size: 10px;
-  color: var(--muted); letter-spacing: 1px; text-transform: uppercase;
-  margin-bottom: 8px;
-}
-.stat-tile-value { font-size: 40px; font-weight: 800; line-height: 1; letter-spacing: -2px; }
-.stat-tile-value.blue { color: var(--accent); }
-.stat-tile-value.red { color: var(--fail); }
-.stat-tile-value.green { color: var(--pass); }
-.stat-tile-value.purple { color: var(--accent2); }
-.stat-tile-value.warn { color: var(--warn); }
-.stat-tile-sub { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); margin-top: 6px; }
-
-.section-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
-.section-hdr-left { display: flex; align-items: center; gap: 10px; }
-.section-label { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted2); letter-spacing: 1.2px; text-transform: uppercase; }
-.section-title { font-size: 16px; font-weight: 700; }
-.section-desc { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted2); margin-top: 3px; }
-.section-count { font-family: 'DM Mono', monospace; font-size: 11px; background: var(--surface2); border: 1px solid var(--border2); color: var(--muted2); padding: 3px 10px; border-radius: 20px; }
-
-.table-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; overflow-x: auto; margin-bottom: 24px; }
-.zero-table { width: 100%; border-collapse: collapse; min-width: 700px; }
-.zero-table thead { background: var(--surface2); }
-.zero-table th { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; padding: 13px 20px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
-.zero-table td { padding: 14px 20px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle; white-space: nowrap; }
-.zero-table td.wrap { white-space: normal; }
-.zero-table tr:last-child td { border-bottom: none; }
-.zero-table tbody tr:hover td { background: rgba(79,140,255,.025); }
-
-.rank-badge { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 7px; background: var(--surface3); border: 1px solid var(--border2); font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted2); font-weight: 500; }
-.rank-badge.top1 { background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.3); color: var(--warn); }
-.rank-badge.top2 { background: rgba(148,163,184,.1); border-color: rgba(148,163,184,.2); color: #94a3b8; }
-.rank-badge.top3 { background: rgba(180,120,80,.1); border-color: rgba(180,120,80,.2); color: #b47850; }
-
-.criteria-cell { font-size: 13px; font-weight: 600; }
-.section-cell { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted2); }
-.zero-count-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 26px; padding: 0 10px; background: rgba(244,63,94,.1); border: 1px solid rgba(244,63,94,.25); border-radius: 6px; font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 700; color: var(--fail); }
-.agent-chips { display: flex; flex-wrap: wrap; gap: 5px; }
-.agent-chip { font-family: 'DM Mono', monospace; font-size: 10px; background: var(--surface2); border: 1px solid var(--border2); color: var(--muted2); padding: 3px 10px; border-radius: 20px; }
-.agent-chip.recurring { background: rgba(244,63,94,.08); border-color: rgba(244,63,94,.25); color: var(--fail); }
-.agent-chip.new { background: rgba(245,158,11,.08); border-color: rgba(245,158,11,.25); color: var(--warn); }
-.agent-chip.resolved { background: rgba(34,211,160,.08); border-color: rgba(34,211,160,.25); color: var(--pass); }
-
-.agent-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 12px; }
-.agent-section-header { display: flex; align-items: center; gap: 14px; padding: 16px 20px; cursor: pointer; transition: background .15s; flex-wrap: wrap; }
-.agent-section-header:hover { background: var(--surface2); }
-.agent-avatar { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, var(--surface3), var(--surface2)); border: 1px solid var(--border2); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: var(--accent); flex-shrink: 0; }
-.agent-info { flex: 1; min-width: 160px; }
-.agent-name { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
-.agent-meta { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted2); }
-.agent-zero-pill { font-family: 'DM Mono', monospace; font-size: 11px; background: rgba(244,63,94,.08); border: 1px solid rgba(244,63,94,.2); color: var(--fail); padding: 4px 12px; border-radius: 20px; white-space: nowrap; }
-.chevron-btn { width: 28px; height: 28px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); display: flex; align-items: center; justify-content: center; font-size: 12px; transition: all .2s; flex-shrink: 0; }
-.agent-section.open .chevron-btn { transform: rotate(180deg); color: var(--accent); border-color: var(--accent); }
-.agent-section-body { display: none; border-top: 1px solid var(--border); padding: 20px; }
-.agent-section.open .agent-section-body { display: block; }
-
-.empty-state { text-align: center; padding: 80px 40px; }
-.empty-icon { font-size: 52px; margin-bottom: 16px; opacity: 0.5; }
-.empty-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
-.empty-sub { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted2); }
-
-.success-banner { display: flex; align-items: center; gap: 16px; background: rgba(34,211,160,.06); border: 1px solid rgba(34,211,160,.2); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 24px; }
-.success-icon { font-size: 28px; }
-.success-text { font-size: 15px; font-weight: 700; color: var(--pass); margin-bottom: 2px; }
-.success-sub { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted2); }
-
-.toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--surface2); border: 1px solid var(--border2); padding: 12px 24px; border-radius: 10px; font-size: 13px; font-weight: 600; z-index: 9999; transition: transform .3s cubic-bezier(.4,0,.2,1); pointer-events: none; }
-.toast.show { transform: translateX(-50%) translateY(0); }
-.toast.ok { border-color: var(--pass); color: var(--pass); }
-.toast.err { border-color: var(--fail); color: var(--fail); }
-
-#loadingOverlay { position: fixed; inset: 0; background: rgba(7,8,15,.7); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 9998; }
-.spinner { width: 38px; height: 38px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
-.hidden { display: none !important; }
-
-.af-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border-radius: 20px; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 700; white-space: nowrap; }
-.af-badge.triggered { background: rgba(244,63,94,.12); border: 1px solid rgba(244,63,94,.3); color: var(--fail); }
-.af-badge.passed { background: rgba(34,211,160,.1); border: 1px solid rgba(34,211,160,.25); color: var(--pass); }
-.af-trigger-count { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 26px; padding: 0 10px; background: rgba(244,63,94,.1); border: 1px solid rgba(244,63,94,.25); border-radius: 6px; font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 700; color: var(--fail); }
-.source-tag { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 1px; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border2); color: var(--muted); background: var(--surface2); white-space: nowrap; display: inline-block; }
-.feedback-cell { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted2); max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-/* ===== NEW: status badges for criteria trend tracking ===== */
-.status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; font-family: 'DM Mono', monospace; font-size: 10.5px; font-weight: 700; white-space: nowrap; letter-spacing: .3px; }
-.status-badge.recurring { background: rgba(244,63,94,.12); border: 1px solid rgba(244,63,94,.3); color: var(--fail); }
-.status-badge.new { background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.3); color: var(--warn); }
-.status-badge.resolved { background: rgba(34,211,160,.12); border: 1px solid rgba(34,211,160,.3); color: var(--pass); }
-.status-badge.watch { background: rgba(122,133,168,.1); border: 1px solid rgba(122,133,168,.25); color: var(--muted2); }
-
-/* Weak area / improved area panels */
-.panel-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px; margin-bottom: 24px; }
-.wa-row { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
-.wa-row:last-child { border-bottom: none; }
-.wa-main { flex: 1; min-width: 0; }
-.wa-title { font-size: 13.5px; font-weight: 700; margin-bottom: 3px; }
-.wa-sub { font-family: 'DM Mono', monospace; font-size: 10.5px; color: var(--muted2); }
-.wa-bar-wrap { width: 140px; height: 6px; background: var(--surface3); border-radius: 4px; overflow: hidden; flex-shrink: 0; }
-.wa-bar { height: 100%; border-radius: 4px; }
-.wa-bar.red { background: var(--fail); }
-.wa-bar.green { background: var(--pass); }
-.wa-count { font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 700; min-width: 70px; text-align: right; flex-shrink: 0; }
-.wa-count.red { color: var(--fail); }
-.wa-count.green { color: var(--pass); }
-
-/* Sparkline */
-.spark-wrap { display: flex; align-items: flex-end; gap: 3px; height: 46px; padding: 4px 0; }
-.spark-bar-col { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1; min-width: 8px; }
-.spark-bar { width: 100%; max-width: 16px; border-radius: 3px 3px 0 0; min-height: 3px; transition: opacity .15s; }
-.spark-bar:hover { opacity: .7; }
-.spark-tip { font-family: 'DM Mono', monospace; font-size: 8.5px; color: var(--muted); }
-
-.progress-block { margin-bottom: 22px; }
-.progress-block:last-child { margin-bottom: 0; }
-.progress-block-title { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
-
-.tabbar { display: flex; gap: 6px; margin-bottom: 22px; border-bottom: 1px solid var(--border); }
-.tab-btn { background: none; border: none; color: var(--muted2); font-family: inherit; font-weight: 700; font-size: 13px; padding: 10px 18px; cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s; }
-.tab-btn:hover { color: var(--text); }
-.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
-.tab-panel { display: none; }
-.tab-panel.active { display: block; }
-
-@media (max-width: 900px) {
-  .stat-strip { grid-template-columns: repeat(2, 1fr); }
-  .main { padding: 24px 16px; }
-}
-</style>
+<link rel="stylesheet" href="shared.css">
 </head>
 <body>
+<div class="main">
+  <div class="hdr">
+    <div>
+      <div class="eyebrow">Coaching</div>
+      <div class="title">Zero Score Issues</div>
+      <div class="sub">A criterion scored 0 or an auto-fail opens an issue for that agent. It's resolved after <b id="cleanLbl">2</b> clean scored calls in a row on that criterion.</div>
+    </div>
+    <div class="actions">
+      <select class="sel" id="agentSel"><option value="">All agents</option></select>
+      <select class="sel" id="cleanSel" title="Clean calls needed to resolve an issue">
+        <option value="1">Resolve after 1 clean call</option><option value="2" selected>Resolve after 2 clean calls</option><option value="3">Resolve after 3 clean calls</option>
+      </select>
+    </div>
+  </div>
 
-<div id="loadingOverlay"><div class="spinner"></div></div>
-<div class="toast" id="toast"></div>
+  <div id="loading" class="loading">Loading scorecards…</div>
+  <div id="empty" class="hidden"><div class="drop"><div class="ic">📭</div><div class="h">No scorecards yet</div><div class="p">Upload or sync scorecards on the Quality tab.</div></div></div>
 
-<div id="app" class="hidden">
-  <div class="main">
-    <div class="page-header">
-      <div class="page-title-group">
-        <div class="page-eyebrow">Quality Analytics</div>
-        <div class="page-title">Agent Progression &amp; Quality Analysis</div>
-        <div class="page-sub">Track which criteria each agent fails, whether it's improving, and where to focus coaching this week</div>
+  <div id="content" class="hidden">
+    <div class="toolbar">
+      <div class="seg" id="rangeSeg">
+        <button data-r="30">30 days</button><button data-r="90">90 days</button><button data-r="all">All time</button>
       </div>
-      <div class="page-actions">
-        <div class="control-group">
-          <span class="control-label">Recent window</span>
-          <select class="control-select" id="windowSelect">
-            <option value="1">Last 1 week</option>
-            <option value="2" selected>Last 2 weeks</option>
-            <option value="4">Last 4 weeks</option>
-            <option value="8">Last 8 weeks</option>
-            <option value="all">All time</option>
-          </select>
-        </div>
-        <button class="action-btn" id="refreshBtn">↺ &nbsp;Refresh</button>
-        <div id="uploadTrigger">
-          <button class="action-btn primary" onclick="document.getElementById('fileInputHidden').click()">⬆ &nbsp;Upload Files</button>
-          <input type="file" id="fileInputHidden" accept=".xlsx,.xls" multiple style="display:none">
-        </div>
+      <span class="range-lbl" id="rangeLbl"></span>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+
+    <div class="grid2">
+      <div class="card">
+        <div class="cl"><span>New vs resolved issues per week</span></div>
+        <div class="leg"><span><i style="background:var(--fail)"></i>New</span><span><i style="background:var(--warn)"></i>Came back</span><span><i style="background:var(--pass)"></i>Resolved</span><span><i style="background:var(--accent);height:2px"></i>Open at week end</span></div>
+        <div class="chart" style="height:260px"><canvas id="chFlow"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="cl"><span>What to work on</span><span class="cm">ranked by open issues</span></div>
+        <div id="focus" class="list"></div>
       </div>
     </div>
 
-    <div class="upload-status" id="uploadStatus"></div>
+    <div class="sec"><div><div class="k">Who has what</div><div class="t">Open issues by agent &amp; criterion</div></div><span class="pill" id="mxCnt"></span></div>
+    <div class="card flush mb"><div class="tw"><table class="dt matrix" id="matrix"></table></div>
+      <div class="tbl-note"><span class="cell open">3</span> open – failed 3 times so far · <span class="cell res">✓</span> resolved during this period · click a cell for details</div></div>
 
-    <div class="debug-bar" id="debugBar" style="display:none;">
-      <div class="debug-dot"></div>
-      <span id="debugText">Connected</span>
-    </div>
-
-    <div class="stat-strip" id="statStrip" style="display:none;">
-      <div class="stat-tile" data-icon="📋">
-        <div class="stat-tile-label">Total Scorecards</div>
-        <div class="stat-tile-value blue" id="statTotal">0</div>
-        <div class="stat-tile-sub">loaded from database</div>
+    <div class="grid2">
+      <div class="card">
+        <div class="cl"><span>Still open</span><span class="cm" id="openCnt"></span></div>
+        <div id="openList" class="list scroll"></div>
       </div>
-      <div class="stat-tile" data-icon="📅">
-        <div class="stat-tile-label">Weeks Tracked</div>
-        <div class="stat-tile-value purple" id="statWeeks">0</div>
-        <div class="stat-tile-sub">weeks with scored calls</div>
-      </div>
-      <div class="stat-tile" data-icon="👥">
-        <div class="stat-tile-label">Agents Tracked</div>
-        <div class="stat-tile-value blue" id="statAgents">0</div>
-        <div class="stat-tile-sub">with at least 1 scorecard</div>
-      </div>
-      <div class="stat-tile" data-icon="🔴">
-        <div class="stat-tile-label">Currently Failing</div>
-        <div class="stat-tile-value red" id="statFailingNow">0</div>
-        <div class="stat-tile-sub">agent × criteria, this window</div>
-      </div>
-      <div class="stat-tile" data-icon="✅">
-        <div class="stat-tile-label">Resolved / Improved</div>
-        <div class="stat-tile-value green" id="statResolved">0</div>
-        <div class="stat-tile-sub">used to fail, now passing</div>
+      <div class="card">
+        <div class="cl"><span>Recently resolved</span><span class="cm" id="resCnt"></span></div>
+        <div id="resList" class="list scroll"></div>
       </div>
     </div>
-
-    <div id="analysisContent"></div>
   </div>
 </div>
+<div id="modalRoot"></div>
 
+<script src="shared.js"></script>
 <script>
-// ==================== SUPABASE CREDENTIALS ====================
-const SUPABASE_URL = 'https://qbvjgiamqzkscdykenvi.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFidmpnaWFtcXprc2NkeWtlbnZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwMzUxMTIsImV4cCI6MjA5MDYxMTExMn0.OeV5qa9y_PCGw6nG0wbfPfiMBjYC_jvzsUXHOip1RTU';
+const { $, esc, fmtN } = SD;
+let ME = null, CARDS = [], EP = [], RANGE = '90', AGENT = '', CLEAN = 2, CH = [];
 
-let sb = null, currentUser = null, isAdmin = false, agentName = null, allScorecards = [];
-let recentWindowSize = 2;
-
-window.__weakAreaRows = [];
-window.__improvedRows = [];
-window.__progressRows = [];
-
-function showLoading(on) { document.getElementById('loadingOverlay').style.display = on ? 'flex' : 'none'; }
-function showToast(msg, ok) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast' + (ok === true ? ' ok' : ok === false ? ' err' : '');
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
+async function load() {
+  let raw;
+  try { raw = await SD.fetchAll('scorecards', 'id,agent_name,file_name,call_date,created_at,pass,pf_reason,auto_fails,criteria,account_ref,auditor', q => (!ME.isAdmin && ME.agentName) ? q.eq('agent_name', ME.agentName) : q); }
+  catch (e) { $('loading').textContent = 'Could not load scorecards: ' + e.message; return; }
+  const resolve = SD.nameResolver();
+  CARDS = raw.map(r => SD.enrichScorecard(r, resolve)).filter(c => c.date);
+  $('loading').classList.add('hidden');
+  if (!CARDS.length) { $('empty').classList.remove('hidden'); return; }
+  $('content').classList.remove('hidden');
+  const agents = [...new Set(CARDS.map(c => c.agent))].sort();
+  $('agentSel').innerHTML = '<option value="">All agents</option>' + agents.map(a => `<option>${esc(a)}</option>`).join('');
+  if (!ME.isAdmin && agents.length === 1) { AGENT = agents[0]; $('agentSel').value = AGENT; $('agentSel').disabled = true; }
+  render();
 }
 
-window.addEventListener('load', async () => {
-  try {
-    if (typeof window.supabase === 'undefined') throw new Error('Supabase SDK not loaded');
-    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-      auth: { autoRefreshToken: true, persistSession: true }
-    });
-    const { data: { session } } = await sb.auth.getSession();
-    if (!session) {
-      document.body.innerHTML = '<div style="text-align:center;padding:80px;"><h2>Not authenticated</h2><p>Please log in via the ScoreDesk portal.</p></div>';
-      return;
-    }
-    currentUser = session.user;
-    await onLogin();
-  } catch (e) {
-    console.error('Analysis init error:', e);
-    document.body.innerHTML = `<div style="text-align:center;padding:80px;"><h2>Connection error</h2><p>${e.message}</p><button onclick="location.reload()">Retry</button></div>`;
-  }
-});
+function render() {
+  $('cleanLbl').textContent = CLEAN;
+  EP = SD.buildIssues(CARDS, CLEAN).filter(e => !AGENT || e.agent === AGENT);
+  const dates = CARDS.map(c => c.date).sort();
+  const maxDate = dates[dates.length - 1], minDate = dates[0];
+  const [from, to] = SD.rangeBounds(RANGE, maxDate, minDate);
+  document.querySelectorAll('#rangeSeg button').forEach(b => b.classList.toggle('on', b.dataset.r === RANGE));
+  $('rangeLbl').textContent = `${SD.fmtDate(from)} – ${SD.fmtDate(to)} · latest scorecard ${SD.fmtDate(maxDate)}`;
 
-async function onLogin() {
-  const meta = currentUser.user_metadata || {};
-  isAdmin = (currentUser.email === 'admin@scoredesk.com') || (meta.role === 'admin');
-  agentName = meta.agent_name || null;
+  const open = EP.filter(e => !e.resolved);
+  const newIn = EP.filter(e => e.emerged >= from && e.emerged <= to);
+  const resIn = EP.filter(e => e.resolved && e.resolved >= from && e.resolved <= to);
+  const openAF = open.filter(e => e.type === 'Auto-fail');
+  const openBefore = EP.filter(e => e.emerged < from && (!e.resolved || e.resolved >= from)).length;
+  const net = open.length - openBefore;
 
-  document.getElementById('app').classList.remove('hidden');
-  if (!isAdmin) {
-    const uploadTrigger = document.getElementById('uploadTrigger');
-    if (uploadTrigger) uploadTrigger.style.display = 'none';
-  }
+  $('kpis').innerHTML = [
+    ['Open issues', `<span class="${open.length ? 'cr' : 'cg'}">${open.length}</span>`, `${new Set(open.map(e => e.agent)).size} agents affected`],
+    ['New this period', `<span class="cr">${newIn.filter(e => !e.reopened).length}</span>`, 'first time failed'],
+    ['Came back', `<span class="cw">${newIn.filter(e => e.reopened).length}</span>`, 'failed again after being resolved'],
+    ['Resolved', `<span class="cg">${resIn.length}</span>`, `${CLEAN} clean call${CLEAN > 1 ? 's' : ''} in a row`],
+    ['Net change', `<span class="${net > 0 ? 'cr' : net < 0 ? 'cg' : 'cm'}">${net > 0 ? '+' : ''}${net}</span>`, `open: ${openBefore} → ${open.length}`],
+    ['Open auto-fails', `<span class="${openAF.length ? 'cr' : 'cg'}">${openAF.length}</span>`, 'compliance risk']
+  ].map(([l, v, s]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join('');
 
-  document.getElementById('windowSelect').addEventListener('change', (e) => {
-    const v = e.target.value;
-    recentWindowSize = v === 'all' ? Infinity : (parseInt(v, 10) || 2);
-    renderAll();
-  });
-
-  showLoading(true);
-  await loadScorecards();
-  showLoading(false);
-  renderAll();
+  renderFlow(from, to);
+  renderFocus(open, from, to);
+  renderMatrix(open, resIn);
+  renderLists(open, resIn);
 }
 
-async function loadScorecards() {
-  try {
-    let q = sb.from('scorecards').select('*').order('created_at', { ascending: true });
-    if (!isAdmin && agentName) q = q.eq('agent_name', agentName);
-    const { data, error } = await q;
-    if (error) throw error;
-    allScorecards = data || [];
-    document.getElementById('debugBar').style.display = 'flex';
-    document.getElementById('debugText').textContent =
-      `${allScorecards.length} scorecards loaded · ${isAdmin ? 'Admin' : 'Agent'} view${agentName ? ' · ' + agentName : ''}`;
-  } catch (err) {
-    showToast('Load error: ' + err.message, false);
-  }
-}
-
-async function handleFiles(files) {
-  if (!files.length) return;
-  const statusEl = document.getElementById('uploadStatus');
-  statusEl.style.display = 'block';
-  statusEl.textContent = 'Processing ' + files.length + ' file(s)…';
-  for (const file of files) {
-    try {
-      const data = await parseExcel(file);
-      if (!data) continue;
-      const { error } = await sb.from('scorecards').insert(data);
-      if (error) throw error;
-      statusEl.textContent += '\n✓ Uploaded: ' + file.name;
-    } catch (err) {
-      statusEl.textContent += '\n✗ Error with ' + file.name + ': ' + err.message;
-    }
-  }
-  showToast('Upload complete', true);
-  showLoading(true);
-  await loadScorecards();
-  showLoading(false);
-  renderAll();
-  setTimeout(() => { statusEl.style.display = 'none'; }, 5000);
-}
-
-function parseExcel(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-        let agentNameLocal = '', callDate = '', auditor = '', account = '', pass = true, pfReason = '';
-        const criteria = [], auto_fails = [];
-        let inCriteria = false, inZzps = false, currentSection = '';
-
-        rows.forEach(row => {
-          const first  = (row[0] || '').toString().trim();
-          const col1   = (row[1] || '').toString().trim();
-          const col2   = (row[2] || '').toString().trim();
-
-          if      (/advisor name/i.test(first))           agentNameLocal = col2;
-          else if (/call date/i.test(first))              callDate = col2;
-          else if (/auditor/i.test(first))                auditor = col2;
-          else if (/account reference/i.test(first))      account = col2;
-          else if (/ZZPS Quality Score/i.test(first))     { inZzps = true; }
-          else if (inZzps && first && /auto.?fail/i.test(first)) {
-            const val = col1.toUpperCase();
-            auto_fails.push({ source: 'zzps', section: 'ZZPS Summary', label: first, value: val || 'N/A', feedback: col2, triggered: val === 'NO' });
-          }
-          else if (/^pass\s*\/?\s*fail/i.test(first)) {
-            inZzps = false;
-            pass = col1.toUpperCase() === 'PASS';
-            pfReason = col2;
-          }
-          else if (/^(Introduction|Data Protection|Body|Conclusion)\s*$/i.test(first)) {
-            currentSection = first.trim(); inCriteria = true;
-          }
-          else if (inCriteria && first && col1) {
-            const fb = (row[3] || '').toString().trim();
-            if (/auto.?fail/i.test(col1)) {
-              const val = col2.toUpperCase();
-              auto_fails.push({ source: 'criteria', section: currentSection, label: first, value: val || 'N/A', feedback: fb, triggered: val === 'NO' });
-            } else {
-              const w = parseFloat(col1), s = parseFloat(col2);
-              if (!isNaN(w) && w > 0) criteria.push({ section: currentSection, label: first, weight: w, score: isNaN(s) ? null : s, feedback: fb });
-            }
-          }
-        });
-
-        if (!agentNameLocal) agentNameLocal = file.name.replace(/\.xlsx?$/i, '');
-        resolve({ agent_name: agentNameLocal, file_name: file.name, call_date: callDate, auditor, account_ref: account, pass, pf_reason: pfReason, auto_fails, criteria, uploaded_by: currentUser.id });
-      } catch (err) { reject(err); }
-    };
-    reader.onerror = reject;
-    reader.readAsArrayBuffer(file);
-  });
-}
-
-// ==================== DATE / WEEK HELPERS ====================
-function parseDateSafe(val) {
-  if (!val) return null;
-  if (val instanceof Date && !isNaN(val)) return val;
-  const s = val.toString().trim();
-  if (!s) return null;
-  // Excel serial number (e.g. 45678 = a date, unlikely to be confused with other formats)
-  if (/^\d{4,6}(\.\d+)?$/.test(s) && Number(s) > 20000 && Number(s) < 60000) {
-    const epoch = new Date(Date.UTC(1899, 11, 30));
-    const d = new Date(epoch.getTime() + Number(s) * 86400000);
-    if (!isNaN(d)) return d;
-  }
-  // DD/MM/YYYY or DD-MM-YYYY
-  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
-  if (m) {
-    let [, dd, mm, yy] = m;
-    if (yy.length === 2) yy = '20' + yy;
-    const d = new Date(Date.UTC(+yy, +mm - 1, +dd));
-    if (!isNaN(d)) return d;
-  }
-  // YYYY-MM-DD
-  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (m) {
-    const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
-    if (!isNaN(d)) return d;
-  }
-  const d = new Date(s);
-  if (!isNaN(d)) return d;
-  return null;
-}
-
-function isoWeekInfo(date) {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = (d.getUTCDay() + 6) % 7;
-  d.setUTCDate(d.getUTCDate() - dayNum + 3);
-  const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
-  const weekNum = 1 + Math.round(((d - firstThursday) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
-  const monday = new Date(d);
-  monday.setUTCDate(d.getUTCDate() - 3);
-  return { key: `${d.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`, monday };
-}
-
-function formatWeekLabel(monday) {
-  return monday.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' });
-}
-
-// ==================== MAIN RENDER ====================
-function renderAll() {
-  const container = document.getElementById('analysisContent');
-
-  if (!allScorecards.length) {
-    document.getElementById('statStrip').style.display = 'none';
-    container.innerHTML = `<div class="empty-state">
-      <div class="empty-icon">📭</div>
-      <div class="empty-title">No scorecards yet</div>
-      <div class="empty-sub">${isAdmin ? 'Upload Excel scorecards to begin tracking progression.' : 'No scorecards found for your account.'}</div>
-    </div>`;
-    return;
-  }
-
-  // ---- Normalise agent names ----
-  function canonicalName(n) {
-    return (n || '').toLowerCase().replace(/[^a-z0-9\s]/g, '').trim().split(/\s+/).sort().join(' ');
-  }
-  const nameDisplay = {};
-  allScorecards.forEach(call => {
-    const k = canonicalName(call.agent_name);
-    if (k && !nameDisplay[k]) nameDisplay[k] = call.agent_name;
-  });
-  function displayName(raw) { return nameDisplay[canonicalName(raw)] || raw; }
-
-  const AF_ALIASES = {
-    'data protection/auto fail if not passed': 'Data Protection',
-    'were three points for data protection confirmed?': 'Data Protection',
-    'has authority, if needed, been appropriately captured or granted to an unauthorised third party? auto fail if not passed': 'Authority for Third Party',
-    'was relevant authority obtained for third party': 'Authority for Third Party',
-    'pci dss compliant? call recording restarted? (auto fail if not)': 'PCI DSS Compliant',
-    'have the notes been added? (autofail if not)': 'Notes Added',
-    'do the notes clearly and accurately reflect the call content? has all data captured been correctly recorded? (auto fail if not)': 'Notes Accurate & Complete',
-  };
-  function canonicalAF(label) {
-    return AF_ALIASES[label.toLowerCase().replace(/\s+/g, ' ').trim()] || label;
-  }
-
-  // ---- Enrich scorecards with parsed date + week ----
-  const enriched = allScorecards.map(call => {
-    const d = parseDateSafe(call.call_date) || parseDateSafe(call.created_at) || new Date();
-    const wk = isoWeekInfo(d);
-    return Object.assign({}, call, { _date: d, _weekKey: wk.key, _weekMonday: wk.monday });
-  }).sort((a, b) => a._date - b._date);
-
-  const weekMap = {};
-  enriched.forEach(c => { weekMap[c._weekKey] = c._weekMonday; });
-  const weeksSorted = Object.keys(weekMap).sort((a, b) => weekMap[a] - weekMap[b]);
-  const currentWeeksSet = new Set(
-    recentWindowSize === Infinity ? weeksSorted : weeksSorted.slice(-recentWindowSize)
-  );
-  const windowLabel = recentWindowSize === Infinity ? 'all time' : `last ${recentWindowSize} week${recentWindowSize > 1 ? 's' : ''}`;
-
-  // ---- Build per-agent per-criteria / per-auto-fail timelines ----
-  const critTimeline = {};
-  const afTimeline = {};
-  const allAgentsSet = new Set();
-  const agentWeekly = {}; // agent -> weekKey -> { total, passed }
-
-  enriched.forEach(call => {
-    const agent = displayName(call.agent_name);
-    allAgentsSet.add(agent);
-
-    agentWeekly[agent] = agentWeekly[agent] || {};
-    agentWeekly[agent][call._weekKey] = agentWeekly[agent][call._weekKey] || { total: 0, passed: 0 };
-    agentWeekly[agent][call._weekKey].total++;
-    if (call.pass) agentWeekly[agent][call._weekKey].passed++;
-
-    (call.criteria || []).forEach(cr => {
-      const label = (cr.label || '').trim();
-      const weight = parseFloat(cr.weight || 0);
-      if (!label || weight <= 0) return;
-      const sn = (cr.score === null || cr.score === '') ? null : parseFloat(cr.score);
-      if (sn === null || isNaN(sn)) return;
-      const key = label.toLowerCase().replace(/\s+/g, ' ');
-      critTimeline[agent] = critTimeline[agent] || {};
-      if (!critTimeline[agent][key]) critTimeline[agent][key] = { label, section: cr.section || '', occ: [] };
-      critTimeline[agent][key].occ.push({ date: call._date, weekKey: call._weekKey, fail: sn === 0, feedback: (cr.feedback || '').trim() });
-    });
-
-    const seenAf = new Set();
-    (call.auto_fails || []).forEach(af => {
-      const rawLabel = (af.label || '').trim();
-      if (!rawLabel) return;
-      const label = canonicalAF(rawLabel);
-      if (seenAf.has(label)) return;
-      seenAf.add(label);
-      const v = ((af.value || af.val || '')).toString().toUpperCase().trim();
-      if (v === 'N/A' || v === '') return;
-      const key = label.toLowerCase().replace(/\s+/g, ' ');
-      afTimeline[agent] = afTimeline[agent] || {};
-      if (!afTimeline[agent][key]) afTimeline[agent][key] = { label, section: af.section || 'ZZPS Summary', occ: [] };
-      afTimeline[agent][key].occ.push({ date: call._date, weekKey: call._weekKey, fail: v === 'NO', feedback: (af.feedback || af.fb || '').trim() });
-    });
-  });
-
-  const allAgents = [...allAgentsSet];
-
-  // ---- Status computation: recurring / new / resolved / watch ----
-  function computeStatus(occList) {
-    const occ = occList.slice().sort((a, b) => a.date - b.date);
-    const totalFails = occ.filter(o => o.fail).length;
-    if (totalFails === 0) return null;
-    const lastOcc = occ[occ.length - 1];
-    const hadFailBefore = occ.slice(0, -1).some(o => o.fail);
-    const lastIsRecent = currentWeeksSet.has(lastOcc.weekKey);
-    let status;
-    if (lastOcc.fail) {
-      // Most recent scored call for this criteria was a fail
-      status = !lastIsRecent ? 'watch' : (hadFailBefore ? 'recurring' : 'new');
-    } else {
-      // Most recent scored call passed
-      status = lastIsRecent ? 'resolved' : 'watch';
-    }
-    const lastFail = [...occ].reverse().find(o => o.fail);
-    const firstFail = occ.find(o => o.fail);
-    return { status, totalFails, totalOcc: occ.length, lastFail, firstFail, lastOcc };
-  }
-
-  const agentCritStatus = {};   // agent -> [{label, section, ...status}]
-  const agentAfStatus = {};
-  allAgents.forEach(agent => {
-    agentCritStatus[agent] = [];
-    Object.values(critTimeline[agent] || {}).forEach(entry => {
-      const st = computeStatus(entry.occ);
-      if (st) agentCritStatus[agent].push(Object.assign({ label: entry.label, section: entry.section, type: 'Zero Score' }, st));
-    });
-    agentAfStatus[agent] = [];
-    Object.values(afTimeline[agent] || {}).forEach(entry => {
-      const st = computeStatus(entry.occ);
-      if (st) agentAfStatus[agent].push(Object.assign({ label: entry.label, section: entry.section, type: 'Auto-Fail' }, st));
-    });
-  });
-
-  // ---- Team-wide weak areas / most improved ----
-  const weakMap = {}, improvedMap = {};
-  allAgents.forEach(agent => {
-    [...agentCritStatus[agent], ...agentAfStatus[agent]].forEach(row => {
-      const key = row.type + '||' + row.label.toLowerCase().replace(/\s+/g, ' ');
-      if (row.status === 'recurring' || row.status === 'new') {
-        if (!weakMap[key]) weakMap[key] = { label: row.label, section: row.section, type: row.type, agents: [] };
-        weakMap[key].agents.push({ agent, status: row.status, totalFails: row.totalFails });
-      } else if (row.status === 'resolved') {
-        if (!improvedMap[key]) improvedMap[key] = { label: row.label, section: row.section, type: row.type, agents: [] };
-        improvedMap[key].agents.push({ agent, totalFails: row.totalFails });
-      }
-    });
-  });
-  const weakList = Object.values(weakMap).sort((a, b) => b.agents.length - a.agents.length);
-  const improvedList = Object.values(improvedMap).sort((a, b) => b.agents.length - a.agents.length);
-
-  const failingNowCount = allAgents.reduce((s, a) =>
-    s + agentCritStatus[a].filter(r => r.status === 'recurring' || r.status === 'new').length
-      + agentAfStatus[a].filter(r => r.status === 'recurring' || r.status === 'new').length, 0);
-  const resolvedCount = allAgents.reduce((s, a) =>
-    s + agentCritStatus[a].filter(r => r.status === 'resolved').length
-      + agentAfStatus[a].filter(r => r.status === 'resolved').length, 0);
-
-  document.getElementById('statStrip').style.display = 'grid';
-  document.getElementById('statTotal').textContent = allScorecards.length;
-  document.getElementById('statWeeks').textContent = weeksSorted.length;
-  document.getElementById('statAgents').textContent = allAgents.length;
-  document.getElementById('statFailingNow').textContent = failingNowCount;
-  document.getElementById('statResolved').textContent = resolvedCount;
-
-  window.__weakAreaRows = weakList;
-  window.__improvedRows = improvedList;
-  window.__allAgentNames = allAgents.slice().sort((a, b) => a.localeCompare(b));
-  window.__progressRows = [];
-  allAgents.forEach(agent => {
-    [...agentCritStatus[agent], ...agentAfStatus[agent]].forEach(row => {
-      window.__progressRows.push({
-        Agent: agent, Criteria: row.label, Section: row.section || '—', Type: row.type,
-        Status: row.status, 'Times Failed': row.totalFails, 'Times Checked': row.totalOcc,
-        'First Failed': row.firstFail ? row.firstFail.date.toISOString().slice(0, 10) : '',
-        'Last Failed': row.lastFail ? row.lastFail.date.toISOString().slice(0, 10) : '',
-        'Latest Feedback': (row.lastFail && row.lastFail.feedback) || ''
-      });
-    });
-  });
-
-  // ==================== BUILD HTML ====================
-  let html = '';
-
-  const statusMeta = {
-    recurring: { label: '🔴 Recurring', cls: 'recurring' },
-    new: { label: '🆕 New Issue', cls: 'new' },
-    resolved: { label: '✅ Resolved', cls: 'resolved' },
-    watch: { label: '⏳ Watch (no recent calls)', cls: 'watch' }
-  };
-
-  // ---- Weak areas / most improved (admin only) ----
-  if (isAdmin) {
-    html += `<div class="section-hdr">
-      <div class="section-hdr-left"><div>
-        <div class="section-label">Coaching Priority</div>
-        <div class="section-title">Weak Areas — Needs Coaching Now</div>
-        <div class="section-desc">Criteria currently failing (window: ${windowLabel}), ranked by how many agents are affected</div>
-      </div></div>
-      ${weakList.length ? `<button class="action-btn" onclick="downloadProgressXlsx()">⬇ &nbsp;Download Full Report</button>` : ''}
-    </div>`;
-
-    if (!weakList.length) {
-      html += `<div class="success-banner">
-        <div class="success-icon">✅</div>
-        <div><div class="success-text">No active failing criteria this window</div><div class="success-sub">Every criteria that failed before is currently passing across the team.</div></div>
-      </div>`;
-    } else {
-      const maxWeak = Math.max(...weakList.map(w => w.agents.length));
-      html += `<div class="panel-card">`;
-      weakList.slice(0, 15).forEach(w => {
-        const pct = Math.round((w.agents.length / maxWeak) * 100);
-        const chips = w.agents.sort((a,b)=>b.totalFails-a.totalFails).map(a =>
-          `<span class="agent-chip ${a.status}">${a.agent} (${a.totalFails}×)</span>`).join('');
-        html += `<div class="wa-row">
-          <div class="wa-main">
-            <div class="wa-title">${w.label} <span class="source-tag" style="margin-left:6px;${w.type==='Auto-Fail'?'background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.2);color:var(--warn)':''}">${w.type}</span></div>
-            <div class="wa-sub">${w.section || '—'}</div>
-            <div class="agent-chips" style="margin-top:8px;">${chips}</div>
-          </div>
-          <div class="wa-bar-wrap"><div class="wa-bar red" style="width:${pct}%"></div></div>
-          <div class="wa-count red">${w.agents.length} agent${w.agents.length!==1?'s':''}</div>
-        </div>`;
-      });
-      html += `</div>`;
-    }
-
-    html += `<div class="section-hdr" style="margin-top:8px;">
-      <div class="section-hdr-left"><div>
-        <div class="section-label">Progress</div>
-        <div class="section-title">Most Improved — Recently Resolved</div>
-        <div class="section-desc">Criteria that used to fail but passed on every scored call in the current window</div>
-      </div></div>
-    </div>`;
-
-    if (!improvedList.length) {
-      html += `<div class="table-card" style="padding:24px;"><div class="empty-sub" style="text-align:center;">No resolved criteria yet in this window — as agents correct issues they'll show up here.</div></div>`;
-    } else {
-      html += `<div class="panel-card">`;
-      improvedList.slice(0, 15).forEach(w => {
-        const maxImp = Math.max(...improvedList.map(x => x.agents.length));
-        const pct = Math.round((w.agents.length / maxImp) * 100);
-        const chips = w.agents.map(a => `<span class="agent-chip resolved">${a.agent}</span>`).join('');
-        html += `<div class="wa-row">
-          <div class="wa-main">
-            <div class="wa-title">${w.label} <span class="source-tag" style="margin-left:6px;${w.type==='Auto-Fail'?'background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.2);color:var(--warn)':''}">${w.type}</span></div>
-            <div class="wa-sub">${w.section || '—'}</div>
-            <div class="agent-chips" style="margin-top:8px;">${chips}</div>
-          </div>
-          <div class="wa-bar-wrap"><div class="wa-bar green" style="width:${pct}%"></div></div>
-          <div class="wa-count green">${w.agents.length} agent${w.agents.length!==1?'s':''}</div>
-        </div>`;
-      });
-      html += `</div>`;
-    }
-  }
-
-  // ---- Per-agent progression ----
-  const agentsForDrilldown = isAdmin ? allAgents : (agentName ? [displayName(agentName)] : []);
-  const sortedAgents = agentsForDrilldown.slice().sort((a, b) => {
-    const fa = (agentCritStatus[a]||[]).filter(r=>r.status==='recurring'||r.status==='new').length + (agentAfStatus[a]||[]).filter(r=>r.status==='recurring'||r.status==='new').length;
-    const fb = (agentCritStatus[b]||[]).filter(r=>r.status==='recurring'||r.status==='new').length + (agentAfStatus[b]||[]).filter(r=>r.status==='recurring'||r.status==='new').length;
-    return fb - fa;
-  });
-
-  html += `<div class="section-hdr" style="margin-top:32px;">
-    <div class="section-hdr-left"><div>
-      <div class="section-label">${isAdmin ? 'Drill Down' : 'Your Results'}</div>
-      <div class="section-title">${isAdmin ? 'Per-Agent Progression' : 'Your Progression'}</div>
-      <div class="section-desc">Weekly QA pass-rate trend and criteria-by-criteria status, updated as new scorecards come in</div>
-    </div></div>
-    <span class="section-count">${sortedAgents.length} agent${sortedAgents.length!==1?'s':''}</span>
-  </div>`;
-
-  if (!sortedAgents.length) {
-    html += `<div class="empty-state"><div class="empty-sub">No scorecards found.</div></div>`;
-  }
-
-  sortedAgents.forEach((agent, idx) => {
-    const critRows = (agentCritStatus[agent] || []).sort((a, b) => {
-      const order = { recurring: 0, new: 1, watch: 2, resolved: 3 };
-      return order[a.status] - order[b.status] || b.totalFails - a.totalFails;
-    });
-    const afRows = (agentAfStatus[agent] || []).sort((a, b) => {
-      const order = { recurring: 0, new: 1, watch: 2, resolved: 3 };
-      return order[a.status] - order[b.status] || b.totalFails - a.totalFails;
-    });
-    const activeIssues = critRows.filter(r => r.status === 'recurring' || r.status === 'new').length
-      + afRows.filter(r => r.status === 'recurring' || r.status === 'new').length;
-    const resolvedIssues = critRows.filter(r => r.status === 'resolved').length
-      + afRows.filter(r => r.status === 'resolved').length;
-
-    const ini = agent.split(' ').map(p => p[0] || '').join('').slice(0, 2).toUpperCase();
-    const sid = 'ag-' + agent.replace(/\W/g, '_');
-    const openCls = (isAdmin && idx === 0) || !isAdmin ? ' open' : '';
-
-    const metaParts = [];
-    if (activeIssues > 0) metaParts.push(`${activeIssues} active issue${activeIssues !== 1 ? 's' : ''}`);
-    if (resolvedIssues > 0) metaParts.push(`${resolvedIssues} resolved`);
-    const pillTxt = activeIssues > 0 ? `⚠ ${activeIssues} to coach` : `✅ On track`;
-    const pillStyle = activeIssues > 0
-      ? 'background:rgba(244,63,94,.1);border-color:rgba(244,63,94,.3);color:var(--fail)'
-      : 'background:rgba(34,211,160,.08);border-color:rgba(34,211,160,.2);color:var(--pass)';
-
-    // weekly sparkline (last 12 weeks with data for this agent)
-    const wkData = weeksSorted.filter(w => agentWeekly[agent] && agentWeekly[agent][w]).slice(-12);
-    let sparkHtml = '';
-    if (wkData.length) {
-      sparkHtml = `<div class="progress-block"><div class="progress-block-title">Weekly QA Pass Rate</div><div class="spark-wrap">`;
-      wkData.forEach(w => {
-        const d = agentWeekly[agent][w];
-        const pct = d.total ? Math.round((d.passed / d.total) * 100) : 0;
-        const color = pct >= 80 ? 'var(--pass)' : pct >= 50 ? 'var(--warn)' : 'var(--fail)';
-        sparkHtml += `<div class="spark-bar-col" title="${formatWeekLabel(weekMap[w])}: ${pct}% (${d.total} call${d.total!==1?'s':''})">
-          <div class="spark-bar" style="height:${Math.max(pct,4)}%;background:${color};"></div>
-          <div class="spark-tip">${formatWeekLabel(weekMap[w])}</div>
-        </div>`;
-      });
-      sparkHtml += `</div></div>`;
-    }
-
-    function buildStatusTable(rows, emptyMsg) {
-      if (!rows.length) return `<div class="empty-sub" style="padding:16px 0;">${emptyMsg}</div>`;
-      let t = `<div class="table-card" style="margin-bottom:16px;"><table class="zero-table">
-        <thead><tr><th>Criteria</th><th>Section</th><th>Status</th><th>Failed / Checked</th><th>First → Last Failed</th></tr></thead>
-        <tbody>`;
-      rows.forEach(r => {
-        const sm = statusMeta[r.status];
-        const firstD = r.firstFail ? formatWeekLabel(r.firstFail.date) : '—';
-        const lastD = r.lastFail ? formatWeekLabel(r.lastFail.date) : '—';
-        t += `<tr>
-          <td><div class="criteria-cell">${r.label}</div></td>
-          <td><span class="section-cell">${r.section || '—'}</span></td>
-          <td><span class="status-badge ${sm.cls}">${sm.label}</span></td>
-          <td><span class="zero-count-badge" style="${r.status==='resolved' ? 'background:rgba(34,211,160,.1);border-color:rgba(34,211,160,.25);color:var(--pass)' : ''}">${r.totalFails}/${r.totalOcc}</span></td>
-          <td><span class="section-cell">${firstD} → ${lastD}</span></td>
-        </tr>`;
-      });
-      t += `</tbody></table></div>`;
-      return t;
-    }
-
-    html += `<div class="agent-section${openCls}" id="${sid}">
-      <div class="agent-section-header" onclick="toggleAgent('${sid}')">
-        <div class="agent-avatar">${ini}</div>
-        <div class="agent-info">
-          <div class="agent-name">${agent}</div>
-          <div class="agent-meta">${metaParts.join(' · ') || 'No issues on record'}</div>
-        </div>
-        <span class="agent-zero-pill" style="${pillStyle}">${pillTxt}</span>
-        <div class="chevron-btn">▾</div>
-      </div>
-      <div class="agent-section-body">
-        ${sparkHtml}
-        <div class="progress-block">
-          <div class="progress-block-title">🔴 Active — Needs Attention (Zero Scores)</div>
-          ${buildStatusTable(critRows.filter(r => r.status === 'recurring' || r.status === 'new'), 'No active zero-score issues right now.')}
-        </div>
-        <div class="progress-block">
-          <div class="progress-block-title">🔴 Active — Needs Attention (Auto-Fail Triggers)</div>
-          ${buildStatusTable(afRows.filter(r => r.status === 'recurring' || r.status === 'new'), 'No active auto-fail triggers right now.')}
-        </div>
-        <div class="progress-block">
-          <div class="progress-block-title">✅ Resolved / Improved</div>
-          ${buildStatusTable([...critRows, ...afRows].filter(r => r.status === 'resolved'), 'Nothing resolved yet in this window.')}
-        </div>
-        <div class="progress-block">
-          <div class="progress-block-title">⏳ Watch — No Recent Calls Since Last Failure</div>
-          ${buildStatusTable([...critRows, ...afRows].filter(r => r.status === 'watch'), '—')}
-        </div>
-      </div>
-    </div>`;
-  });
-
-  container.innerHTML = html;
-}
-
-// ---------- Downloads ----------
-function downloadProgressXlsx() {
-  const weak = window.__weakAreaRows || [];
-  const improved = window.__improvedRows || [];
-  const progress = window.__progressRows || [];
-  if (!weak.length && !improved.length && !progress.length) {
-    showToast('No data to download', false);
-    return;
-  }
-  const wb = XLSX.utils.book_new();
-
-  const agentNames = window.__allAgentNames || [];
-  const weakData = weak.map((w, i) => {
-    const row = {
-      Rank: i + 1, Criteria: w.label, Section: w.section || '—', Type: w.type,
-      'Agents Affected': w.agents.length
-    };
-    const failCountByAgent = {};
-    w.agents.forEach(a => { failCountByAgent[a.agent] = a.totalFails; });
-    agentNames.forEach(name => { row[name] = failCountByAgent[name] || ''; });
-    return row;
-  });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(weakData.length ? weakData : [{ Info: 'No active weak areas' }]), 'Weak Areas');
-
-  const impData = improved.map((w, i) => ({
-    Rank: i + 1, Criteria: w.label, Section: w.section || '—', Type: w.type,
-    'Agents Resolved': w.agents.length,
-    'Agents': w.agents.map(a => a.agent).join(', ')
+function renderFlow(from, to) {
+  CH.forEach(c => c.destroy()); CH = [];
+  const weeks = SD.weekList(from, to);
+  const wEnd = w => SD.addDays(w, 6);
+  const inW = (d, w) => d && d >= w && d <= wEnd(w);
+  const nw = weeks.map(w => EP.filter(e => inW(e.emerged, w) && !e.reopened).length);
+  const rw = weeks.map(w => EP.filter(e => inW(e.emerged, w) && e.reopened).length);
+  const res = weeks.map(w => -EP.filter(e => inW(e.resolved, w)).length);
+  const openAt = weeks.map(w => EP.filter(e => e.emerged <= wEnd(w) && (!e.resolved || e.resolved > wEnd(w))).length);
+  CH.push(new Chart($('chFlow'), {
+    type: 'bar',
+    data: { labels: weeks.map(SD.shortDate), datasets: [
+      { label: 'New', data: nw, backgroundColor: 'rgba(244,63,94,.75)', borderRadius: 3, stack: 's', order: 2 },
+      { label: 'Came back', data: rw, backgroundColor: 'rgba(245,158,11,.8)', borderRadius: 3, stack: 's', order: 2 },
+      { label: 'Resolved', data: res, backgroundColor: 'rgba(34,211,160,.7)', borderRadius: 3, stack: 's', order: 2 },
+      { type: 'line', label: 'Open', data: openAt, borderColor: '#4f8cff', backgroundColor: '#4f8cff', pointRadius: 2, tension: .3, yAxisID: 'y2', order: 1 }
+    ] },
+    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { ...TIP, callbacks: { title: i => 'Week of ' + SD.fmtDate(weeks[i[0].dataIndex]), label: c => ` ${c.dataset.label}: ${Math.abs(c.parsed.y)}` } } },
+      scales: { x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, maxTicksLimit: 12 } },
+        y: { stacked: true, grid: { color: GRID }, ticks: { callback: v => Math.abs(v) } },
+        y2: { position: 'right', beginAtZero: true, grid: { display: false }, title: { display: true, text: 'Open', color: '#4f8cff' } } } }
   }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(impData.length ? impData : [{ Info: 'No resolved criteria yet' }]), 'Most Improved');
-
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(progress.length ? progress : [{ Info: 'No data' }]), 'Per-Agent Detail');
-
-  XLSX.writeFile(wb, 'Agent_Progress_Report.xlsx');
 }
 
-function toggleAgent(id) {
-  document.getElementById(id).classList.toggle('open');
+// Criteria ranked by how many agents currently have them open, with the fail
+// rate over the period vs the period before so you can see if it's getting better.
+function renderFocus(open, from, to) {
+  const len = SD.daysBetween(from, to) + 1, pFrom = SD.addDays(from, -len), pTo = SD.addDays(from, -1);
+  const cards = CARDS.filter(c => !AGENT || c.agent === AGENT);
+  const rate = (key, a, b) => {
+    let assessed = 0, failed = 0;
+    for (const c of cards) {
+      if (c.date < a || c.date > b) continue;
+      if (key.startsWith('c:')) { const cr = c.crit.find(x => 'c:' + SD.critKey(x.label) === key && isFinite(parseFloat(x.score))); if (cr) { assessed++; if (parseFloat(cr.score) === 0) failed++; } }
+      else { const af = c.afs.find(x => 'a:' + SD.critKey(SD.canonicalAF(x.label)) === key && x.value && x.value !== 'N/A'); if (af) { assessed++; if (af.value === 'NO') failed++; } }
+    }
+    return assessed ? failed / assessed * 100 : null;
+  };
+  const by = new Map();
+  open.forEach(e => { if (!by.has(e.key)) by.set(e.key, { ...e, agents: [] }); by.get(e.key).agents.push(e); });
+  const rows = [...by.values()].map(g => ({ ...g, now: rate(g.key, from, to), before: rate(g.key, pFrom, pTo) }))
+    .sort((a, b) => (b.type === 'Auto-fail') - (a.type === 'Auto-fail') || b.agents.length - a.agents.length).slice(0, 8);
+  $('focus').innerHTML = rows.length ? rows.map(g => {
+    const d = g.now != null && g.before != null ? g.now - g.before : null;
+    const trend = d == null ? '' : `<span class="delta ${d < -0.5 ? 'up' : d > 0.5 ? 'dn' : 'fl'}">${d < 0 ? '▼' : d > 0 ? '▲' : '●'} ${Math.abs(d).toFixed(0)} pts vs prev.</span>`;
+    return `<div class="item" data-crit="${esc(g.key)}" style="cursor:pointer"><div class="h"><span class="t">${esc(g.label)}</span><span class="bdg ${g.type === 'Auto-fail' ? 'bad' : 'w'}">${g.type}</span></div>
+      <div class="m"><b class="cr">${g.agents.length}</b> agent${g.agents.length > 1 ? 's' : ''} open: ${g.agents.map(e => esc(e.agent.split(' ')[0])).join(', ')}<br>
+      Failed on ${g.now == null ? '—' : g.now.toFixed(0) + '%'} of calls this period ${trend}</div></div>`;
+  }).join('') : '<div class="tbl-note">No open issues 🎉</div>';
 }
 
-document.getElementById('refreshBtn').addEventListener('click', async () => {
-  const btn = document.getElementById('refreshBtn');
-  btn.textContent = '↺  Refreshing…';
-  showLoading(true);
-  await loadScorecards();
-  showLoading(false);
-  renderAll();
-  btn.textContent = '↺  Refresh';
-  showToast('Analysis refreshed', true);
-});
-document.getElementById('fileInputHidden').addEventListener('change', e => { handleFiles(Array.from(e.target.files)); e.target.value = ''; });
+function renderMatrix(open, resIn) {
+  const crits = new Map();
+  [...open, ...resIn].forEach(e => { if (!crits.has(e.key)) crits.set(e.key, { label: e.label, type: e.type, n: 0 }); if (!e.resolved) crits.get(e.key).n++; });
+  const cols = [...crits.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 10);
+  const agents = [...new Set([...open, ...resIn].map(e => e.agent))].sort((a, b) => open.filter(e => e.agent === b).length - open.filter(e => e.agent === a).length);
+  $('mxCnt').textContent = `${open.length} open`;
+  if (!agents.length) { $('matrix').innerHTML = '<tr><td class="tbl-note">Nothing open or resolved in this period.</td></tr>'; return; }
+  const short = l => l.length > 26 ? l.slice(0, 24) + '…' : l;
+  $('matrix').innerHTML = `<thead><tr><th>Agent</th><th>Open</th>${cols.map(([k, c]) => `<th title="${esc(c.label)}" style="white-space:normal;min-width:90px;max-width:120px;line-height:1.3">${c.type === 'Auto-fail' ? '⚠ ' : ''}${esc(short(c.label))}</th>`).join('')}</tr></thead><tbody>` +
+    agents.map(a => `<tr><td style="font-weight:700">${esc(a)}</td><td class="n ${open.some(e => e.agent === a) ? 'cr' : 'cg'}">${open.filter(e => e.agent === a).length}</td>` +
+      cols.map(([k]) => {
+        const o = open.find(e => e.agent === a && e.key === k);
+        if (o) return `<td><span class="cell open" data-ep="${esc(a + '§' + k)}" style="cursor:pointer" title="Failed ${o.fails}× since ${SD.fmtDate(o.emerged)}">${o.fails}</span></td>`;
+        const r = resIn.find(e => e.agent === a && e.key === k);
+        return `<td>${r ? `<span class="cell res" title="Resolved ${SD.fmtDate(r.resolved)}">✓</span>` : '<span class="cell none">·</span>'}</td>`;
+      }).join('') + '</tr>').join('') + '</tbody>';
+}
+
+function issueItem(e) {
+  const age = SD.daysBetween(e.emerged, e.resolved || CARDS.map(c => c.date).sort().pop());
+  return `<div class="item"><div class="h"><span class="t">${esc(e.agent)} · ${esc(e.label)}</span>
+    <span>${e.reopened ? '<span class="bdg w">came back</span> ' : ''}<span class="bdg ${e.type === 'Auto-fail' ? 'bad' : 'w'}">${e.type}</span></span></div>
+    <div class="m">${e.resolved
+      ? `Opened ${SD.fmtDate(e.emerged)} · resolved ${SD.fmtDate(e.resolved)} (${age} days) · failed ${e.fails}×`
+      : `Open since ${SD.fmtDate(e.emerged)} (${age} days) · failed ${e.fails}× of ${e.assessed} calls · last fail ${SD.fmtDate(e.lastFail)} · ${e.cleanSince ? `<span class="cg">${e.cleanSince} clean since</span>` : '<span class="cr">not yet passed since</span>'}`}</div>
+    ${e.lastFeedback ? `<div class="fb">${esc(e.lastFeedback)}</div>` : ''}</div>`;
+}
+
+function renderLists(open, resIn) {
+  const o = [...open].sort((a, b) => (b.type === 'Auto-fail') - (a.type === 'Auto-fail') || b.fails - a.fails || a.emerged.localeCompare(b.emerged));
+  $('openCnt').textContent = `${open.length} issues`;
+  $('openList').innerHTML = o.slice(0, 40).map(issueItem).join('') + (o.length > 40 ? `<div class="tbl-note">+ ${o.length - 40} more – pick an agent to see all</div>` : '') || '<div class="tbl-note">Nothing open 🎉</div>';
+  const r = [...resIn].sort((a, b) => b.resolved.localeCompare(a.resolved));
+  $('resCnt').textContent = `${resIn.length} this period`;
+  $('resList').innerHTML = r.slice(0, 30).map(issueItem).join('') || '<div class="tbl-note">No issues resolved in this period yet.</div>';
+}
+
+function showEpisodes(title, eps) {
+  $('modalRoot').innerHTML = `<div class="ov" id="ov"><div class="modal"><div class="mh"><div class="t">${esc(title)}</div><button class="xbtn" data-close>✕</button></div>
+    <div class="mb2 list">${eps.map(issueItem).join('')}</div></div></div>`;
+  $('ov').onclick = e => { if (e.target.id === 'ov' || e.target.closest('[data-close]')) $('modalRoot').innerHTML = ''; };
+}
+
+$('rangeSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { RANGE = b.dataset.r; render(); } });
+$('agentSel').onchange = e => { AGENT = e.target.value; render(); };
+$('cleanSel').onchange = e => { CLEAN = +e.target.value; render(); };
+$('focus').addEventListener('click', e => { const it = e.target.closest('[data-crit]'); if (it) { const eps = EP.filter(x => x.key === it.dataset.crit && !x.resolved); showEpisodes(eps[0]?.label || 'Issue', eps); } });
+$('matrix').addEventListener('click', e => { const c = e.target.closest('[data-ep]'); if (c) { const [a, k] = c.dataset.ep.split('§'); showEpisodes(a, EP.filter(x => x.agent === a && x.key === k)); } });
+window.addEventListener('message', e => { if (e.data?.type === 'sd-agent' && CARDS.length) { AGENT = e.data.agent; $('agentSel').value = AGENT; render(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') $('modalRoot').innerHTML = ''; });
+
+(async () => {
+  ME = await SD.session();
+  if (!ME) return SD.notSignedIn();
+  await load();
+})();
 </script>
 </body>
 </html>
