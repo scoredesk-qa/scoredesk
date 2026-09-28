@@ -228,15 +228,14 @@ const SD = (() => {
     };
   }
 
-  // Keys that identify the same call. A scorecard is a duplicate if ANY key matches:
-  //  - same agent + call date + account (time ignored: older uploads stored the
-  //    time shifted to UK local time)
-  //  - same agent + file name
+  // Identifies the same call: agent + call date + account (time ignored, since
+  // older uploads stored it shifted to UK local time). Only when the date or
+  // account is missing does it fall back to agent + file name.
   function scorecardKeys(r) {
     const cd = parseCallDate(r.call_date), a = nameKey(r.agent_name), keys = [];
     const acc = norm(r.account_ref).toLowerCase().replace(/\.0+$/, '');
     if (cd && acc) keys.push(['c', a, cd.date, acc].join('|'));
-    if (r.file_name) keys.push(['f', a, norm(r.file_name).toLowerCase()].join('|'));
+    else if (r.file_name) keys.push(['f', a, norm(r.file_name).toLowerCase()].join('|'));
     return keys;
   }
 
