@@ -60,7 +60,7 @@ async function load() {
   try {
     [stats, cards] = await Promise.all([
       SD.fetchAll('agent_daily_stats', 'id,agent_name,date,calls,ignored,talk_time_minutes'),
-      SD.fetchAll('scorecards', 'id,agent_name,call_date,created_at,pass,auto_fails,criteria', q => (!ME.isAdmin && ME.agentName) ? q.eq('agent_name', ME.agentName) : q)
+      SD.fetchAll('scorecards', 'id,agent_name,file_name,call_date,pass,auto_fails,criteria', q => (!ME.isAdmin && ME.agentName) ? q.eq('agent_name', ME.agentName) : q)
     ]);
   } catch (e) { $('loading').textContent = 'Could not load data: ' + e.message; return; }
   // 3CX names are the reference spelling; scorecard names are matched onto them.
