@@ -84,6 +84,24 @@ const SD = (() => {
     return null;
   }
 
+  // Call timestamp embedded in the 3CX recording name, e.g.
+  // "[Ogri, Hind]_617-+447565529154_20260918083217(75626)" -> 2026-09-18 08:32.
+  function dateFromName(name) {
+    const m = String(name ?? '').match(/(?:^|[_\s-])(20\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/);
+    if (!m) return null;
+    const [, y, mo, d, h, mi] = m.map(Number);
+    if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59) return null;
+    return { date: `${y}-${pad(mo)}-${pad(d)}`, time: `${pad(h)}:${pad(mi)}` };
+  }
+
+  // The call's date, taken only from the scorecard itself: the recording timestamp
+  // in its file name first (unambiguous), then the "Call date and time" cell.
+  // Never the upload/sync date.
+  const callDateOf = (...sources) => {
+    for (const s of sources) { const d = s && s.fromName ? dateFromName(s.v) : s ? parseCallDate(s.v) : null; if (d) return d; }
+    return null;
+  };
+
   // ---------------------------------------------------------------- auth / data
   async function session() {
     const { data: { user } } = await sb.auth.getUser();
@@ -174,8 +192,13 @@ const SD = (() => {
     const account = cellStr(field(/account reference/i));
     const auditor = cellStr(field(/auditor/i));
     const rawDate = field(/call date/i);
-    const cd = parseCallDate(rawDate);
+    const recName = cellStr(field(/^file name/i));
+    const cd = callDateOf({ v: recName, fromName: true }, { v: fileName, fromName: true }, { v: rawDate });
     if (!cd) warnings.push(`Call date not recognised: "${cellStr(rawDate)}"`);
+    else {
+      const cell = parseCallDate(rawDate);
+      if (cell && cell.date !== cd.date) warnings.push(`Call date cell says ${cell.date}; used ${cd.date} from the recording name`);
+    }
 
     const pfRow = rows.find(r => /^pass\s*\/?\s*fail/i.test(cellStr(r[0])));
     const pfResult = pfRow ? cellStr(pfRow[1]).toUpperCase() : '';
@@ -232,7 +255,7 @@ const SD = (() => {
   // older uploads stored it shifted to UK local time). Only when the date or
   // account is missing does it fall back to agent + file name.
   function scorecardKeys(r) {
-    const cd = parseCallDate(r.call_date), a = nameKey(r.agent_name), keys = [];
+    const cd = callDateOf({ v: r.file_name, fromName: true }, { v: r.call_date }), a = nameKey(r.agent_name), keys = [];
     const acc = norm(r.account_ref).toLowerCase().replace(/\.0+$/, '');
     if (cd && acc) keys.push(['c', a, cd.date, acc].join('|'));
     else if (r.file_name) keys.push(['f', a, norm(r.file_name).toLowerCase()].join('|'));
@@ -241,7 +264,7 @@ const SD = (() => {
 
   // Normalises a stored scorecard row for analysis.
   function enrichScorecard(r, resolveName) {
-    const cd = parseCallDate(r.call_date) || parseCallDate(r.created_at);
+    const cd = callDateOf({ v: r.file_name, fromName: true }, { v: r.call_date });
     const crit = Array.isArray(r.criteria) ? r.criteria : [];
     let got = 0, max = 0;
     // Same rule as the scorecard's "ZZPS Quality Score": N/A criteria count as full marks.
@@ -305,7 +328,7 @@ const SD = (() => {
   return {
     sb, $, esc, norm, pad, fmtN, pct, toast,
     dUTC, sUTC, addDays, mondayOf, fmtDate, shortDate, monthLbl, today, daysBetween, weekList, rangeBounds,
-    parseCallDate, session, notSignedIn, fetchAll, teamNames,
+    parseCallDate, dateFromName, session, notSignedIn, fetchAll, teamNames,
     nameKey, nameResolver, canonicalAF, critKey,
     scorecardRows, extractScorecard, scorecardKeys, enrichScorecard, buildIssues
   };

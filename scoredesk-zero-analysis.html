@@ -75,7 +75,7 @@ let ME = null, CARDS = [], EP = [], RANGE = '90', AGENT = '', CLEAN = 2, CH = []
 
 async function load() {
   let raw;
-  try { raw = await SD.fetchAll('scorecards', 'id,agent_name,file_name,call_date,created_at,pass,pf_reason,auto_fails,criteria,account_ref,auditor', q => (!ME.isAdmin && ME.agentName) ? q.eq('agent_name', ME.agentName) : q); }
+  try { raw = await SD.fetchAll('scorecards', 'id,agent_name,file_name,call_date,pass,pf_reason,auto_fails,criteria,account_ref,auditor', q => (!ME.isAdmin && ME.agentName) ? q.eq('agent_name', ME.agentName) : q); }
   catch (e) { $('loading').textContent = 'Could not load scorecards: ' + e.message; return; }
   const resolve = SD.nameResolver(await SD.teamNames());
   CARDS = raw.map(r => SD.enrichScorecard(r, resolve)).filter(c => c.date);
