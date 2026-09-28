@@ -166,6 +166,15 @@ body {
 .nav-tabs {
   display: flex;
   gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.nav-tab { white-space: nowrap; flex-shrink: 0; }
+@media (max-width: 760px) {
+  .nav { padding: 0 10px; gap: 8px; }
+  .nav-logo-name, .hdr-user, .nav-tab-dot { display: none; }
+  .nav-tab { padding: 7px 10px; }
 }
 .nav-tab {
   display: flex;
@@ -403,17 +412,17 @@ iframe.active { display: block; }
       <div class="nav-logo-name">ScoreDesk</div>
     </div>
     <div class="nav-tabs">
-      <button class="nav-tab active" onclick="switchTab('dashboard')">
+      <button class="nav-tab active" data-tab="dashboard" onclick="switchTab('dashboard')">
         <span class="nav-tab-dot"></span> 📊 Dashboard
       </button>
-      <button class="nav-tab" onclick="switchTab('analysis')">
-        <span class="nav-tab-dot"></span> 🔍 Zero Score Analysis
+      <button class="nav-tab" data-tab="progression" onclick="switchTab('progression')">
+        <span class="nav-tab-dot"></span> 📈 Call Stats
       </button>
-      <button class="nav-tab" onclick="switchTab('progression')">
-        <span class="nav-tab-dot"></span> 📈 Agent Progression
+      <button class="nav-tab" data-tab="quality" onclick="switchTab('quality')">
+        <span class="nav-tab-dot"></span> ✅ Quality
       </button>
-      <button class="nav-tab" onclick="switchTab('admin')">
-        <span class="nav-tab-dot"></span> 🕒 Admin Analysis
+      <button class="nav-tab" data-tab="analysis" onclick="switchTab('analysis')">
+        <span class="nav-tab-dot"></span> 🔍 Zero Score
       </button>
     </div>
     <div class="hdr-right">
@@ -422,10 +431,10 @@ iframe.active { display: block; }
     </div>
   </div>
   <div class="frame-wrap">
-    <iframe id="frame-dashboard" class="active" src="dashboard.html"></iframe>
-    <iframe id="frame-analysis" src="scoredesk-zero-analysis.html"></iframe>
-    <iframe id="frame-progression" src="agent-progression.html"></iframe>
-    <iframe id="frame-admin" src="admin-analysis.html"></iframe>
+    <iframe id="frame-dashboard" class="active" data-src="dashboard.html"></iframe>
+    <iframe id="frame-progression" data-src="agent-progression.html"></iframe>
+    <iframe id="frame-quality" data-src="quality.html"></iframe>
+    <iframe id="frame-analysis" data-src="scoredesk-zero-analysis.html"></iframe>
   </div>
 </div>
 
@@ -535,20 +544,10 @@ function showApp() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   document.getElementById('headerUser').textContent = currentUser.email;
-  // Reload iframes with a cache-buster to ensure fresh session
+  // Load each tab with a cache-buster so it picks up the fresh session
   const timestamp = Date.now();
-  document.getElementById('frame-dashboard').src = 'dashboard.html?t='+timestamp;
-  document.getElementById('frame-analysis').src = 'scoredesk-zero-analysis.html?t='+timestamp;
-  document.getElementById('frame-progression').src = 'agent-progression.html?t='+timestamp;
-  document.getElementById('frame-admin').src = 'admin-analysis.html?t='+timestamp;
-  // activate first tab
-  setTimeout(() => {
-    document.querySelectorAll('.nav-tab').forEach((t, i) => t.classList.toggle('active', i === 0));
-    document.getElementById('frame-dashboard').classList.add('active');
-    document.getElementById('frame-analysis').classList.remove('active');
-    document.getElementById('frame-progression').classList.remove('active');
-    document.getElementById('frame-admin').classList.remove('active');
-  }, 100);
+  document.querySelectorAll('.frame-wrap iframe').forEach(f => { f.src = f.dataset.src + '?t=' + timestamp; });
+  switchTab('dashboard');
 }
 
 async function doLogout() {
@@ -563,22 +562,18 @@ async function doLogout() {
 }
 
 function switchTab(name) {
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('iframe').forEach(f => f.classList.remove('active'));
-  if (name === 'dashboard') {
-    document.querySelectorAll('.nav-tab')[0].classList.add('active');
-    document.getElementById('frame-dashboard').classList.add('active');
-  } else if (name === 'analysis') {
-    document.querySelectorAll('.nav-tab')[1].classList.add('active');
-    document.getElementById('frame-analysis').classList.add('active');
-  } else if (name === 'progression') {
-    document.querySelectorAll('.nav-tab')[2].classList.add('active');
-    document.getElementById('frame-progression').classList.add('active');
-  } else if (name === 'admin') {
-    document.querySelectorAll('.nav-tab')[3].classList.add('active');
-    document.getElementById('frame-admin').classList.add('active');
-  }
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelector('.nav-tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  document.querySelectorAll('.frame-wrap iframe').forEach(f => f.classList.toggle('active', f.id === 'frame-' + name));
 }
+
+// Called by the Dashboard: switch tab and ask that page to show one agent.
+function openTab(name, agent) {
+  switchTab(name);
+  const f = document.getElementById('frame-' + name);
+  if (f && agent) f.contentWindow.postMessage({ type: 'sd-agent', agent }, location.origin === 'null' ? '*' : location.origin);
+}
+window.openTab = openTab;
 
 function openProfileModal() {
   const modal = document.getElementById('profileModal');
