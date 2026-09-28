@@ -38,7 +38,7 @@
 
     <div class="kpis" id="kpis"></div>
 
-    <div class="grid2">
+    <div class="grid2" style="align-items:start">
       <div class="card">
         <div class="cl"><span>New vs resolved issues per week</span></div>
         <div class="leg"><span><i style="background:var(--fail)"></i>New</span><span><i style="background:var(--warn)"></i>Came back</span><span><i style="background:var(--pass)"></i>Resolved</span><span><i style="background:var(--accent);height:2px"></i>Open at week end</span></div>
@@ -77,7 +77,7 @@ async function load() {
   let raw;
   try { raw = await SD.fetchAll('scorecards', 'id,agent_name,file_name,call_date,created_at,pass,pf_reason,auto_fails,criteria,account_ref,auditor', q => (!ME.isAdmin && ME.agentName) ? q.eq('agent_name', ME.agentName) : q); }
   catch (e) { $('loading').textContent = 'Could not load scorecards: ' + e.message; return; }
-  const resolve = SD.nameResolver();
+  const resolve = SD.nameResolver(await SD.teamNames());
   CARDS = raw.map(r => SD.enrichScorecard(r, resolve)).filter(c => c.date);
   $('loading').classList.add('hidden');
   if (!CARDS.length) { $('empty').classList.remove('hidden'); return; }
@@ -179,7 +179,7 @@ function renderMatrix(open, resIn) {
   $('mxCnt').textContent = `${open.length} open`;
   if (!agents.length) { $('matrix').innerHTML = '<tr><td class="tbl-note">Nothing open or resolved in this period.</td></tr>'; return; }
   const short = l => l.length > 26 ? l.slice(0, 24) + '…' : l;
-  $('matrix').innerHTML = `<thead><tr><th>Agent</th><th>Open</th>${cols.map(([k, c]) => `<th title="${esc(c.label)}" style="white-space:normal;min-width:90px;max-width:120px;line-height:1.3">${c.type === 'Auto-fail' ? '⚠ ' : ''}${esc(short(c.label))}</th>`).join('')}</tr></thead><tbody>` +
+  $('matrix').innerHTML = `<thead><tr><th>Agent</th><th>Open</th>${cols.map(([k, c]) => `<th title="${esc(c.label)}" style="white-space:normal;overflow-wrap:anywhere;min-width:90px;max-width:120px;line-height:1.3">${c.type === 'Auto-fail' ? '⚠ ' : ''}${esc(short(c.label))}</th>`).join('')}</tr></thead><tbody>` +
     agents.map(a => `<tr><td style="font-weight:700">${esc(a)}</td><td class="n ${open.some(e => e.agent === a) ? 'cr' : 'cg'}">${open.filter(e => e.agent === a).length}</td>` +
       cols.map(([k]) => {
         const o = open.find(e => e.agent === a && e.key === k);

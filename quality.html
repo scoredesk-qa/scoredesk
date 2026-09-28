@@ -85,9 +85,9 @@ async function load() {
   try {
     RAW = await SD.fetchAll('scorecards', '*', q => (!ME.isAdmin && ME.agentName) ? q.eq('agent_name', ME.agentName) : q);
   } catch (e) { $('loading').textContent = 'Could not load scorecards: ' + e.message; return; }
-  const resolve = SD.nameResolver();
+  const resolve = SD.nameResolver(await SD.teamNames());
   CARDS = RAW.map(r => SD.enrichScorecard(r, resolve));
-  KEYS = new Set(RAW.map(SD.scorecardKey));
+  KEYS = new Set(RAW.flatMap(SD.scorecardKeys));
   $('loading').classList.add('hidden');
   $('empty').classList.toggle('hidden', CARDS.length > 0);
   $('content').classList.toggle('hidden', !CARDS.length);
@@ -294,9 +294,9 @@ async function importWorkbooks(items, progress) {
     try {
       const wb = XLSX.read(new Uint8Array(it.buffer), { type: 'array' });
       const { row, warnings } = SD.extractScorecard(SD.scorecardRows(wb), it.name);
-      const k = SD.scorecardKey(row);
-      if (KEYS.has(k) || batchKeys.has(k)) { report.push({ name: it.name, st: 'skip', msg: `already stored (${row.agent_name}, ${row.call_date})` }); continue; }
-      batchKeys.add(k);
+      const ks = SD.scorecardKeys(row);
+      if (ks.some(k => KEYS.has(k) || batchKeys.has(k))) { report.push({ name: it.name, st: 'skip', msg: `already stored (${row.agent_name}, ${row.call_date})` }); continue; }
+      ks.forEach(k => batchKeys.add(k));
       toInsert.push({ it, row: { ...row, uploaded_by: ME.user.id }, warnings });
     } catch (e) { report.push({ name: it.name, st: 'err', msg: 'could not read file: ' + e.message }); }
   }

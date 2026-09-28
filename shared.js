@@ -111,6 +111,13 @@ const SD = (() => {
     return out;
   }
 
+  // Agent names as spelled in the 3CX data ("Aya Achouih"), used as the display
+  // spelling for scorecards, which write names surname-first ("Achouih Aya").
+  async function teamNames() {
+    try { return [...new Set((await fetchAll('agent_daily_stats', 'id,agent_name')).map(r => r.agent_name))]; }
+    catch (e) { return []; }
+  }
+
   // ---------------------------------------------------------------- agent names
   const nameKey = n => norm(n).toLowerCase().replace(/[^a-z0-9\s]/g, '').split(' ').filter(Boolean).sort().join(' ');
   function lev(a, b) {
@@ -195,7 +202,9 @@ const SD = (() => {
       }
       if (/^(Introduction|Data Protection|Body|Conclusion)\s*$/i.test(l)) { section = l; continue; }
       if (/auto.?fail/i.test(c1)) {
-        const v = c2.toUpperCase();
+        // Some auto-fail rows hold a score (e.g. 5) instead of YES/NO.
+        const n = parseFloat(r[2]);
+        const v = isFinite(n) ? (n > 0 ? 'YES' : 'NO') : c2.toUpperCase();
         autoFails.push({ source: 'criteria', section, label: l, value: v || 'N/A', feedback: c3, triggered: v === 'NO' });
         continue;
       }
@@ -219,11 +228,16 @@ const SD = (() => {
     };
   }
 
-  // Same call = same agent + call date/time + account. Falls back to the file name.
-  function scorecardKey(r) {
-    const cd = parseCallDate(r.call_date);
-    if (cd && r.account_ref) return [nameKey(r.agent_name), cd.date, cd.time, norm(r.account_ref).toLowerCase()].join('|');
-    return 'file|' + nameKey(r.agent_name) + '|' + norm(r.file_name).toLowerCase();
+  // Keys that identify the same call. A scorecard is a duplicate if ANY key matches:
+  //  - same agent + call date + account (time ignored: older uploads stored the
+  //    time shifted to UK local time)
+  //  - same agent + file name
+  function scorecardKeys(r) {
+    const cd = parseCallDate(r.call_date), a = nameKey(r.agent_name), keys = [];
+    const acc = norm(r.account_ref).toLowerCase().replace(/\.0+$/, '');
+    if (cd && acc) keys.push(['c', a, cd.date, acc].join('|'));
+    if (r.file_name) keys.push(['f', a, norm(r.file_name).toLowerCase()].join('|'));
+    return keys;
   }
 
   // Normalises a stored scorecard row for analysis.
@@ -231,7 +245,8 @@ const SD = (() => {
     const cd = parseCallDate(r.call_date) || parseCallDate(r.created_at);
     const crit = Array.isArray(r.criteria) ? r.criteria : [];
     let got = 0, max = 0;
-    for (const c of crit) { const w = parseFloat(c.weight), s = parseFloat(c.score); if (w > 0 && isFinite(s)) { got += s; max += w; } }
+    // Same rule as the scorecard's "ZZPS Quality Score": N/A criteria count as full marks.
+    for (const c of crit) { const w = parseFloat(c.weight), s = parseFloat(c.score); if (w > 0) { got += isFinite(s) ? s : w; max += w; } }
     const afs = (Array.isArray(r.auto_fails) ? r.auto_fails : []).map(a => {
       const value = cellStr(a.value ?? a.val).toUpperCase();
       return { ...a, value, feedback: a.feedback ?? a.fb ?? '', triggered: a.triggered ?? value === 'NO' };
@@ -291,9 +306,9 @@ const SD = (() => {
   return {
     sb, $, esc, norm, pad, fmtN, pct, toast,
     dUTC, sUTC, addDays, mondayOf, fmtDate, shortDate, monthLbl, today, daysBetween, weekList, rangeBounds,
-    parseCallDate, session, notSignedIn, fetchAll,
+    parseCallDate, session, notSignedIn, fetchAll, teamNames,
     nameKey, nameResolver, canonicalAF, critKey,
-    scorecardRows, extractScorecard, scorecardKey, enrichScorecard, buildIssues
+    scorecardRows, extractScorecard, scorecardKeys, enrichScorecard, buildIssues
   };
 })();
 
