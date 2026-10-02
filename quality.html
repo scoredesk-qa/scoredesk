@@ -21,6 +21,7 @@
     <div class="actions">
       <button class="btn adm hidden" id="syncBtn">⟳ Sync Google Drive</button>
       <button class="btn adm hidden" id="driveBtn">⚙ Drive folder</button>
+      <button class="btn" id="printBtn">🖨 Print scorecards</button>
       <button class="btn primary adm hidden" id="uploadBtn">⬆ Upload scorecards</button>
     </div>
   </div>
@@ -68,6 +69,7 @@
 <div id="modalRoot"></div>
 
 <script src="shared.js"></script>
+<script src="scorecard-print.js"></script>
 <script>
 // Optional: put your Google OAuth Client ID here so every admin gets it.
 // Admins can also paste it in "Drive folder" settings (saved in their browser).
@@ -77,7 +79,7 @@ const PASS_TARGET = 90;
 
 const { $, esc, fmtN, toast } = SD;
 let ME = null, RAW = [], CARDS = [], KEYS = new Set();
-let RANGE = '30', SORT = { key: 'scored', dir: -1 }, OPEN = null, CH = [];
+let VIEW_RANGE = {}, RANGE = '30', SORT = { key: 'scored', dir: -1 }, OPEN = null, CH = [];
 
 // ============================================================ load & render
 async function load() {
@@ -118,6 +120,7 @@ function render() {
   const dates = dated.map(c => c.date).sort();
   const maxDate = dates[dates.length - 1] || SD.today(), minDate = dates[0] || maxDate;
   const [from, to] = SD.rangeBounds(RANGE, maxDate, minDate);
+  VIEW_RANGE = { from, to };
   const inR = dated.filter(c => c.date >= from && c.date <= to);
   document.querySelectorAll('#rangeSeg button').forEach(b => b.classList.toggle('on', b.dataset.r === RANGE));
   $('rangeLbl').textContent = `${SD.fmtDate(from)} – ${SD.fmtDate(to)} · latest scorecard ${SD.fmtDate(maxDate)}`;
@@ -207,7 +210,7 @@ function renderBoard(cards, allDated, from, to) {
       <td class="n">${r.scored}</td><td>${passBadge(r.passRate)}</td>
       <td class="n">${r.avgScore == null ? '—' : r.avgScore.toFixed(1) + '%'}</td><td class="n ${r.failed ? 'cr' : 'cm'}">${r.failed}</td>
       <td class="n ${r.afCalls ? 'cr' : 'cm'}">${r.afCalls}</td><td>${tr}</td><td class="n cm">${SD.fmtDate(r.last)}</td>
-      <td><button class="linkbtn" data-toggle="${esc(r.agent)}">${open ? 'Hide' : 'Calls'}</button></td></tr>
+      <td><button class="linkbtn" data-toggle="${esc(r.agent)}">${open ? 'Hide' : 'Calls'}</button> <button class="linkbtn" data-print="${esc(r.agent)}" title="Print this agent's scorecards">🖨</button></td></tr>
       ${open ? `<tr class="expand"><td colspan="9"><div class="inner">${callsTable(r.cards)}</div></td></tr>` : ''}`;
   }).join('') || '<tr><td colspan="9" class="tbl-note">No scorecards in this period.</td></tr>';
 }
@@ -252,7 +255,8 @@ async function openCard(id) {
       ${ME.isAdmin ? `<textarea class="notes" id="noteArea" placeholder="Notes about this call…">${esc(note)}</textarea>` : `<div class="item mono" style="font-size:12px">${esc(note) || '<span class="cm">No notes</span>'}</div>`}
       <div class="sub" style="margin-top:10px">File: ${esc(c.file_name)}</div>
     </div>
-    ${ME.isAdmin ? `<div class="mf"><button class="btn danger" id="delCard">Delete scorecard</button><span class="grow"></span><button class="btn primary" id="saveNote">Save notes</button></div>` : ''}`, true);
+    <div class="mf">${ME.isAdmin ? '<button class="btn danger" id="delCard">Delete scorecard</button>' : ''}<span class="grow"></span><button class="btn" id="printOne">🖨 Print</button>${ME.isAdmin ? '<button class="btn primary" id="saveNote">Save notes</button>' : ''}</div>`, true);
+  $('printOne').onclick = () => SDPrint.print([c], SD.fmtDate(c.date));
 
   if (ME.isAdmin) {
     $('saveNote').onclick = async () => {
@@ -482,10 +486,12 @@ $('rangeSeg').addEventListener('click', e => { const b = e.target.closest('butto
 $('board').addEventListener('click', e => {
   const th = e.target.closest('th.sort');
   if (th) { const k = th.dataset.k; SORT = SORT.key === k ? { key: k, dir: -SORT.dir } : { key: k, dir: k === 'agent' || k === 'passRate' ? 1 : -1 }; render(); return; }
+  const pr = e.target.closest('[data-print]'); if (pr) { SDPrint.dialog(CARDS, { agents: [pr.dataset.print], ...VIEW_RANGE }); return; }
   const t = e.target.closest('[data-toggle]'); if (t) { OPEN = OPEN === t.dataset.toggle ? null : t.dataset.toggle; render(); return; }
   const c = e.target.closest('[data-card]'); if (c) openCard(c.dataset.card);
 });
 $('uploadBtn').onclick = () => $('fileInput').click();
+$('printBtn').onclick = () => SDPrint.dialog(CARDS, VIEW_RANGE);
 $('fileInput').onchange = e => { uploadFiles(e.target.files); e.target.value = ''; };
 $('driveBtn').onclick = openDriveSettings;
 $('syncBtn').onclick = () => syncDrive(true);
