@@ -7,7 +7,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
-<link rel="stylesheet" href="shared.css">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -195,8 +194,6 @@ table.dt{width:100%;border-collapse:collapse;min-width:760px;}
       <div class="sub" id="subLine">3CX call stats · our team only</div>
     </div>
     <div class="actions" id="actions">
-      <button class="btn adm" id="spSyncBtn">⟳ Sync SharePoint</button>
-      <button class="btn adm" id="spCfgBtn">☁ SharePoint file</button>
       <button class="btn primary adm" id="uploadBtn">⬆ Upload 3CX file</button>
       <button class="btn" id="refreshBtn">⟳ Refresh</button>
       <button class="btn danger adm" id="deleteAllBtn">🗑 Delete all</button>
@@ -204,8 +201,6 @@ table.dt{width:100%;border-collapse:collapse;min-width:760px;}
   </div>
 
   <input type="file" id="fileInput" accept=".xlsx,.xls" class="hidden">
-
-  <div id="spBanner"></div>
 
   <div id="loading" class="loading">Loading call data…</div>
 
@@ -265,7 +260,6 @@ table.dt{width:100%;border-collapse:collapse;min-width:760px;}
 
 <div id="modalRoot"></div>
 
-<script src="sharepoint-sync.js"></script>
 <script>
 // =====================================================================
 // CONFIG
@@ -1057,30 +1051,6 @@ function renderPreview() {
   $('pvGo').onclick = () => runImport(storedExtra);
 }
 
-// Saves one row per agent per day (summed across the chosen queues) for the
-// selected agents. Returns the number of agent-days written.
-async function saveStats(parsed, sel, queues, userId, progress) {
-  const m = new Map();
-  for (const r of parsed.rows) {
-    if (!sel.has(r.agent) || !queues.has(r.queue)) continue;
-    const k = r.agent + '|' + r.date;
-    if (!m.has(k)) m.set(k, { agent_name: r.agent, date: r.date, calls: 0, ignored: 0, talk: 0 });
-    const o = m.get(k); o.calls += r.calls; o.ignored += r.ignored; o.talk += r.talkSec || 0;
-  }
-  // "Calls Summary" has no ignored/talk data: leave those columns out so
-  // richer figures already stored for the same day are not wiped.
-  const payload = [...m.values()].map(o => parsed.hasDetail
-    ? { agent_name: o.agent_name, date: o.date, calls: o.calls, ignored: o.ignored, talk_time_minutes: +(o.talk / 60).toFixed(3), uploaded_by: userId }
-    : { agent_name: o.agent_name, date: o.date, calls: o.calls, uploaded_by: userId });
-  const CHUNK = 500;
-  for (let i = 0; i < payload.length; i += CHUNK) {
-    const { error } = await supabase.from(TABLE).upsert(payload.slice(i, i + CHUNK), { onConflict: 'agent_name,date', ignoreDuplicates: false });
-    if (error) throw error;
-    progress && progress(Math.min(1, (i + CHUNK) / payload.length));
-  }
-  return payload.length;
-}
-
 async function runImport(storedExtra) {
   const P = PENDING;
   const go = $('pvGo'); go.disabled = true; go.textContent = 'Saving…';
@@ -1090,7 +1060,26 @@ async function runImport(storedExtra) {
     if (uErr || !user) throw new Error('Not signed in.');
 
     const sel = new Set([...P.agents.values()].filter(a => a.sel).map(a => a.name));
-    const saved = await saveStats(P.parsed, sel, P.queues, user.id, f => { prog.firstElementChild.style.width = Math.round(f * 100) + '%'; });
+    // One row per agent per day, summed across the chosen queues.
+    const m = new Map();
+    for (const r of P.parsed.rows) {
+      if (!sel.has(r.agent) || !P.queues.has(r.queue)) continue;
+      const k = r.agent + '|' + r.date;
+      if (!m.has(k)) m.set(k, { agent_name: r.agent, date: r.date, calls: 0, ignored: 0, talk: 0 });
+      const o = m.get(k); o.calls += r.calls; o.ignored += r.ignored; o.talk += r.talkSec || 0;
+    }
+    // "Calls Summary" has no ignored/talk data: leave those columns out so
+    // richer figures already stored for the same day are not wiped.
+    const payload = [...m.values()].map(o => P.parsed.hasDetail
+      ? { agent_name: o.agent_name, date: o.date, calls: o.calls, ignored: o.ignored, talk_time_minutes: +(o.talk / 60).toFixed(3), uploaded_by: user.id }
+      : { agent_name: o.agent_name, date: o.date, calls: o.calls, uploaded_by: user.id });
+
+    const CHUNK = 500;
+    for (let i = 0; i < payload.length; i += CHUNK) {
+      const { error } = await supabase.from(TABLE).upsert(payload.slice(i, i + CHUNK), { onConflict: 'agent_name,date', ignoreDuplicates: false });
+      if (error) throw error;
+      prog.firstElementChild.style.width = Math.round(Math.min(1, (i + CHUNK) / payload.length) * 100) + '%';
+    }
 
     saveRoster(nextRosterList());
 
@@ -1104,7 +1093,7 @@ async function runImport(storedExtra) {
     }
 
     PENDING = null; $('modalRoot').innerHTML = '';
-    showToast(`Imported ${fmtN(saved)} agent-days for ${sel.size} agents${purged ? ` · removed ${purged} other agent${purged > 1 ? 's' : ''}` : ''}`, true);
+    showToast(`Imported ${fmtN(payload.length)} agent-days for ${sel.size} agents${purged ? ` · removed ${purged} other agent${purged > 1 ? 's' : ''}` : ''}`, true);
     await loadData();
   } catch (err) {
     console.error(err);
@@ -1162,7 +1151,6 @@ async function init() {
   isAdmin = user.email === 'admin@scoredesk.com' || meta.role === 'admin';
   if (!isAdmin) document.querySelectorAll('.adm').forEach(el => el.classList.add('hidden'));
   await loadData();
-  if (isAdmin) SP.onOpen();
 }
 init();
 </script>
