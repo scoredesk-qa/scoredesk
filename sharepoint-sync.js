@@ -18,6 +18,16 @@ const SP = (() => {
   const cfg = () => { try { return JSON.parse(localStorage.getItem(CFG_KEY) || '{}'); } catch (e) { return {}; } };
   const saveCfg = c => { try { localStorage.setItem(CFG_KEY, JSON.stringify(c)); } catch (e) {} };
   const configured = () => { const c = cfg(); return !!(c.clientId && c.url); };
+  // The organisation that owns the file, worked out from the SharePoint address:
+  // https://contoso.sharepoint.com/... (or contoso-my.sharepoint.com) -> contoso.onmicrosoft.com.
+  // Guests must sign in to THIS tenant, not their own, or Graph answers
+  // "Tenant does not have a SPO license".
+  function fileTenant(url) {
+    const m = String(url || '').match(/^https:\/\/([a-z0-9-]+?)(?:-my)?\.sharepoint\.com/i);
+    return m ? m[1].toLowerCase() + '.onmicrosoft.com' : '';
+  }
+  const tenantOf = c => c.tenant || fileTenant(c.url) || 'organizations';
+  const authorityOf = c => 'https://login.microsoftonline.com/' + tenantOf(c);
   const when = iso => new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
   // ------------------------------------------------------------ Microsoft sign-in
@@ -32,13 +42,13 @@ const SP = (() => {
     return msalReady;
   }
   async function client() {
-    const c = cfg(), sig = c.clientId + '|' + (c.tenant || '');
+    const c = cfg(), sig = c.clientId + '|' + tenantOf(c);
     await loadMsal();
     if (!pca || pcaFor !== sig) {
       pca = new msal.PublicClientApplication({
         auth: {
           clientId: c.clientId,
-          authority: 'https://login.microsoftonline.com/' + (c.tenant || 'organizations'),
+          authority: authorityOf(c),
           // a blank page, so the sign-in popup doesn't boot the whole app
           redirectUri: new URL('msal-redirect.html', location.href).href.split('?')[0]
         },
@@ -50,14 +60,14 @@ const SP = (() => {
   }
   class NeedsSignIn extends Error {}
   async function token(interactive) {
-    const app = await client();
+    const app = await client(), authority = authorityOf(cfg());
     const account = app.getAllAccounts()[0];
     if (account) {
-      try { return (await app.acquireTokenSilent({ scopes: SCOPES, account })).accessToken; }
+      try { return (await app.acquireTokenSilent({ scopes: SCOPES, account, authority })).accessToken; }
       catch (e) { if (!interactive) throw new NeedsSignIn('Microsoft sign-in expired'); }
     }
     if (!interactive) throw new NeedsSignIn('Sign in to Microsoft to check SharePoint');
-    const r = await app.acquireTokenPopup({ scopes: SCOPES, prompt: 'select_account' });
+    const r = await app.acquireTokenPopup({ scopes: SCOPES, authority, prompt: 'select_account' });
     return r.accessToken;
   }
 
@@ -67,7 +77,13 @@ const SP = (() => {
     if (r.status === 401) throw new NeedsSignIn('Microsoft sign-in expired');
     if (r.status === 403) throw new Error("Your Microsoft account doesn't have access to that SharePoint file");
     if (r.status === 404) throw new Error("SharePoint file not found – check the link in SharePoint settings");
-    if (!r.ok) throw new Error(`SharePoint error ${r.status}: ${(await r.text()).slice(0, 160)}`);
+    if (!r.ok) {
+      const body = await r.text();
+      if (/SPO license/i.test(body)) throw new Error(`Microsoft signed you in to an organisation that has no SharePoint (${tenantOf(cfg())}). ` +
+        `As a guest you must sign in to the file owner's organisation: open SharePoint settings, clear the "File owner's tenant" box ` +
+        `(or enter their domain, e.g. theircompany.com) and sync again`);
+      throw new Error(`SharePoint error ${r.status}: ${body.slice(0, 160)}`);
+    }
     return r;
   }
   // Any SharePoint/OneDrive link (sharing link or address-bar URL) -> Graph share id
@@ -154,16 +170,18 @@ const SP = (() => {
         <div class="field"><label>SharePoint link to the file (or its folder)</label><input class="inp" id="spUrl" placeholder="https://yourcompany.sharepoint.com/:x:/s/…" value="${h(c.url || '')}"></div>
         <div class="facts" style="grid-template-columns:1fr 1fr">
           <div class="field"><label>Azure app Client ID</label><input class="inp" id="spClient" placeholder="00000000-0000-0000-0000-000000000000" value="${h(c.clientId || '')}"></div>
-          <div class="field"><label>Tenant ID (optional)</label><input class="inp" id="spTenant" placeholder="organizations" value="${h(c.tenant || '')}"></div>
+          <div class="field"><label>File owner's tenant (leave blank)</label><input class="inp" id="spTenant" placeholder="${h(fileTenant(c.url) || 'worked out from the link')}" value="${h(c.tenant || '')}"></div>
         </div>
-        <details ${c.clientId ? '' : 'open'}><summary class="sub" style="cursor:pointer">How to get a Client ID (one-off, ~5 minutes, Microsoft 365 admin may be needed)</summary>
+        <p class="sub" style="margin-bottom:10px">Sign-in goes to the organisation that owns the SharePoint file${fileTenant(c.url) ? ` (<b>${h(fileTenant(c.url))}</b>)` : ''}. That works for guests too – use the Microsoft account the file was shared with. Only fill the tenant box if their SharePoint address doesn't match their organisation (enter their domain or Directory ID).</p>
+        <details ${c.clientId ? '' : 'open'}><summary class="sub" style="cursor:pointer">How to get a Client ID (one-off)</summary>
         <ol class="steps" style="margin-top:8px">
-          <li>Open <code>entra.microsoft.com</code> → App registrations → <b>New registration</b> (e.g. "ScoreDesk").</li>
-          <li>Supported accounts: <b>this organisation only</b>.</li>
+          <li>In <b>your own</b> organisation (guests usually can't register apps in the file owner's): <code>entra.microsoft.com</code> → App registrations → <b>New registration</b>, name "ScoreDesk".</li>
+          <li>Supported account types: <b>Accounts in any organizational directory (multitenant)</b> – needed so it can sign in to the file owner's organisation.</li>
           <li>Redirect URI: platform <b>Single-page application (SPA)</b>, URL <code>${h(redirect)}</code></li>
-          <li>API permissions → Add → Microsoft Graph → Delegated → <b>Files.Read.All</b> (grant admin consent if your tenant requires it).</li>
-          <li>Copy the <b>Application (client) ID</b> and <b>Directory (tenant) ID</b> from the Overview page into the boxes above.</li>
-          <li>File link: in SharePoint, open the file's <b>⋯ → Copy link</b> (or copy the folder link if a new file is dropped there each day).</li>
+          <li>API permissions → Add → Microsoft Graph → Delegated → <b>Files.Read.All</b>.</li>
+          <li>Copy the <b>Application (client) ID</b> into the box above.</li>
+          <li>File link: in SharePoint, open the file's <b>⋯ → Copy link</b> (or the folder's link if a new file lands there each day).</li>
+          <li>If the sign-in says <i>"Need admin approval"</i>, the file owner's IT admin has to approve the app once${c.clientId && fileTenant(c.url) ? `: send them <code>https://login.microsoftonline.com/${h(fileTenant(c.url))}/adminconsent?client_id=${h(c.clientId)}</code>` : ' (the approval link appears here once the Client ID and link are saved)'}.</li>
         </ol></details>
         ${c.lastSync ? `<p class="sub" style="margin-top:12px">Last import ${when(c.lastSync)} · ${h(c.lastFile || '')}</p>` : ''}
       </div>
