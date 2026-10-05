@@ -27,7 +27,7 @@ const SDPrint = (() => {
       const n = pick().length;
       root.innerHTML = `<div class="ov" id="prOv"><div class="modal">
         <div class="mh"><div><div class="eyebrow">Print</div><div class="t">Print scorecards</div>
-          <div class="sub">Each scorecard prints on its own A4 page.</div></div><button class="xbtn" data-x>✕</button></div>
+          <div class="sub">Each scorecard prints on its own A4 page.</div></div><button class="xbtn" data-x>${SDTheme.icon('x', 16)}</button></div>
         <div class="mb2">
           <div class="facts" style="grid-template-columns:1fr 1fr 1fr">
             <div class="field"><label>From</label><input class="inp" type="date" id="prFrom" value="${st.from}"></div>
@@ -46,7 +46,7 @@ const SDPrint = (() => {
         </div>
         <div class="mf"><span class="grow">${fmtDate(st.from)} – ${fmtDate(st.to)} · ${st.agents.size} agent${st.agents.size === 1 ? '' : 's'}</span>
           <button class="btn" data-x>Cancel</button>
-          <button class="btn primary" id="prGo" ${n ? '' : 'disabled'}>🖨 Print ${n} scorecard${n === 1 ? '' : 's'}</button></div>
+          <button class="btn primary" id="prGo" ${n ? '' : 'disabled'}>${SDTheme.icon('print', 15)}Print ${n} scorecard${n === 1 ? '' : 's'}</button></div>
       </div></div>`;
       root.querySelectorAll('[data-x]').forEach(b => b.onclick = close);
       $('prOv').onclick = e => { if (e.target.id === 'prOv') close(); };
@@ -136,8 +136,8 @@ const SDPrint = (() => {
       @page { size: A4 portrait; margin: 0; }
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body { font-family: Arial, Helvetica, sans-serif; color: #111; background: #e5e7eb; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .bar { position: sticky; top: 0; background: #111827; color: #fff; padding: 10px 16px; display: flex; gap: 12px; align-items: center; font-size: 13px; z-index: 2; }
-      .bar button { background: #4f8cff; color: #fff; border: 0; padding: 8px 16px; border-radius: 6px; font-weight: 700; cursor: pointer; }
+      .bar { position: sticky; top: 0; background: #121310; color: #fff; padding: 10px 16px; display: flex; gap: 12px; align-items: center; font-size: 13px; z-index: 2; }
+      .bar button { background: #e5ff8f; color: #121400; border: 0; padding: 8px 18px; border-radius: 999px; font-weight: 600; cursor: pointer; }
       .page { width: 210mm; height: 297mm; padding: 10mm 11mm; margin: 12px auto; background: #fff; overflow: hidden; position: relative; box-shadow: 0 2px 10px rgba(0,0,0,.15); }
       .inner { font-size: var(--fs, 9.5pt); line-height: 1.3; display: flex; flex-direction: column; min-height: 100%; }
       .page.overflow::after { content: 'Too long for one page – shortened'; position: absolute; bottom: 3mm; left: 11mm; font-size: 7pt; color: #b91c1c; }
@@ -166,7 +166,7 @@ const SDPrint = (() => {
       .pg { font-size: .8em; color: #6b7280; }
       @media print { body { background: #fff; } .bar { display: none; } .page { margin: 0; box-shadow: none; break-after: page; page-break-after: always; } .page:last-child { break-after: auto; page-break-after: auto; } }
     </style></head><body>
-      <div class="bar"><span><b>${list.length}</b> scorecard${list.length === 1 ? '' : 's'} · one A4 page each</span><button onclick="window.print()">🖨 Print</button></div>
+      <div class="bar"><span><b>${list.length}</b> scorecard${list.length === 1 ? '' : 's'} · one A4 page each</span><button onclick="window.print()">Print</button></div>
       ${list.map((c, i) => sheet(c, i, list.length, notes, periodLabel)).join('')}
       <script>
         // Shrink the text of any scorecard that would spill onto a second page.

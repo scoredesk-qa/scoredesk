@@ -6,7 +6,9 @@
 <title>ScoreDesk – Zero Score Issues</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="theme.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="shared.css">
 </head>
 <body>
@@ -14,7 +16,7 @@
   <div class="hdr">
     <div>
       <div class="eyebrow">Coaching</div>
-      <div class="title">Zero Score Issues</div>
+      <div class="title">Zero score issues</div>
       <div class="sub">A criterion scored 0 or an auto-fail opens an issue for that agent. It's resolved after <b id="cleanLbl">2</b> clean scored calls in a row on that criterion.</div>
     </div>
     <div class="actions">
@@ -26,7 +28,7 @@
   </div>
 
   <div id="loading" class="loading">Loading scorecards…</div>
-  <div id="empty" class="hidden"><div class="drop"><div class="ic">📭</div><div class="h">No scorecards yet</div><div class="p">Upload or sync scorecards on the Quality tab.</div></div></div>
+  <div id="empty" class="hidden"><div class="drop"><div class="ic"><i data-ic="inbox" data-sz="24"></i></div><div class="h">No scorecards yet</div><div class="p">Upload or sync scorecards on the Quality tab.</div></div></div>
 
   <div id="content" class="hidden">
     <div class="toolbar">
@@ -40,8 +42,8 @@
 
     <div class="grid2" style="align-items:start">
       <div class="card">
-        <div class="cl"><span>New vs resolved issues per week</span></div>
-        <div class="leg"><span><i style="background:var(--fail)"></i>New</span><span><i style="background:var(--warn)"></i>Came back</span><span><i style="background:var(--pass)"></i>Resolved</span><span><i style="background:var(--accent);height:2px"></i>Open at week end</span></div>
+        <div class="cl"><span>Issues opened vs resolved per week</span></div>
+        <div class="leg"><span><i style="background:var(--series-crit)"></i>Opened (above the line)</span><span><i style="background:var(--series-1)"></i>Resolved (below the line)</span></div>
         <div class="chart" style="height:260px"><canvas id="chFlow"></canvas></div>
       </div>
       <div class="card">
@@ -52,7 +54,7 @@
 
     <div class="sec"><div><div class="k">Who has what</div><div class="t">Open issues by agent &amp; criterion</div></div><span class="pill" id="mxCnt"></span></div>
     <div class="card flush mb"><div class="tw"><table class="dt matrix" id="matrix"></table></div>
-      <div class="tbl-note"><span class="cell open">3</span> open – failed 3 times so far · <span class="cell res">✓</span> resolved during this period · click a cell for details</div></div>
+      <div class="tbl-note"><span class="cell open">3</span> open – failed 3 times so far · <span class="cell res"><i data-ic="check" data-sz="12"></i></span> resolved during this period · click a cell for details</div></div>
 
     <div class="grid2">
       <div class="card">
@@ -109,7 +111,7 @@ function render() {
     ['New this period', `<span class="cr">${newIn.filter(e => !e.reopened).length}</span>`, 'first time failed'],
     ['Came back', `<span class="cw">${newIn.filter(e => e.reopened).length}</span>`, 'failed again after being resolved'],
     ['Resolved', `<span class="cg">${resIn.length}</span>`, `${CLEAN} clean call${CLEAN > 1 ? 's' : ''} in a row`],
-    ['Net change', `<span class="${net > 0 ? 'cr' : net < 0 ? 'cg' : 'cm'}">${net > 0 ? '+' : ''}${net}</span>`, `open: ${openBefore} → ${open.length}`],
+    ['Net change', `<span class="${net > 0 ? 'cr' : net < 0 ? 'cg' : 'cm'}">${net > 0 ? '+' : ''}${net}</span>`, `open: ${openBefore} to ${open.length}`],
     ['Open auto-fails', `<span class="${openAF.length ? 'cr' : 'cg'}">${openAF.length}</span>`, 'compliance risk']
   ].map(([l, v, s]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join('');
 
@@ -128,19 +130,19 @@ function renderFlow(from, to) {
   const rw = weeks.map(w => EP.filter(e => inW(e.emerged, w) && e.reopened).length);
   const res = weeks.map(w => -EP.filter(e => inW(e.resolved, w)).length);
   const openAt = weeks.map(w => EP.filter(e => e.emerged <= wEnd(w) && (!e.resolved || e.resolved > wEnd(w))).length);
+  const opened = weeks.map((w, i) => nw[i] + rw[i]);
   CH.push(new Chart($('chFlow'), {
     type: 'bar',
     data: { labels: weeks.map(SD.shortDate), datasets: [
-      { label: 'New', data: nw, backgroundColor: 'rgba(244,63,94,.75)', borderRadius: 3, stack: 's', order: 2 },
-      { label: 'Came back', data: rw, backgroundColor: 'rgba(245,158,11,.8)', borderRadius: 3, stack: 's', order: 2 },
-      { label: 'Resolved', data: res, backgroundColor: 'rgba(34,211,160,.7)', borderRadius: 3, stack: 's', order: 2 },
-      { type: 'line', label: 'Open', data: openAt, borderColor: '#4f8cff', backgroundColor: '#4f8cff', pointRadius: 2, tension: .3, yAxisID: 'y2', order: 1 }
+      { label: 'Opened', data: opened, backgroundColor: K().crit, stack: 's', maxBarThickness: 22, borderSkipped: false },
+      { label: 'Resolved', data: res, backgroundColor: K().series, stack: 's', maxBarThickness: 22, borderSkipped: false }
     ] },
     options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { display: false }, tooltip: { ...TIP, callbacks: { title: i => 'Week of ' + SD.fmtDate(weeks[i[0].dataIndex]), label: c => ` ${c.dataset.label}: ${Math.abs(c.parsed.y)}` } } },
+      plugins: { legend: { display: false }, tooltip: { ...TIPS(), callbacks: { title: i => 'Week of ' + SD.fmtDate(weeks[i[0].dataIndex]),
+        label: c => c.datasetIndex === 0 ? ` Opened: ${c.parsed.y} (${nw[c.dataIndex]} new, ${rw[c.dataIndex]} came back)` : ` Resolved: ${Math.abs(c.parsed.y)}`,
+        afterBody: i => `Open at week end: ${openAt[i[0].dataIndex]}` } } },
       scales: { x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, maxTicksLimit: 12 } },
-        y: { stacked: true, grid: { color: GRID }, ticks: { callback: v => Math.abs(v) } },
-        y2: { position: 'right', beginAtZero: true, grid: { display: false }, title: { display: true, text: 'Open', color: '#4f8cff' } } } }
+        y: { stacked: true, grid: { color: c => c.tick.value === 0 ? K().ref : K().grid }, border: { display: false }, ticks: { callback: v => Math.abs(v), precision: 0 } } } }
   }));
 }
 
@@ -164,11 +166,11 @@ function renderFocus(open, from, to) {
     .sort((a, b) => (b.type === 'Auto-fail') - (a.type === 'Auto-fail') || b.agents.length - a.agents.length).slice(0, 8);
   $('focus').innerHTML = rows.length ? rows.map(g => {
     const d = g.now != null && g.before != null ? g.now - g.before : null;
-    const trend = d == null ? '' : `<span class="delta ${d < -0.5 ? 'up' : d > 0.5 ? 'dn' : 'fl'}">${d < 0 ? '▼' : d > 0 ? '▲' : '●'} ${Math.abs(d).toFixed(0)} pts vs prev.</span>`;
+    const trend = d == null ? '' : `<span class="delta ${d < -0.5 ? 'up' : d > 0.5 ? 'dn' : 'fl'}">${d < -0.5 ? SDTheme.icon('trendDown', 14) : d > 0.5 ? SDTheme.icon('trendUp', 14) : ''}${Math.abs(d).toFixed(0)} pts vs prev.</span>`;
     return `<div class="item" data-crit="${esc(g.key)}" style="cursor:pointer"><div class="h"><span class="t">${esc(g.label)}</span><span class="bdg ${g.type === 'Auto-fail' ? 'bad' : 'w'}">${g.type}</span></div>
       <div class="m"><b class="cr">${g.agents.length}</b> agent${g.agents.length > 1 ? 's' : ''} open: ${g.agents.map(e => esc(e.agent.split(' ')[0])).join(', ')}<br>
       Failed on ${g.now == null ? '—' : g.now.toFixed(0) + '%'} of calls this period ${trend}</div></div>`;
-  }).join('') : '<div class="tbl-note">No open issues 🎉</div>';
+  }).join('') : '<div class="tbl-note">No open issues.</div>';
 }
 
 function renderMatrix(open, resIn) {
@@ -179,13 +181,13 @@ function renderMatrix(open, resIn) {
   $('mxCnt').textContent = `${open.length} open`;
   if (!agents.length) { $('matrix').innerHTML = '<tr><td class="tbl-note">Nothing open or resolved in this period.</td></tr>'; return; }
   const short = l => l.length > 26 ? l.slice(0, 24) + '…' : l;
-  $('matrix').innerHTML = `<thead><tr><th>Agent</th><th>Open</th>${cols.map(([k, c]) => `<th title="${esc(c.label)}" style="white-space:normal;overflow-wrap:anywhere;min-width:90px;max-width:120px;line-height:1.3">${c.type === 'Auto-fail' ? '⚠ ' : ''}${esc(short(c.label))}</th>`).join('')}</tr></thead><tbody>` +
-    agents.map(a => `<tr><td style="font-weight:700">${esc(a)}</td><td class="n ${open.some(e => e.agent === a) ? 'cr' : 'cg'}">${open.filter(e => e.agent === a).length}</td>` +
+  $('matrix').innerHTML = `<thead><tr><th>Agent</th><th>Open</th>${cols.map(([k, c]) => `<th title="${esc(c.label)}" style="white-space:normal;overflow-wrap:anywhere;min-width:90px;max-width:120px;line-height:1.3">${c.type === 'Auto-fail' ? 'AF · ' : ''}${esc(short(c.label))}</th>`).join('')}</tr></thead><tbody>` +
+    agents.map(a => `<tr><td style="font-weight:500">${esc(a)}</td><td class="n ${open.some(e => e.agent === a) ? 'cr' : 'cg'}">${open.filter(e => e.agent === a).length}</td>` +
       cols.map(([k]) => {
         const o = open.find(e => e.agent === a && e.key === k);
         if (o) return `<td><span class="cell open" data-ep="${esc(a + '§' + k)}" style="cursor:pointer" title="Failed ${o.fails}× since ${SD.fmtDate(o.emerged)}">${o.fails}</span></td>`;
         const r = resIn.find(e => e.agent === a && e.key === k);
-        return `<td>${r ? `<span class="cell res" title="Resolved ${SD.fmtDate(r.resolved)}">✓</span>` : '<span class="cell none">·</span>'}</td>`;
+        return `<td>${r ? `<span class="cell res" title="Resolved ${SD.fmtDate(r.resolved)}">${SDTheme.icon('check', 12)}</span>` : '<span class="cell none">·</span>'}</td>`;
       }).join('') + '</tr>').join('') + '</tbody>';
 }
 
@@ -202,14 +204,14 @@ function issueItem(e) {
 function renderLists(open, resIn) {
   const o = [...open].sort((a, b) => (b.type === 'Auto-fail') - (a.type === 'Auto-fail') || b.fails - a.fails || a.emerged.localeCompare(b.emerged));
   $('openCnt').textContent = `${open.length} issues`;
-  $('openList').innerHTML = o.slice(0, 40).map(issueItem).join('') + (o.length > 40 ? `<div class="tbl-note">+ ${o.length - 40} more – pick an agent to see all</div>` : '') || '<div class="tbl-note">Nothing open 🎉</div>';
+  $('openList').innerHTML = o.slice(0, 40).map(issueItem).join('') + (o.length > 40 ? `<div class="tbl-note">+ ${o.length - 40} more – pick an agent to see all</div>` : '') || '<div class="tbl-note">Nothing open.</div>';
   const r = [...resIn].sort((a, b) => b.resolved.localeCompare(a.resolved));
   $('resCnt').textContent = `${resIn.length} this period`;
   $('resList').innerHTML = r.slice(0, 30).map(issueItem).join('') || '<div class="tbl-note">No issues resolved in this period yet.</div>';
 }
 
 function showEpisodes(title, eps) {
-  $('modalRoot').innerHTML = `<div class="ov" id="ov"><div class="modal"><div class="mh"><div class="t">${esc(title)}</div><button class="xbtn" data-close>✕</button></div>
+  $('modalRoot').innerHTML = `<div class="ov" id="ov"><div class="modal"><div class="mh"><div class="t">${esc(title)}</div><button class="xbtn" data-close>${SDTheme.icon('x', 16)}</button></div>
     <div class="mb2 list">${eps.map(issueItem).join('')}</div></div></div>`;
   $('ov').onclick = e => { if (e.target.id === 'ov' || e.target.closest('[data-close]')) $('modalRoot').innerHTML = ''; };
 }
@@ -219,6 +221,7 @@ $('agentSel').onchange = e => { AGENT = e.target.value; render(); };
 $('cleanSel').onchange = e => { CLEAN = +e.target.value; render(); };
 $('focus').addEventListener('click', e => { const it = e.target.closest('[data-crit]'); if (it) { const eps = EP.filter(x => x.key === it.dataset.crit && !x.resolved); showEpisodes(eps[0]?.label || 'Issue', eps); } });
 $('matrix').addEventListener('click', e => { const c = e.target.closest('[data-ep]'); if (c) { const [a, k] = c.dataset.ep.split('§'); showEpisodes(a, EP.filter(x => x.agent === a && x.key === k)); } });
+window.addEventListener('sd-theme', () => { if (CARDS.length) render(); });
 window.addEventListener('message', e => { if (e.data?.type === 'sd-agent' && CARDS.length) { AGENT = e.data.agent; $('agentSel').value = AGENT; render(); } });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') $('modalRoot').innerHTML = ''; });
 

@@ -7,22 +7,24 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="theme.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="shared.css">
 </head>
 <body>
 <div class="main">
   <div class="hdr">
     <div>
-      <div class="eyebrow">Call Quality</div>
-      <div class="title">Quality Scorecards</div>
+      <div class="eyebrow">Call quality</div>
+      <div class="title">Quality scorecards</div>
       <div class="sub" id="subLine">Loading…</div>
     </div>
     <div class="actions">
-      <button class="btn adm hidden" id="syncBtn">⟳ Sync Google Drive</button>
-      <button class="btn adm hidden" id="driveBtn">⚙ Drive folder</button>
-      <button class="btn" id="printBtn">🖨 Print scorecards</button>
-      <button class="btn primary adm hidden" id="uploadBtn">⬆ Upload scorecards</button>
+      <button class="btn adm hidden" id="syncBtn"><i data-ic="refresh"></i><span>Sync Google Drive</span></button>
+      <button class="btn adm hidden" id="driveBtn"><i data-ic="settings"></i>Drive folder</button>
+      <button class="btn" id="printBtn"><i data-ic="print"></i>Print scorecards</button>
+      <button class="btn primary adm hidden" id="uploadBtn"><i data-ic="upload"></i>Upload scorecards</button>
     </div>
   </div>
   <input type="file" id="fileInput" accept=".xlsx,.xls,.xlsm" multiple class="hidden">
@@ -32,7 +34,7 @@
 
   <div id="empty" class="hidden">
     <div class="drop" id="dropZone">
-      <div class="ic">📋</div>
+      <div class="ic"><i data-ic="quality" data-sz="24"></i></div>
       <div class="h">No scorecards yet</div>
       <div class="p">Drop scorecard Excel files here, or connect a Google Drive folder so new scorecards are imported automatically.</div>
     </div>
@@ -52,8 +54,8 @@
 
     <div class="grid2">
       <div class="card">
-        <div class="cl"><span>Scored calls &amp; pass rate per week</span></div>
-        <div class="leg"><span><i style="background:var(--pass)"></i>Passed</span><span><i style="background:var(--fail)"></i>Failed</span><span><i style="background:var(--accent);height:2px"></i>Pass rate</span></div>
+        <div class="cl"><span>Scored calls per week</span></div>
+        <div class="leg"><span><i style="background:var(--series-1)"></i>Passed</span><span><i style="background:var(--series-crit)"></i>Failed</span></div>
         <div class="chart" style="height:340px"><canvas id="chWeek"></canvas></div>
       </div>
       <div class="card">
@@ -127,7 +129,7 @@ function render() {
 
   // Data-quality banner: undated cards can't appear in any period.
   $('dataBanner').innerHTML = undated.length && ME.isAdmin
-    ? `<div class="banner warn"><span>⚠️</span><span class="grow">${undated.length} scorecard${undated.length > 1 ? 's have' : ' has'} a call date that can't be read, so ${undated.length > 1 ? "they don't" : "it doesn't"} show in any period.</span><button class="btn" id="showUndated">Show</button></div>` : '';
+    ? `<div class="banner warn">${SDTheme.icon('alert', 18)}<span class="grow">${undated.length} scorecard${undated.length > 1 ? 's have' : ' has'} a call date that can't be read, so ${undated.length > 1 ? "they don't" : "it doesn't"} show in any period.</span><button class="btn" id="showUndated">Show</button></div>` : '';
   if ($('showUndated')) $('showUndated').onclick = () => showList('Scorecards with unreadable call dates', undated);
 
   const s = stats(inR);
@@ -154,15 +156,14 @@ function renderChart(cards, from, to) {
   CH.push(new Chart($('chWeek'), {
     type: 'bar',
     data: { labels: weeks.map(SD.shortDate), datasets: [
-      { label: 'Passed', data: ws.map(w => w.passed), backgroundColor: 'rgba(34,211,160,.7)', borderRadius: 3, stack: 's', yAxisID: 'y', order: 2 },
-      { label: 'Failed', data: ws.map(w => w.failed), backgroundColor: 'rgba(244,63,94,.7)', borderRadius: 3, stack: 's', yAxisID: 'y', order: 2 },
-      { type: 'line', label: 'Pass rate', data: ws.map(w => w.passRate == null ? null : +w.passRate.toFixed(1)), borderColor: '#4f8cff', backgroundColor: '#4f8cff', pointRadius: 2.5, tension: .3, yAxisID: 'y2', order: 1, spanGaps: true }
+      { label: 'Passed', data: ws.map(w => w.passed), backgroundColor: K().series, stack: 's', maxBarThickness: 26 },
+      { label: 'Failed', data: ws.map(w => w.failed), backgroundColor: K().crit, stack: 's', maxBarThickness: 26 }
     ] },
     options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { display: false }, tooltip: { ...TIP, callbacks: { title: i => 'Week of ' + SD.fmtDate(weeks[i[0].dataIndex]), label: c => ` ${c.dataset.label}: ${c.dataset.label === 'Pass rate' ? c.parsed.y + '%' : c.parsed.y}` } } },
+      plugins: { legend: { display: false }, tooltip: { ...TIPS(), callbacks: { title: i => 'Week of ' + SD.fmtDate(weeks[i[0].dataIndex]), label: c => ` ${c.dataset.label}: ${c.parsed.y}`,
+        afterBody: i => { const w = ws[i[0].dataIndex]; return w.passRate == null ? '' : `Pass rate ${w.passRate.toFixed(0)}%`; } } } },
       scales: { x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, maxTicksLimit: 12 } },
-        y: { stacked: true, beginAtZero: true, grid: { color: GRID } },
-        y2: { position: 'right', min: 0, max: 100, grid: { display: false }, ticks: { callback: v => v + '%' } } } }
+        y: { stacked: true, beginAtZero: true, grid: { color: K().grid }, border: { display: false }, ticks: { precision: 0 } } } }
   }));
 }
 
@@ -176,7 +177,7 @@ function renderReasons(cards) {
     c.crit.filter(x => parseFloat(x.weight) > 0 && parseFloat(x.score) === 0).forEach(x => bump('c' + SD.critKey(x.label), x.label, 'Zero score', c));
   }
   const top = [...m.values()].sort((a, b) => b.calls.size - a.calls.size).slice(0, 6);
-  if (!top.length) { $('reasons').innerHTML = '<div class="tbl-note">No failed calls in this period 🎉</div>'; return; }
+  if (!top.length) { $('reasons').innerHTML = '<div class="tbl-note">No failed calls in this period.</div>'; return; }
   const max = top[0].calls.size;
   $('reasons').innerHTML = top.map(r => `<div class="item"><div class="h"><span class="t">${esc(r.label)}</span>
     <span><span class="bdg ${r.type === 'Auto-fail' ? 'bad' : 'w'}">${r.type}</span> <span class="mono cm" style="font-size:11px">${r.calls.size} calls · ${r.agents.size} agents</span></span></div>
@@ -202,15 +203,15 @@ function renderBoard(cards, allDated, from, to) {
   });
   rows.sort((a, b) => { const x = a[SORT.key], y = b[SORT.key]; if (x == null) return 1; if (y == null) return -1; return (typeof x === 'string' ? x.localeCompare(y) : x - y) * SORT.dir; });
   $('agCnt').textContent = `${rows.length} agents`;
-  $('board').querySelector('thead').innerHTML = '<tr>' + COLS.map(([k, t]) => `<th class="${k ? 'sort' : ''} ${SORT.key === k ? 'on' : ''}" data-k="${k}">${t}${SORT.key === k ? (SORT.dir < 0 ? ' ↓' : ' ↑') : ''}</th>`).join('') + '</tr>';
+  $('board').querySelector('thead').innerHTML = '<tr>' + COLS.map(([k, t]) => `<th class="${k ? 'sort' : ''} ${SORT.key === k ? 'on' : ''}" data-k="${k}">${t}${SORT.key === k ? SDTheme.icon(SORT.dir < 0 ? 'down' : 'up', 12) : ''}</th>`).join('') + '</tr>';
   $('board').querySelector('tbody').innerHTML = rows.map(r => {
-    const tr = r.trend == null ? '<span class="delta fl">—</span>' : `<span class="delta ${r.trend > 0.5 ? 'up' : r.trend < -0.5 ? 'dn' : 'fl'}">${r.trend > 0 ? '▲' : r.trend < 0 ? '▼' : '●'} ${Math.abs(r.trend).toFixed(0)} pts</span>`;
+    const tr = r.trend == null ? '<span class="delta fl">—</span>' : `<span class="delta ${r.trend > 0.5 ? 'up' : r.trend < -0.5 ? 'dn' : 'fl'}">${r.trend > 0.5 ? SDTheme.icon('trendUp', 14) : r.trend < -0.5 ? SDTheme.icon('trendDown', 14) : ''}${Math.abs(r.trend).toFixed(0)} pts</span>`;
     const open = OPEN === r.agent;
-    return `<tr class="${open ? 'sel' : ''}"><td><span class="alink" data-toggle="${esc(r.agent)}">${open ? '▾' : '▸'} ${esc(r.agent)}</span></td>
+    return `<tr class="${open ? 'sel' : ''}"><td><span class="alink" data-toggle="${esc(r.agent)}">${SDTheme.icon(open ? 'chevD' : 'chevR', 14)}${esc(r.agent)}</span></td>
       <td class="n">${r.scored}</td><td>${passBadge(r.passRate)}</td>
       <td class="n">${r.avgScore == null ? '—' : r.avgScore.toFixed(1) + '%'}</td><td class="n ${r.failed ? 'cr' : 'cm'}">${r.failed}</td>
       <td class="n ${r.afCalls ? 'cr' : 'cm'}">${r.afCalls}</td><td>${tr}</td><td class="n cm">${SD.fmtDate(r.last)}</td>
-      <td><button class="linkbtn" data-toggle="${esc(r.agent)}">${open ? 'Hide' : 'Calls'}</button> <button class="linkbtn" data-print="${esc(r.agent)}" title="Print this agent's scorecards">🖨</button></td></tr>
+      <td><button class="linkbtn" data-toggle="${esc(r.agent)}">${open ? 'Hide' : 'Calls'}</button> <button class="linkbtn" data-print="${esc(r.agent)}" title="Print this agent's scorecards">${SDTheme.icon('print', 14)}</button></td></tr>
       ${open ? `<tr class="expand"><td colspan="9"><div class="inner">${callsTable(r.cards)}</div></td></tr>` : ''}`;
   }).join('') || '<tr><td colspan="9" class="tbl-note">No scorecards in this period.</td></tr>';
 }
@@ -238,7 +239,7 @@ async function openCard(id) {
 
   modal(`<div class="mh"><div><div class="eyebrow">Scorecard</div><div class="t">${esc(c.agent)}</div>
       <div class="sub">${[SD.fmtDate(c.date) + (c.time ? ' ' + c.time : ''), c.account_ref && 'Account ' + c.account_ref, c.auditor && 'Auditor ' + c.auditor].filter(Boolean).map(esc).join(' · ')}</div></div>
-      <button class="xbtn" data-close>✕</button></div>
+      <button class="xbtn" data-close>${SDTheme.icon('x', 16)}</button></div>
     <div class="mb2">
       <div class="result ${c.pass ? 'pass' : 'fail'}"><span class="big ${c.pass ? 'cg' : 'cr'}">${c.pass ? 'PASSED' : 'FAILED'}</span>
         ${c.score != null ? `<span class="mono">Score <b>${c.score.toFixed(1)}%</b></span>` : ''}
@@ -255,7 +256,7 @@ async function openCard(id) {
       ${ME.isAdmin ? `<textarea class="notes" id="noteArea" placeholder="Notes about this call…">${esc(note)}</textarea>` : `<div class="item mono" style="font-size:12px">${esc(note) || '<span class="cm">No notes</span>'}</div>`}
       <div class="sub" style="margin-top:10px">File: ${esc(c.file_name)}</div>
     </div>
-    <div class="mf">${ME.isAdmin ? '<button class="btn danger" id="delCard">Delete scorecard</button>' : ''}<span class="grow"></span><button class="btn" id="printOne">🖨 Print</button>${ME.isAdmin ? '<button class="btn primary" id="saveNote">Save notes</button>' : ''}</div>`, true);
+    <div class="mf">${ME.isAdmin ? '<button class="btn danger" id="delCard">Delete scorecard</button>' : ''}<span class="grow"></span><button class="btn" id="printOne">${SDTheme.icon('print', 15)}Print</button>${ME.isAdmin ? '<button class="btn primary" id="saveNote">Save notes</button>' : ''}</div>`, true);
   $('printOne').onclick = () => SDPrint.print([c], SD.fmtDate(c.date));
 
   if (ME.isAdmin) {
@@ -275,8 +276,8 @@ const critRow = (label, score, cls, fb, section) =>
   `<div class="crit"><span class="lb">${esc(label)}${section && section !== 'ZZPS Summary' && section !== 'General' ? ` <span class="cm mono" style="font-size:10px">${esc(section)}</span>` : ''}</span><span class="sc ${cls}">${esc(score)}</span>${fb ? `<span class="fb2">${esc(fb)}</span>` : ''}</div>`;
 
 function showList(title, cards) {
-  modal(`<div class="mh"><div class="t">${esc(title)}</div><button class="xbtn" data-close>✕</button></div>
-    <div class="mb2"><div class="rep">${cards.map(c => `<div><span class="err">✕</span><span>${esc(c.agent)} · ${esc(c.file_name)} · call date "${esc(c.call_date)}"</span><button class="linkbtn" data-card="${c.id}" style="margin-left:auto">View</button></div>`).join('')}</div>
+  modal(`<div class="mh"><div class="t">${esc(title)}</div><button class="xbtn" data-close>${SDTheme.icon('x', 16)}</button></div>
+    <div class="mb2"><div class="rep">${cards.map(c => `<div><span class="err">${SDTheme.icon('x', 14)}</span><span>${esc(c.agent)} · ${esc(c.file_name)} · call date "${esc(c.call_date)}"</span><button class="linkbtn" data-card="${c.id}" style="margin-left:auto">View</button></div>`).join('')}</div>
     <p class="sub" style="margin-top:12px">Fix the Call Date in these files and upload them again (or delete them from the detail view).</p></div>`);
 }
 
@@ -318,14 +319,14 @@ async function importWorkbooks(items, progress) {
   }
   return report;
 }
-const okMsg = x => `${x.row.agent_name} · ${x.row.call_date || 'no date'} · ${x.row.pass ? 'PASS' : 'FAIL'}${x.warnings.length ? ' ⚠ ' + x.warnings.join('; ') : ''}`;
+const okMsg = x => `${x.row.agent_name} · ${x.row.call_date || 'no date'} · ${x.row.pass ? 'PASS' : 'FAIL'}${x.warnings.length ? ' · Warning: ' + x.warnings.join('; ') : ''}`;
 
 function showReport(title, report) {
   const n = st => report.filter(r => r.st === st).length;
   const order = { err: 0, ok: 1, skip: 2 };
   modal(`<div class="mh"><div><div class="eyebrow">Import report</div><div class="t">${esc(title)}</div>
-      <div class="sub"><span class="cg">${n('ok')} added</span> · <span class="cm">${n('skip')} already stored</span> · <span class="cr">${n('err')} failed</span></div></div><button class="xbtn" data-close>✕</button></div>
-    <div class="mb2"><div class="rep">${[...report].sort((a, b) => order[a.st] - order[b.st]).map(r => `<div><span class="${r.st}">${r.st === 'ok' ? '✓' : r.st === 'skip' ? '•' : '✕'}</span><span><b>${esc(r.name)}</b><br><span class="cm">${esc(r.msg)}</span></span></div>`).join('') || '<div>No files.</div>'}</div></div>
+      <div class="sub"><span class="cg">${n('ok')} added</span> · <span class="cm">${n('skip')} already stored</span> · <span class="cr">${n('err')} failed</span></div></div><button class="xbtn" data-close>${SDTheme.icon('x', 16)}</button></div>
+    <div class="mb2"><div class="rep">${[...report].sort((a, b) => order[a.st] - order[b.st]).map(r => `<div><span class="${r.st}">${SDTheme.icon(r.st === 'ok' ? 'check' : r.st === 'skip' ? 'dot' : 'x', 14)}</span><span><b>${esc(r.name)}</b><br><span class="cm">${esc(r.msg)}</span></span></div>`).join('') || '<div>No files.</div>'}</div></div>
     <div class="mf"><button class="btn primary" data-close>Done</button></div>`);
 }
 
@@ -413,7 +414,7 @@ async function syncDrive(interactive) {
   const cfg = driveCfg();
   if (!clientId() || !cfg.folderId) { if (interactive) openDriveSettings(); return; }
   if (syncing) return; syncing = true;
-  const btn = $('syncBtn'); btn.disabled = true; btn.textContent = '⟳ Syncing…';
+  const btn = $('syncBtn'); btn.disabled = true; btn.lastElementChild.textContent = 'Syncing…';
   try {
     await loadGis();
     let token = cachedToken();
@@ -444,28 +445,28 @@ async function syncDrive(interactive) {
     if (added || failedNames.size) { await load(); if (interactive || failedNames.size) showReport('Google Drive sync', report); }
   } catch (e) {
     console.error(e); driveBanner('Drive sync failed: ' + e.message, true, true);
-  } finally { syncing = false; btn.disabled = false; btn.textContent = '⟳ Sync Google Drive'; }
+  } finally { syncing = false; btn.disabled = false; btn.lastElementChild.textContent = 'Sync Google Drive'; }
 }
 
 function driveBanner(msg, action, bad) {
-  $('driveBanner').innerHTML = `<div class="banner ${bad ? 'bad' : 'info'}"><span>☁️</span><span class="grow">${esc(msg)}</span>${action ? '<button class="btn" id="bannerSync">Sync now</button>' : ''}</div>`;
+  $('driveBanner').innerHTML = `<div class="banner ${bad ? 'bad' : 'info'}">${SDTheme.icon('cloud', 18)}<span class="grow">${esc(msg)}</span>${action ? '<button class="btn" id="bannerSync">Sync now</button>' : ''}</div>`;
   if (action) $('bannerSync').onclick = () => syncDrive(true);
 }
 
 function openDriveSettings() {
   const cfg = driveCfg();
   modal(`<div class="mh"><div><div class="eyebrow">Google Drive</div><div class="t">Scorecard folder</div>
-      <div class="sub">New scorecards in this folder (and its sub-folders) are imported each time the Quality tab opens.</div></div><button class="xbtn" data-close>✕</button></div>
+      <div class="sub">New scorecards in this folder (and its sub-folders) are imported each time the Quality tab opens.</div></div><button class="xbtn" data-close>${SDTheme.icon('x', 16)}</button></div>
     <div class="mb2">
       <div class="field"><label>Folder link or ID</label><input class="inp" id="dFolder" placeholder="https://drive.google.com/drive/folders/…" value="${esc(cfg.folderUrl || cfg.folderId || '')}"></div>
       <div class="field"><label>Google OAuth Client ID</label><input class="inp" id="dClient" placeholder="1234-abc.apps.googleusercontent.com" value="${esc(clientId())}"></div>
       <details ${clientId() ? '' : 'open'}><summary class="sub" style="cursor:pointer">How to get a Client ID (one-off, ~5 minutes)</summary>
       <ol class="steps" style="margin-top:8px">
         <li>Open <code>console.cloud.google.com</code>, create a project (e.g. "ScoreDesk").</li>
-        <li>APIs &amp; Services → Library → enable <b>Google Drive API</b>.</li>
-        <li>OAuth consent screen → Internal (or External + add your admins as test users).</li>
-        <li>Credentials → Create credentials → <b>OAuth client ID</b> → Web application.</li>
-        <li>Authorised JavaScript origins → add <code>${esc(location.origin)}</code>.</li>
+        <li>APIs &amp; Services, Library: enable <b>Google Drive API</b>.</li>
+        <li>OAuth consent screen: Internal (or External + add your admins as test users).</li>
+        <li>Credentials, Create credentials, <b>OAuth client ID</b>, type Web application.</li>
+        <li>Authorised JavaScript origins: add <code>${esc(location.origin)}</code>.</li>
         <li>Copy the Client ID into the box above.</li>
       </ol></details>
       ${cfg.lastSync ? `<p class="sub" style="margin-top:12px">Last sync ${new Date(cfg.lastSync).toLocaleString('en-GB')} · ${cfg.lastCount} files · ${Object.keys(cfg.imported || {}).length} tracked</p>` : ''}
@@ -499,6 +500,7 @@ document.addEventListener('dragover', e => e.preventDefault());
 document.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 // Dashboard can ask this page to open an agent
+window.addEventListener('sd-theme', () => { if (CARDS.length) render(); });
 window.addEventListener('message', e => { if (e.data?.type === 'sd-agent' && CARDS.length) { OPEN = e.data.agent; RANGE = 'all'; render(); } });
 
 (async () => {

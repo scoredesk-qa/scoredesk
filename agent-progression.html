@@ -3,200 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ScoreDesk – Agent Progression</title>
+<title>ScoreDesk – Call Stats</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-<style>
-:root{
-  --bg:#0b0d13;--surface:#12151e;--surface2:#191d28;--surface3:#1f2335;
-  --border:#242938;--border2:#2e3448;
-  --accent:#4f8cff;--accent2:#a78bfa;--pass:#22d3a0;--fail:#f43f5e;--warn:#f59e0b;
-  --text:#e8ecf4;--muted:#6b7694;--muted2:#8a94b8;
-  --radius:12px;--mono:'DM Mono',monospace;
-}
-*{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
-button{font-family:inherit;}
-.main{max-width:1320px;margin:0 auto;padding:28px;}
-.mono{font-family:var(--mono);}
-.hidden{display:none!important;}
-.cb{color:var(--accent);}.cr{color:var(--fail);}.cg{color:var(--pass);}.cw{color:var(--warn);}.cm{color:var(--muted2);}
-
-/* ---------- header ---------- */
-.hdr{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:22px;padding-bottom:20px;border-bottom:1px solid var(--border);}
-.eyebrow{font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:7px;}
-.eyebrow::before{content:'';width:14px;height:2px;background:var(--accent);}
-.title{font-size:26px;font-weight:800;letter-spacing:-.5px;}
-.sub{font-family:var(--mono);font-size:11px;color:var(--muted2);margin-top:4px;}
-.actions{display:flex;flex-wrap:wrap;gap:8px;}
-.btn{background:var(--surface);border:1px solid var(--border2);color:var(--muted2);padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:6px;}
-.btn:hover{border-color:var(--accent);color:var(--text);}
-.btn.primary{background:linear-gradient(135deg,var(--accent),#6366f1);border-color:transparent;color:#fff;}
-.btn.primary:hover{filter:brightness(1.1);}
-.btn.danger:hover{border-color:var(--fail);color:var(--fail);}
-.btn:disabled{opacity:.5;cursor:not-allowed;}
-
-/* ---------- toolbar ---------- */
-.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:20px;}
-.seg{display:inline-flex;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:3px;flex-wrap:wrap;}
-.seg button{background:transparent;border:none;color:var(--muted2);font-family:var(--mono);font-size:11px;padding:6px 12px;border-radius:6px;cursor:pointer;}
-.seg button:hover{color:var(--text);}
-.seg button.on{background:rgba(79,140,255,.14);color:var(--accent);}
-.range-lbl{font-family:var(--mono);font-size:11px;color:var(--muted2);margin-left:auto;}
-
-/* ---------- banners ---------- */
-.banner{display:flex;flex-wrap:wrap;align-items:center;gap:10px;border-radius:10px;padding:12px 16px;margin-bottom:18px;font-family:var(--mono);font-size:12px;}
-.banner.warn{background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.28);color:var(--warn);}
-.banner.bad{background:rgba(244,63,94,.07);border:1px solid rgba(244,63,94,.25);color:var(--fail);}
-.banner.info{background:rgba(79,140,255,.06);border:1px solid rgba(79,140,255,.2);color:var(--accent);}
-.banner .grow{flex:1;min-width:200px;}
-
-/* ---------- kpis ---------- */
-.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:22px;}
-.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;min-width:0;}
-.kpi .l{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px;}
-.kpi .v{font-size:28px;font-weight:800;letter-spacing:-1px;line-height:1.05;white-space:nowrap;}
-.kpi .v small{font-size:14px;font-weight:700;letter-spacing:0;}
-.kpi .s{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:6px;}
-
-/* ---------- sections / cards ---------- */
-.sec{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:8px 0 12px;}
-.sec .k{font-family:var(--mono);font-size:10px;color:var(--muted2);letter-spacing:1px;text-transform:uppercase;}
-.sec .t{font-size:16px;font-weight:700;}
-.pill{font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border2);color:var(--muted2);padding:3px 10px;border-radius:20px;white-space:nowrap;}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;min-width:0;}
-.card.flush{padding:0;overflow:hidden;}
-.card .cl{font-family:var(--mono);font-size:10px;color:var(--muted2);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;display:flex;justify-content:space-between;gap:8px;}
-.chart{position:relative;height:230px;}
-.leg{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:8px;}
-.leg span{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--muted2);}
-.leg i{width:10px;height:10px;border-radius:2px;display:inline-block;}
-.leg i.dash{width:16px;height:0;border-top:2px dashed var(--muted2);border-radius:0;}
-.mb{margin-bottom:22px;}
-
-/* ---------- tables ---------- */
-.tw{overflow-x:auto;}
-table.dt{width:100%;border-collapse:collapse;min-width:760px;}
-.dt th{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.7px;text-transform:uppercase;text-align:left;padding:11px 14px;border-bottom:1px solid var(--border);background:var(--surface2);white-space:nowrap;user-select:none;}
-.dt th.sort{cursor:pointer;}
-.dt th.sort:hover{color:var(--text);}
-.dt th.on{color:var(--accent);}
-.dt td{padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;vertical-align:middle;white-space:nowrap;}
-.dt td.n{font-family:var(--mono);}
-.dt tr:last-child td{border-bottom:none;}
-.dt tbody tr:hover td{background:rgba(79,140,255,.03);}
-.dt tr.sel td{background:rgba(79,140,255,.07);}
-.alink{font-weight:700;color:var(--text);cursor:pointer;}
-.alink:hover{color:var(--accent);}
-.rank{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;background:var(--surface3);border:1px solid var(--border2);font-family:var(--mono);font-size:11px;color:var(--muted2);}
-.rank.r1{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.3);color:var(--warn);}
-.rank.r2{background:rgba(148,163,184,.1);border-color:rgba(148,163,184,.25);color:#94a3b8;}
-.rank.r3{background:rgba(180,120,80,.1);border-color:rgba(180,120,80,.25);color:#c08a5e;}
-.bdg{font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;}
-.bdg.ok{background:rgba(34,211,160,.1);color:var(--pass);}
-.bdg.w{background:rgba(245,158,11,.1);color:var(--warn);}
-.bdg.bad{background:rgba(244,63,94,.1);color:var(--fail);}
-.bdg.n{background:var(--surface3);color:var(--muted2);}
-.delta{font-family:var(--mono);font-size:11px;font-weight:500;}
-.delta.up{color:var(--pass);}.delta.dn{color:var(--fail);}.delta.fl{color:var(--muted);}
-.spark{display:block;}
-.xbtn{background:transparent;border:1px solid transparent;color:var(--muted);border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:13px;}
-.xbtn:hover{border-color:var(--fail);color:var(--fail);}
-
-/* ---------- agent picker ---------- */
-.picker{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px;}
-.chip{font-family:var(--mono);font-size:11px;padding:6px 12px;border-radius:7px;border:1px solid var(--border2);background:transparent;color:var(--muted2);cursor:pointer;transition:all .15s;}
-.chip:hover{color:var(--text);border-color:var(--muted);}
-.chip.on{background:rgba(79,140,255,.12);border-color:rgba(79,140,255,.4);color:var(--accent);}
-.chip .dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:middle;}
-.ahead{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;}
-.aname{font-size:22px;font-weight:800;letter-spacing:-.4px;}
-.ameta{font-family:var(--mono);font-size:11px;color:var(--muted2);}
-.kpis.a{grid-template-columns:repeat(5,1fr);}
-.vs{font-family:var(--mono);font-size:10px;margin-top:6px;}
-
-/* heatmap */
-.heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,14px);gap:3px;overflow-x:auto;padding-bottom:4px;}
-.heat div{width:14px;height:14px;border-radius:3px;background:var(--surface3);}
-.heatwrap{display:flex;gap:8px;}
-.heatdays{display:grid;grid-template-rows:repeat(7,14px);gap:3px;font-family:var(--mono);font-size:9px;color:var(--muted);}
-.heatdays span{line-height:14px;}
-
-/* ---------- empty / upload ---------- */
-.drop{border:2px dashed var(--border2);border-radius:16px;padding:52px 30px;text-align:center;background:var(--surface);cursor:pointer;transition:all .2s;}
-.drop:hover,.drop.over{border-color:var(--accent);background:rgba(79,140,255,.04);}
-.drop .ic{font-size:40px;margin-bottom:10px;}
-.drop .h{font-size:18px;font-weight:700;margin-bottom:6px;}
-.drop .p{font-family:var(--mono);font-size:12px;color:var(--muted2);line-height:1.7;}
-.drop .btn{margin-top:16px;}
-.loading{text-align:center;padding:80px 20px;font-family:var(--mono);font-size:12px;color:var(--muted2);}
-
-/* ---------- modal ---------- */
-.ov{position:fixed;inset:0;background:rgba(5,7,12,.72);backdrop-filter:blur(3px);z-index:100;display:flex;align-items:flex-start;justify-content:center;padding:36px 16px;overflow-y:auto;}
-.modal{background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:880px;box-shadow:0 24px 80px rgba(0,0,0,.5);}
-.mh{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
-.mh .t{font-size:18px;font-weight:800;}
-.mb2{padding:20px 24px;}
-.mf{padding:16px 24px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:flex-end;}
-.mf .grow{flex:1;min-width:200px;font-family:var(--mono);font-size:11px;color:var(--muted2);}
-.facts{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;}
-.fact{background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:10px 12px;}
-.fact .l{font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;}
-.fact .v{font-size:15px;font-weight:700;margin-top:3px;}
-.lbl{font-family:var(--mono);font-size:10px;color:var(--muted2);letter-spacing:1px;text-transform:uppercase;margin:4px 0 8px;display:flex;justify-content:space-between;align-items:center;gap:8px;}
-.lbl a{color:var(--accent);cursor:pointer;text-transform:none;letter-spacing:0;font-size:11px;}
-.qchips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px;}
-.qchip{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;padding:6px 10px;border-radius:7px;border:1px solid var(--border2);color:var(--muted2);cursor:pointer;}
-.qchip input{accent-color:var(--accent);}
-.qchip.on{border-color:rgba(79,140,255,.4);color:var(--text);background:rgba(79,140,255,.08);}
-.alist{border:1px solid var(--border);border-radius:10px;max-height:360px;overflow-y:auto;}
-.alist table{min-width:0;}
-.alist td,.alist th{padding:8px 12px;}
-.alist input{accent-color:var(--accent);width:15px;height:15px;cursor:pointer;}
-.alist tr.off td{opacity:.45;}
-.tag{font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px;}
-.tag.team{background:rgba(34,211,160,.1);color:var(--pass);}
-.tag.ext{background:rgba(245,158,11,.1);color:var(--warn);}
-.tag.no{background:var(--surface3);color:var(--muted);}
-.opt{display:flex;gap:10px;align-items:flex-start;margin-top:16px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);font-size:12px;cursor:pointer;}
-.opt input{margin-top:2px;accent-color:var(--fail);width:15px;height:15px;}
-.opt .d{font-family:var(--mono);font-size:11px;color:var(--muted2);margin-top:3px;line-height:1.5;}
-.progress{height:4px;background:var(--surface3);border-radius:2px;overflow:hidden;margin-top:10px;}
-.progress div{height:100%;background:var(--accent);width:0;transition:width .2s;}
-
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(90px);background:var(--surface2);border:1px solid var(--border);padding:11px 20px;border-radius:9px;font-size:13px;font-weight:600;z-index:9999;transition:transform .3s cubic-bezier(.4,0,.2,1);pointer-events:none;max-width:90vw;}
-.toast.show{transform:translateX(-50%) translateY(0);}
-.toast.ok{border-color:var(--pass);color:var(--pass);}
-.toast.err{border-color:var(--fail);color:var(--fail);}
-::-webkit-scrollbar{width:6px;height:6px;}
-::-webkit-scrollbar-track{background:var(--surface);}
-::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
-
-@media (max-width:1100px){.kpis{grid-template-columns:repeat(3,1fr);}.kpis.a{grid-template-columns:repeat(3,1fr);}}
-@media (max-width:760px){
-  .main{padding:16px;}
-  .grid2{grid-template-columns:1fr;}
-  .kpis,.kpis.a{grid-template-columns:repeat(2,1fr);}
-  .facts{grid-template-columns:repeat(2,1fr);}
-  .range-lbl{margin-left:0;width:100%;}
-}
-</style>
+<script src="theme.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
 </head>
 <body>
 <div class="main">
   <div class="hdr">
     <div>
-      <div class="eyebrow">Call Analytics</div>
-      <div class="title">Agent Progression</div>
+      <div class="eyebrow">Call analytics</div>
+      <div class="title">Call Stats</div>
       <div class="sub" id="subLine">3CX call stats · our team only</div>
     </div>
     <div class="actions" id="actions">
-      <button class="btn primary adm" id="uploadBtn">⬆ Upload 3CX file</button>
-      <button class="btn" id="refreshBtn">⟳ Refresh</button>
-      <button class="btn danger adm" id="deleteAllBtn">🗑 Delete all</button>
+      <button class="btn" id="refreshBtn"><i data-ic="refresh"></i>Refresh</button>
+      <button class="btn danger adm" id="deleteAllBtn"><i data-ic="trash"></i>Delete all</button>
+      <button class="btn primary adm" id="uploadBtn"><i data-ic="upload"></i>Upload 3CX file</button>
     </div>
   </div>
 
@@ -206,7 +33,7 @@ table.dt{width:100%;border-collapse:collapse;min-width:760px;}
 
   <div id="empty" class="hidden">
     <div class="drop" id="dropZone">
-      <div class="ic">📊</div>
+      <div class="ic"><i data-ic="sheet" data-sz="24"></i></div>
       <div class="h">No call data yet</div>
       <div class="p">Drop the <b>ZZPS CallStats – 3CX</b> Excel export here.<br>
         Agent rows are read from the <b>RawDailyAgentStats</b> sheet. You choose which agents to keep before anything is saved.</div>
@@ -234,12 +61,12 @@ table.dt{width:100%;border-collapse:collapse;min-width:760px;}
     <div class="grid2">
       <div class="card">
         <div class="cl"><span>Team volume per week</span></div>
-        <div class="leg"><span><i style="background:var(--accent)"></i>Answered</span><span><i style="background:var(--fail)"></i>Ignored</span><span><i style="background:var(--pass);height:2px"></i>Handled %</span></div>
+        <div class="leg"><span><i style="background:var(--series-1)"></i>Answered</span><span><i style="background:var(--series-crit)"></i>Ignored</span></div>
         <div class="chart"><canvas id="chTeam"></canvas></div>
       </div>
       <div class="card">
         <div class="cl"><span>Calls per active day by agent</span></div>
-        <div class="leg"><span><i style="background:var(--accent)"></i>Calls / day</span><span><i class="dash"></i>Team average</span></div>
+        <div class="leg"><span><i style="background:var(--series-neutral)"></i>Calls / day</span><span><i style="background:var(--series-1)"></i>Selected agent</span><span><i class="dash"></i>Team average</span></div>
         <div class="chart"><canvas id="chCompare"></canvas></div>
       </div>
     </div>
@@ -332,8 +159,8 @@ function ignClass(r) { return r == null ? 'cm' : r >= IGN_BAD ? 'cr' : r >= IGN_
 function deltaHtml(pct, invert = false) {
   if (pct == null || !isFinite(pct)) return '<span class="delta fl">—</span>';
   const good = invert ? pct < 0 : pct > 0;
-  if (Math.abs(pct) < 1) return `<span class="delta fl">● ${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%</span>`;
-  return `<span class="delta ${good ? 'up' : 'dn'}">${pct > 0 ? '▲' : '▼'} ${Math.abs(pct).toFixed(0)}%</span>`;
+  if (Math.abs(pct) < 1) return `<span class="delta fl">${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%</span>`;
+  return `<span class="delta ${good ? 'up' : 'dn'}">${SDTheme.icon(pct > 0 ? 'trendUp' : 'trendDown', 14)}${Math.abs(pct).toFixed(0)}%</span>`;
 }
 
 function showToast(msg, ok) {
@@ -451,11 +278,9 @@ function buildView() {
 // =====================================================================
 // RENDER – TEAM
 // =====================================================================
-Chart.defaults.color = '#6b7694';
-Chart.defaults.font.family = 'DM Mono, monospace';
-Chart.defaults.font.size = 10;
-const GRID = 'rgba(255,255,255,0.05)';
-const TIP = { backgroundColor: '#191d28', borderColor: '#2e3448', borderWidth: 1, titleColor: '#e8ecf4', bodyColor: '#a8b1cc', padding: 10 };
+SDTheme.applyChartDefaults();
+const K = () => SDTheme.c();                 // theme colours, read at render time
+const TIPS = () => SDTheme.tip();
 
 function killCharts(group) { CHARTS[group].forEach(c => c.destroy()); CHARTS[group] = []; }
 
@@ -506,19 +331,17 @@ function renderTeamCharts(v) {
     data: {
       labels,
       datasets: [
-        { label: 'Answered', data: v.team.weekly.map(w => w.calls), backgroundColor: 'rgba(79,140,255,.75)', borderRadius: 3, stack: 's', yAxisID: 'y', order: 2 },
-        { label: 'Ignored', data: v.team.weekly.map(w => w.ignored), backgroundColor: 'rgba(244,63,94,.75)', borderRadius: 3, stack: 's', yAxisID: 'y', order: 2 },
-        { type: 'line', label: 'Handled %', data: v.team.weekly.map(w => w.handled == null ? null : +w.handled.toFixed(1)), borderColor: '#22d3a0', backgroundColor: '#22d3a0', pointRadius: 2, tension: .35, yAxisID: 'y2', order: 1, spanGaps: true }
+        { label: 'Answered', data: v.team.weekly.map(w => w.calls), backgroundColor: K().series, stack: 's' },
+        { label: 'Ignored', data: v.team.weekly.map(w => w.ignored), backgroundColor: K().crit, stack: 's' }
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { display: false }, tooltip: { ...TIP, callbacks: { title: i => 'Week of ' + fmtDate(v.weeks[i[0].dataIndex]), label: c => ` ${c.dataset.label}: ${c.dataset.label === 'Handled %' ? c.parsed.y + '%' : fmtN(c.parsed.y)}` } } },
+      plugins: { legend: { display: false }, tooltip: { ...TIPS(), callbacks: { title: i => 'Week of ' + fmtDate(v.weeks[i[0].dataIndex]), label: c => ` ${c.dataset.label}: ${fmtN(c.parsed.y)}`, afterBody: i => { const w = v.team.weekly[i[0].dataIndex]; return w.handled == null ? '' : `Handled ${w.handled.toFixed(1)}%`; } } } },
       scales: {
         x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
-        y: { stacked: true, grid: { color: GRID }, beginAtZero: true },
-        y2: { position: 'right', grid: { display: false }, suggestedMin: 80, max: 100, ticks: { callback: x => x + '%' } }
-      }
+        y: { stacked: true, grid: { color: K().grid }, beginAtZero: true }
+            }
     }
   }));
 
@@ -530,14 +353,14 @@ function renderTeamCharts(v) {
     data: {
       labels: sorted.map(a => a.name),
       datasets: [
-        { label: 'Calls / day', data: sorted.map(a => +a.perDay.toFixed(1)), backgroundColor: sorted.map(a => a.name === SEL ? 'rgba(167,139,250,.9)' : 'rgba(79,140,255,.7)'), borderRadius: 3, barThickness: 12 }
+        { label: 'Calls / day', data: sorted.map(a => +a.perDay.toFixed(1)), backgroundColor: sorted.map(a => a.name === SEL ? K().series : K().neutral), barThickness: 12 }
       ]
     },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
       onClick: (e, els) => { if (els.length) selectAgent(sorted[els[0].index].name); },
-      plugins: { legend: { display: false }, tooltip: { ...TIP, callbacks: { label: c => ` ${c.parsed.x} calls/day · ${sorted[c.dataIndex].days} days worked` } } },
-      scales: { x: { grid: { color: GRID }, beginAtZero: true }, y: { grid: { display: false }, ticks: { color: '#a8b1cc' } } }
+      plugins: { legend: { display: false }, tooltip: { ...TIPS(), callbacks: { label: c => ` ${c.parsed.x} calls/day · ${sorted[c.dataIndex].days} days worked` } } },
+      scales: { x: { grid: { color: K().grid }, beginAtZero: true }, y: { grid: { display: false }, ticks: { color: K().muted } } }
     },
     plugins: [avgLinePlugin(v.team.avgPerDay)]
   }));
@@ -549,7 +372,7 @@ function avgLinePlugin(val) {
     id: 'avgLine',
     afterDatasetsDraw(chart) {
       const x = chart.scales.x.getPixelForValue(val), { top, bottom } = chart.chartArea, ctx = chart.ctx;
-      ctx.save(); ctx.strokeStyle = 'rgba(232,236,244,.55)'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.5;
+      ctx.save(); ctx.strokeStyle = K().ref; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke(); ctx.restore();
     }
   };
@@ -562,7 +385,7 @@ function sparkSvg(vals, w = 110, h = 26) {
   const step = w / (pts.length - 1);
   const coords = pts.map((p, i) => `${(i * step).toFixed(1)},${(h - 2 - (p / max) * (h - 4)).toFixed(1)}`);
   const last = coords[coords.length - 1].split(',');
-  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline fill="none" stroke="#4f8cff" stroke-width="1.6" stroke-linejoin="round" points="${coords.join(' ')}"/><circle cx="${last[0]}" cy="${last[1]}" r="2.4" fill="#4f8cff"/></svg>`;
+  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline fill="none" stroke="${K().series}" stroke-width="1.6" stroke-linejoin="round" points="${coords.join(' ')}"/><circle cx="${last[0]}" cy="${last[1]}" r="2.4" fill="${K().series}"/></svg>`;
 }
 
 const COLS = [
@@ -582,7 +405,7 @@ const COLS = [
 function renderBoard(v) {
   const thead = $('board').querySelector('thead');
   thead.innerHTML = '<tr>' + COLS.filter(c => c.k !== 'x' || isAdmin).map(c =>
-    `<th class="${c.s ? 'sort' : ''} ${SORT.key === c.k ? 'on' : ''}" data-k="${c.k}">${c.t}${SORT.key === c.k ? (SORT.dir < 0 ? ' ↓' : ' ↑') : ''}</th>`).join('') + '</tr>';
+    `<th class="${c.s ? 'sort' : ''} ${SORT.key === c.k ? 'on' : ''}" data-k="${c.k}">${c.t}${SORT.key === c.k ? SDTheme.icon(SORT.dir < 0 ? 'down' : 'up', 12) : ''}</th>`).join('') + '</tr>';
 
   const byCalls = [...v.agents].sort((a, b) => b.calls - a.calls);
   const rankOf = new Map(byCalls.map((a, i) => [a.name, i + 1]));
@@ -596,7 +419,7 @@ function renderBoard(v) {
     const r = rankOf.get(a.name);
     return `<tr class="${a.name === SEL ? 'sel' : ''}">
       <td><span class="rank ${r <= 3 ? 'r' + r : ''}">${r}</span></td>
-      <td><span class="alink" data-agent="${esc(a.name)}">${a.ignRate >= IGN_BAD ? '🔴 ' : ''}${esc(a.name)}</span></td>
+      <td><span class="alink" data-agent="${esc(a.name)}">${a.ignRate >= IGN_BAD ? '<span class="flagdot" title="Ignore rate above ' + IGN_BAD + '%"></span>' : ''}${esc(a.name)}</span></td>
       <td class="n">${fmtN(a.calls)}</td>
       <td class="n cm">${fmtN(a.ignored)}</td>
       <td>${ignBadge(a.ignRate)}</td>
@@ -605,7 +428,7 @@ function renderBoard(v) {
       <td class="n">${a.perDay.toFixed(1)}</td>
       <td>${deltaHtml(a.trend)}</td>
       <td>${sparkSvg(a.weekly.map(w => w.calls))}</td>
-      ${isAdmin ? `<td><button class="xbtn" title="Delete all stored data for ${esc(a.name)}" data-del="${esc(a.name)}">✕</button></td>` : ''}
+      ${isAdmin ? `<td><button class="xbtn" title="Delete all stored data for ${esc(a.name)}" data-del="${esc(a.name)}">${SDTheme.icon('trash', 15)}</button></td>` : ''}
     </tr>`;
   }).join('');
 }
@@ -626,7 +449,7 @@ function selectAgent(name, scroll = true) {
   renderBoard(VIEW); renderPicker(VIEW); renderAgent(VIEW);
   // Recolour the comparison bars without rebuilding the chart
   const cmp = CHARTS.team[1];
-  if (cmp) { cmp.data.datasets[0].backgroundColor = cmp.data.labels.map(n => n === SEL ? 'rgba(167,139,250,.9)' : 'rgba(79,140,255,.7)'); cmp.update('none'); }
+  if (cmp) { cmp.data.datasets[0].backgroundColor = cmp.data.labels.map(n => n === SEL ? K().series : K().neutral); cmp.update('none'); }
   if (scroll) $('picker').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -651,9 +474,9 @@ function renderAgent(v) {
   const inactiveDays = a.lastActive ? Math.round((dUTC(v.maxDate) - dUTC(a.lastActive)) / 86400000) : null;
 
   let banner = '';
-  if (a.ignRate >= IGN_BAD) banner = `<div class="banner bad">⚠️ <span class="grow"><b>Ignore rate ${a.ignRate.toFixed(1)}%</b> this period (${fmtN(a.ignored)} calls rang and weren't picked up). Needs a conversation.</span></div>`;
-  else if (inactiveDays != null && inactiveDays > 7) banner = `<div class="banner warn">⏸ <span class="grow">No answered calls for the last ${inactiveDays} days (last active ${fmtDate(a.lastActive)}). If they've left, remove them with ✕ in the leaderboard.</span></div>`;
-  else if (isNew) banner = `<div class="banner info">ℹ️ <span class="grow">New starter: first call on ${fmtDate(everFirst)}. Figures are based on limited data.</span></div>`;
+  if (a.ignRate >= IGN_BAD) banner = `<div class="banner bad">${SDTheme.icon('alert', 18)}<span class="grow"><b>Ignore rate ${a.ignRate.toFixed(1)}%</b> this period (${fmtN(a.ignored)} calls rang and weren't picked up). Needs a conversation.</span></div>`;
+  else if (inactiveDays != null && inactiveDays > 7) banner = `<div class="banner warn">${SDTheme.icon('clock', 18)}<span class="grow">No answered calls for the last ${inactiveDays} days (last active ${fmtDate(a.lastActive)}). If they've left, remove them with the delete button in the leaderboard.</span></div>`;
+  else if (isNew) banner = `<div class="banner info">${SDTheme.icon('info', 18)}<span class="grow">New starter: first call on ${fmtDate(everFirst)}. Figures are based on limited data.</span></div>`;
 
   // Monthly table (full history for progression, independent of the range filter)
   const months = [...groupBy(allRows, r => r.date.slice(0, 7)).entries()].sort((x, y) => x[0].localeCompare(y[0]));
@@ -682,7 +505,7 @@ function renderAgent(v) {
     <div class="grid2">
       <div class="card">
         <div class="cl"><span>Calls per week</span></div>
-        <div class="leg"><span><i style="background:var(--accent)"></i>Answered</span><span><i style="background:var(--fail)"></i>Ignored</span><span><i class="dash"></i>Team avg per agent</span></div>
+        <div class="leg"><span><i style="background:var(--series-1)"></i>Answered</span><span><i style="background:var(--series-crit)"></i>Ignored</span><span><i class="dash"></i>Team avg per agent</span></div>
         <div class="chart"><canvas id="chA1"></canvas></div>
       </div>
       <div class="card">
@@ -714,33 +537,33 @@ function renderAgent(v) {
   CHARTS.agent.push(new Chart($('chA1'), {
     type: 'bar',
     data: { labels, datasets: [
-      { label: 'Answered', data: a.weekly.map(w => w.calls), backgroundColor: 'rgba(79,140,255,.75)', borderRadius: 3, stack: 's', order: 2 },
-      { label: 'Ignored', data: a.weekly.map(w => w.ignored), backgroundColor: 'rgba(244,63,94,.75)', borderRadius: 3, stack: 's', order: 2 },
-      { type: 'line', label: 'Team avg per agent', data: teamPerAgent, borderColor: 'rgba(232,236,244,.55)', borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0, order: 1, spanGaps: true }
+      { label: 'Answered', data: a.weekly.map(w => w.calls), backgroundColor: K().series, stack: 's', order: 2 },
+      { label: 'Ignored', data: a.weekly.map(w => w.ignored), backgroundColor: K().crit, stack: 's', order: 2 },
+      { type: 'line', label: 'Team avg per agent', data: teamPerAgent, borderColor: K().ref, borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0, order: 1, spanGaps: true }
     ] },
     options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { display: false }, tooltip: { ...TIP, callbacks: { title: titleCb } } },
-      scales: { x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, maxTicksLimit: 12 } }, y: { stacked: true, grid: { color: GRID }, beginAtZero: true } } }
+      plugins: { legend: { display: false }, tooltip: { ...TIPS(), callbacks: { title: titleCb } } },
+      scales: { x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, maxTicksLimit: 12 } }, y: { stacked: true, grid: { color: K().grid }, beginAtZero: true } } }
   }));
 
   CHARTS.agent.push(new Chart($('chA2'), {
     type: 'line',
     data: { labels, datasets: [
-      { label: a.name, data: a.weekly.map(w => w.avgTalk == null ? null : +w.avgTalk.toFixed(2)), borderColor: '#22d3a0', backgroundColor: 'rgba(34,211,160,.08)', fill: true, tension: .35, pointRadius: 2.5, spanGaps: true },
-      { label: 'Team', data: t.weekly.map(w => w.avgTalk == null ? null : +w.avgTalk.toFixed(2)), borderColor: 'rgba(232,236,244,.55)', borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0, spanGaps: true }
+      { label: a.name, data: a.weekly.map(w => w.avgTalk == null ? null : +w.avgTalk.toFixed(2)), borderColor: K().series, backgroundColor: SDTheme.alpha(K().series, .12), fill: true, tension: .35, pointRadius: 3, borderWidth: 2, spanGaps: true },
+      { label: 'Team', data: t.weekly.map(w => w.avgTalk == null ? null : +w.avgTalk.toFixed(2)), borderColor: K().ref, borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0, spanGaps: true }
     ] },
     options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { display: false }, tooltip: { ...TIP, callbacks: { title: titleCb, label: c => ` ${c.dataset.label}: ${fmtTalk(c.parsed.y)}` } } },
-      scales: { x: { grid: { display: false }, ticks: { maxRotation: 0, maxTicksLimit: 12 } }, y: { grid: { color: GRID }, beginAtZero: true, ticks: { callback: fmtTalk } } } }
+      plugins: { legend: { display: false }, tooltip: { ...TIPS(), callbacks: { title: titleCb, label: c => ` ${c.dataset.label}: ${fmtTalk(c.parsed.y)}` } } },
+      scales: { x: { grid: { display: false }, ticks: { maxRotation: 0, maxTicksLimit: 12 } }, y: { grid: { color: K().grid }, beginAtZero: true, ticks: { callback: fmtTalk } } } }
   }));
 
   CHARTS.agent.push(new Chart($('chA3'), {
     type: 'bar',
     data: { labels, datasets: [{ label: 'Ignore %', data: a.weekly.map(w => w.ignRate == null ? null : +w.ignRate.toFixed(1)),
-      backgroundColor: a.weekly.map(w => w.ignRate >= IGN_BAD ? 'rgba(244,63,94,.8)' : w.ignRate >= IGN_WARN ? 'rgba(245,158,11,.8)' : 'rgba(34,211,160,.7)'), borderRadius: 3 }] },
+      backgroundColor: a.weekly.map(w => w.ignRate >= IGN_BAD ? K().crit : w.ignRate >= IGN_WARN ? SDTheme.css('--warn') : K().series) }] },
     options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { ...TIP, callbacks: { title: titleCb, label: c => ` ${c.parsed.y}% (${a.weekly[c.dataIndex].ignored} of ${a.weekly[c.dataIndex].calls + a.weekly[c.dataIndex].ignored})` } } },
-      scales: { x: { grid: { display: false }, ticks: { maxRotation: 0, maxTicksLimit: 12 } }, y: { grid: { color: GRID }, beginAtZero: true, suggestedMax: 10, ticks: { callback: x => x + '%' } } } }
+      plugins: { legend: { display: false }, tooltip: { ...TIPS(), callbacks: { title: titleCb, label: c => ` ${c.parsed.y}% (${a.weekly[c.dataIndex].ignored} of ${a.weekly[c.dataIndex].calls + a.weekly[c.dataIndex].ignored})` } } },
+      scales: { x: { grid: { display: false }, ticks: { maxRotation: 0, maxTicksLimit: 12 } }, y: { grid: { color: K().grid }, beginAtZero: true, suggestedMax: 10, ticks: { callback: x => x + '%' } } } }
   }));
 
   renderHeat(a.name, v);
@@ -757,14 +580,14 @@ function renderHeat(name, v) {
     const r = byDate.get(d);
     const c = r ? r.calls : 0;
     let bg = 'var(--surface3)';
-    if (c > 0) bg = `rgba(79,140,255,${(0.18 + 0.82 * c / max).toFixed(2)})`;
-    if (r && r.ignored > 0 && r.ignored / (r.calls + r.ignored) * 100 >= IGN_BAD) bg = `rgba(244,63,94,${(0.35 + 0.65 * Math.min(1, r.ignored / 10)).toFixed(2)})`;
+    if (c > 0) bg = SDTheme.alpha(K().series, (0.2 + 0.8 * c / max).toFixed(2));
+    if (r && r.ignored > 0 && r.ignored / (r.calls + r.ignored) * 100 >= IGN_BAD) bg = SDTheme.alpha(K().crit, (0.45 + 0.55 * Math.min(1, r.ignored / 10)).toFixed(2));
     const tip = `${fmtDate(d, { weekday: 'short', day: 'numeric', month: 'short' })}: ${c} answered${r && r.ignored ? ', ' + r.ignored + ' ignored' : ''}`;
     cells += `<div style="background:${bg}" title="${tip}"></div>`;
   }
   $('heatRange').textContent = `${shortDate(start)} – ${shortDate(end)}`;
   $('heat').innerHTML = `<div class="heatwrap"><div class="heatdays"><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span><span>Sun</span></div><div class="heat">${cells}</div></div>
-    <div class="leg" style="margin-top:12px"><span><i style="background:var(--surface3)"></i>No calls</span><span><i style="background:rgba(79,140,255,.35)"></i>Fewer</span><span><i style="background:rgba(79,140,255,1)"></i>More calls</span><span><i style="background:var(--fail)"></i>Ignore ≥ ${IGN_BAD}%</span></div>`;
+    <div class="leg" style="margin-top:12px"><span><i style="background:var(--surface3)"></i>No calls</span><span><i style="background:${SDTheme.alpha(K().series, .35)}"></i>Fewer</span><span><i style="background:${K().series}"></i>More calls</span><span><i style="background:var(--series-crit)"></i>Ignore ${IGN_BAD}%+</span></div>`;
 }
 
 function renderCleanBanner() {
@@ -773,7 +596,7 @@ function renderCleanBanner() {
   const roster = rosterSet();
   const extra = [...new Set(ROWS.map(r => r.agent))].filter(n => !roster.has(key(n))).sort();
   if (!extra.length) { el.innerHTML = ''; return; }
-  el.innerHTML = `<div class="banner warn"><span>🧹</span><span class="grow">${extra.length} stored agent${extra.length > 1 ? 's are' : ' is'} not on the team roster: <b>${extra.map(esc).join(', ')}</b></span>
+  el.innerHTML = `<div class="banner warn">${SDTheme.icon('users', 18)}<span class="grow">${extra.length} stored agent${extra.length > 1 ? 's are' : ' is'} not on the team roster: <b>${extra.map(esc).join(', ')}</b></span>
     <button class="btn" id="keepExtraBtn">Add to roster</button><button class="btn danger" id="purgeBtn">Delete their data</button></div>`;
   $('purgeBtn').onclick = () => deleteAgents(extra);
   $('keepExtraBtn').onclick = () => { saveRoster([...getRoster(), ...extra]); render(); showToast('Roster updated', true); };
@@ -829,7 +652,7 @@ async function deleteAgents(names) {
 
 async function deleteAllData() {
   if (!isAdmin) return;
-  if (!confirm('⚠️ This deletes ALL call data for every agent. It cannot be undone.\n\nAre you sure?')) return;
+  if (!confirm('This deletes ALL call data for every agent. It cannot be undone.\n\nAre you sure?')) return;
   const { error } = await supabase.from(TABLE).delete().neq('id', 0);
   if (error) { showToast('Delete failed: ' + error.message, false); return; }
   showToast('All data deleted', true);
@@ -999,7 +822,7 @@ function renderPreview() {
   <div class="ov" id="ov"><div class="modal">
     <div class="mh"><div><div class="eyebrow">Import preview</div><div class="t">${esc(P.file.name)}</div>
       <div class="sub">Sheet “${esc(P.parsed.source)}” · ${fmtN(P.parsed.rows.length)} rows${P.parsed.hasDetail ? '' : ' · answered calls only (no ignored / talk time in this sheet)'}</div></div>
-      <button class="xbtn" id="pvClose" title="Cancel">✕</button></div>
+      <button class="xbtn" id="pvClose" title="Cancel">${SDTheme.icon('x', 16)}</button></div>
     <div class="mb2">
       <div class="facts">
         <div class="fact"><div class="l">Period</div><div class="v">${shortDate(st.from)} – ${fmtDate(st.to)}</div></div>
@@ -1019,7 +842,7 @@ function renderPreview() {
         const isNot = NOT_AGENT_RE.test(a.name);
         const tag = isNot ? '<span class="tag ext">shared ext</span>' : roster.has(key(a.name)) ? '<span class="tag team">roster</span>' : '<span class="tag no">not on roster</span>';
         return `<tr class="${a.sel ? '' : 'off'}"><td><input type="checkbox" data-a="${esc(a.name)}" ${a.sel ? 'checked' : ''}></td>
-          <td style="font-weight:700">${esc(a.name)}</td><td class="n cm">${esc([...a.exts].join(', '))}</td>
+          <td style="font-weight:500">${esc(a.name)}</td><td class="n cm">${esc([...a.exts].join(', '))}</td>
           <td class="n">${fmtN(s.calls)}</td><td class="n cm">${fmtN(s.ignored)}</td><td class="n cm">${s.last ? shortDate(s.last) : '—'}</td><td>${tag}</td></tr>`;
       }).join('')}
       </tbody></table></div>
@@ -1135,6 +958,7 @@ document.addEventListener('drop', e => {
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && PENDING) { PENDING = null; $('modalRoot').innerHTML = ''; } });
 // The Dashboard tab can ask this page to open an agent.
+window.addEventListener('sd-theme', () => { if (VIEW) render(); });
 window.addEventListener('message', e => {
   if (e.data?.type !== 'sd-agent' || !VIEW) return;
   const hit = VIEW.agents.find(a => key(a.name) === key(e.data.agent));
@@ -1144,7 +968,7 @@ window.addEventListener('message', e => {
 async function init() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    document.querySelector('.main').innerHTML = '<div class="loading"><h2 style="font-family:Syne;color:var(--text);margin-bottom:8px">Not signed in</h2>Please log in via the ScoreDesk portal.</div>';
+    document.querySelector('.main').innerHTML = '<div class="loading"><h2 style="font-weight:500;color:var(--text);margin-bottom:8px">Not signed in</h2>Please log in via the ScoreDesk portal.</div>';
     return;
   }
   const meta = user.user_metadata || {};
