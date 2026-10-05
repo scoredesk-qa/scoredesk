@@ -149,15 +149,16 @@ function render() {
 
 function renderChart(cards, from, to) {
   CH.forEach(c => c.destroy()); CH = [];
-  const weeks = SD.weekList(from, to);
+  // Only weeks that have scorecards, so short ranges don't show empty weeks.
+  const weeks = SD.buckets(from, to, cards.map(c => c.date), true).keys;
   const by = new Map(weeks.map(w => [w, []]));
   cards.forEach(c => by.get(SD.mondayOf(c.date))?.push(c));
   const ws = weeks.map(w => stats(by.get(w)));
   CH.push(new Chart($('chWeek'), {
     type: 'bar',
     data: { labels: weeks.map(SD.shortDate), datasets: [
-      { label: 'Passed', data: ws.map(w => w.passed), backgroundColor: K().series, stack: 's', maxBarThickness: 26 },
-      { label: 'Failed', data: ws.map(w => w.failed), backgroundColor: K().crit, stack: 's', maxBarThickness: 26 }
+      { label: 'Passed', data: ws.map(w => w.passed), backgroundColor: K().series, stack: 's', maxBarThickness: 34 },
+      { label: 'Failed', data: ws.map(w => w.failed), backgroundColor: K().crit, stack: 's', maxBarThickness: 34 }
     ] },
     options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       plugins: { legend: { display: false }, tooltip: { ...TIPS(), callbacks: { title: i => 'Week of ' + SD.fmtDate(weeks[i[0].dataIndex]), label: c => ` ${c.dataset.label}: ${c.parsed.y}`,

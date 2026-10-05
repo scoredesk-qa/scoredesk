@@ -34,18 +34,18 @@
     <div class="kpis" id="kpis"></div>
 
     <div class="grid3">
-      <div class="card">
-        <div class="cl"><span>Calls answered per week</span></div>
-        <div class="chart" style="height:300px"><canvas id="chWeek"></canvas></div>
+      <div class="card fill">
+        <div class="cl"><span id="volTitle">Calls answered</span><span class="cm" id="volSub"></span></div>
+        <div class="chart"><canvas id="chWeek"></canvas></div>
       </div>
-      <div class="card">
-        <div class="cl"><span>Quality per week</span></div>
+      <div class="card fill">
+        <div class="cl"><span>Quality per week</span><span class="cm" id="qaSub"></span></div>
         <div class="leg"><span><i style="background:var(--series-1)"></i>QA pass rate</span><span><i class="dash"></i>Avg QA score</span></div>
-        <div class="chart" style="height:270px"><canvas id="chQa"></canvas></div>
+        <div class="chart"><canvas id="chQa"></canvas></div>
       </div>
-      <div class="card">
+      <div class="card fill">
         <div class="cl"><span>Needs attention</span><span class="cm" id="attnCnt"></span></div>
-        <div class="attn" id="attn"></div>
+        <div class="attn scroll" id="attn"></div>
       </div>
     </div>
 
@@ -124,26 +124,34 @@ function render() {
 
 function renderChart(S, C, from, to) {
   CH.forEach(c => c.destroy()); CH = [];
-  const weeks = SD.weekList(from, to);
-  const vw = weeks.map(w => volume(S.filter(r => SD.mondayOf(r.date) === w)));
-  const qw = weeks.map(w => quality(C.filter(c => SD.mondayOf(c.date) === w)));
-  const title = i => 'Week of ' + SD.fmtDate(weeks[i[0].dataIndex]);
-  const x = { grid: { display: false }, ticks: { maxRotation: 0, maxTicksLimit: 8 } };
+  const x = { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } };
+
+  // Volume: per working day for ranges up to a month, per week beyond that.
+  const vb = SD.buckets(from, to, S.filter(r => r.calls > 0).map(r => r.date));
+  const vol = vb.keys.map(k => volume(S.filter(r => vb.keyOf(r.date) === k)));
+  $('volTitle').textContent = vb.daily ? 'Calls answered per day' : 'Calls answered per week';
+  $('volSub').textContent = vb.daily ? 'working days' : '';
   CH.push(new Chart($('chWeek'), {
     type: 'bar',
-    data: { labels: weeks.map(SD.shortDate), datasets: [{ label: 'Calls answered', data: vw.map(v => v.calls), backgroundColor: K().series, maxBarThickness: 28 }] },
+    data: { labels: vb.keys.map(vb.label), datasets: [{ label: 'Calls answered', data: vol.map(v => v.calls), backgroundColor: K().series, maxBarThickness: 34, categoryPercentage: .7 }] },
     options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { ...TIPS(), callbacks: { title, label: c => ` ${fmtN(c.parsed.y)} calls answered`, afterLabel: c => `${fmtN(vw[c.dataIndex].ignored)} ignored` } } },
-      scales: { x, y: { beginAtZero: true, grid: { color: K().grid }, border: { display: false } } } }
+      plugins: { legend: { display: false }, tooltip: { ...TIPS(), callbacks: { title: i => vb.title(vb.keys[i[0].dataIndex]), label: c => ` ${fmtN(c.parsed.y)} calls answered`, afterLabel: c => `${fmtN(vol[c.dataIndex].ignored)} ignored` } } },
+      scales: { x, y: { beginAtZero: true, grid: { color: K().grid }, border: { display: false }, ticks: { precision: 0 } } } }
   }));
+
+  // Quality: per week, only weeks that have scorecards. Pass rate as bars (reads
+  // well even with a few weeks), average score as a dashed reference line.
+  const qb = SD.buckets(from, to, C.map(c => c.date), true);
+  const qw = qb.keys.map(k => quality(C.filter(c => qb.keyOf(c.date) === k)));
+  $('qaSub').textContent = qb.keys.length ? `${qw.reduce((a, q) => a + q.n, 0)} calls scored` : '';
   CH.push(new Chart($('chQa'), {
-    type: 'line',
-    data: { labels: weeks.map(SD.shortDate), datasets: [
-      { label: 'QA pass rate', data: qw.map(q => q.passRate == null ? null : +q.passRate.toFixed(1)), borderColor: K().series, backgroundColor: K().series, borderWidth: 2, pointRadius: 3.5, pointBorderColor: K().surface, pointBorderWidth: 2, tension: .3, spanGaps: true },
-      { label: 'Avg QA score', data: qw.map(q => q.avgScore == null ? null : +q.avgScore.toFixed(1)), borderColor: K().ref, backgroundColor: K().ref, borderDash: [5, 4], borderWidth: 2, pointRadius: 0, tension: .3, spanGaps: true }
+    type: 'bar',
+    data: { labels: qb.keys.map(qb.label), datasets: [
+      { label: 'QA pass rate', data: qw.map(q => q.passRate == null ? null : +q.passRate.toFixed(1)), backgroundColor: K().series, maxBarThickness: 34, categoryPercentage: .7, order: 2 },
+      { type: 'line', label: 'Avg QA score', data: qw.map(q => q.avgScore == null ? null : +q.avgScore.toFixed(1)), borderColor: K().ref, backgroundColor: K().ref, borderDash: [5, 4], borderWidth: 2, pointRadius: qb.keys.length > 12 ? 0 : 3, pointBackgroundColor: K().surface, pointBorderWidth: 2, tension: .3, spanGaps: true, order: 1 }
     ] },
     options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { display: false }, tooltip: { ...TIPS(), callbacks: { title, label: c => ` ${c.dataset.label}: ${c.parsed.y}%`, afterBody: i => `${qw[i[0].dataIndex].n} calls scored` } } },
+      plugins: { legend: { display: false }, tooltip: { ...TIPS(), callbacks: { title: i => qb.title(qb.keys[i[0].dataIndex]), label: c => ` ${c.dataset.label}: ${c.parsed.y}%`, afterBody: i => `${qw[i[0].dataIndex].n} calls scored` } } },
       scales: { x, y: { min: 0, max: 100, grid: { color: K().grid }, border: { display: false }, ticks: { callback: v => v + '%', stepSize: 25 } } } }
   }));
 }
