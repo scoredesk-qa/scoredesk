@@ -111,7 +111,7 @@ const SD = (() => {
   }
 
   function notSignedIn() {
-    document.querySelector('.main').innerHTML = '<div class="loading"><h2 style="font-family:Syne;color:var(--text);margin-bottom:8px">Not signed in</h2>Please log in via the ScoreDesk portal.</div>';
+    document.querySelector('.main').innerHTML = '<div class="loading"><h2 style="font-weight:500;color:var(--text);margin-bottom:8px">Not signed in</h2>Please log in via the ScoreDesk portal.</div>';
   }
 
   // Pages through a table (PostgREST returns at most 1000 rows per request).
@@ -334,11 +334,6 @@ const SD = (() => {
   };
 })();
 
-// Chart.js defaults shared by every page
-if (window.Chart) {
-  Chart.defaults.color = '#6b7694';
-  Chart.defaults.font.family = 'DM Mono, monospace';
-  Chart.defaults.font.size = 10;
-}
-const GRID = 'rgba(255,255,255,0.05)';
-const TIP = { backgroundColor: '#191d28', borderColor: '#2e3448', borderWidth: 1, titleColor: '#e8ecf4', bodyColor: '#a8b1cc', padding: 10 };
+// Chart colours come from the active theme (theme.js); read them at render time.
+const K = () => SDTheme.c();
+const TIPS = () => SDTheme.tip();
