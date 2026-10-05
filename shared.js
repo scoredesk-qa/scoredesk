@@ -325,8 +325,22 @@ const SD = (() => {
     return episodes;
   }
 
+  // Time buckets for a chart: single days for ranges up to ~a month (so a
+  // 30-day view isn't 5 half-empty weeks), weeks beyond that. Only buckets that
+  // actually have data are kept, so weekends / empty weeks don't leave gaps.
+  function buckets(from, to, dates, forceWeek) {
+    const daily = !forceWeek && daysBetween(from, to) <= 31;
+    const keyOf = d => daily ? d : mondayOf(d);
+    const keys = [...new Set(dates.filter(d => d >= from && d <= to).map(keyOf))].sort();
+    return {
+      daily, keys, keyOf,
+      label: k => daily ? fmtDate(k, { day: 'numeric', month: 'short' }) : shortDate(k),
+      title: k => daily ? fmtDate(k, { weekday: 'short', day: 'numeric', month: 'short' }) : 'Week of ' + fmtDate(k)
+    };
+  }
+
   return {
-    sb, $, esc, norm, pad, fmtN, pct, toast,
+    buckets, sb, $, esc, norm, pad, fmtN, pct, toast,
     dUTC, sUTC, addDays, mondayOf, fmtDate, shortDate, monthLbl, today, daysBetween, weekList, rangeBounds,
     parseCallDate, dateFromName, session, notSignedIn, fetchAll, teamNames,
     nameKey, nameResolver, canonicalAF, critKey,

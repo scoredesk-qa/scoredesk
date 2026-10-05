@@ -60,7 +60,7 @@
 
     <div class="grid2">
       <div class="card">
-        <div class="cl"><span>Team volume per week</span></div>
+        <div class="cl"><span id="teamTitle">Team volume per week</span></div>
         <div class="leg"><span><i style="background:var(--series-1)"></i>Answered</span><span><i style="background:var(--series-crit)"></i>Ignored</span></div>
         <div class="chart"><canvas id="chTeam"></canvas></div>
       </div>
@@ -325,23 +325,30 @@ function renderTeamKpis(v) {
 
 function renderTeamCharts(v) {
   killCharts('team');
-  const labels = v.weeks.map(shortDate);
+  // Per working day for ranges up to a month, per week beyond that; only
+  // days/weeks with calls, so short ranges don't show half-empty weeks.
+  const daily = Math.round((dUTC(v.to) - dUTC(v.from)) / 864e5) < 31;
+  const keyOf = d => daily ? d : mondayOf(d);
+  const keys = [...new Set(v.inRange.filter(r => r.calls > 0).map(r => keyOf(r.date)))].sort();
+  const byKey = groupBy(v.inRange, r => keyOf(r.date));
+  const tv = keys.map(k => sumRows(byKey.get(k) || []));
+  $('teamTitle').textContent = daily ? 'Team volume per day' : 'Team volume per week';
   CHARTS.team.push(new Chart($('chTeam'), {
     type: 'bar',
     data: {
-      labels,
+      labels: keys.map(shortDate),
       datasets: [
-        { label: 'Answered', data: v.team.weekly.map(w => w.calls), backgroundColor: K().series, stack: 's' },
-        { label: 'Ignored', data: v.team.weekly.map(w => w.ignored), backgroundColor: K().crit, stack: 's' }
+        { label: 'Answered', data: tv.map(w => w.calls), backgroundColor: K().series, stack: 's', maxBarThickness: 34 },
+        { label: 'Ignored', data: tv.map(w => w.ignored), backgroundColor: K().crit, stack: 's', maxBarThickness: 34 }
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { display: false }, tooltip: { ...TIPS(), callbacks: { title: i => 'Week of ' + fmtDate(v.weeks[i[0].dataIndex]), label: c => ` ${c.dataset.label}: ${fmtN(c.parsed.y)}`, afterBody: i => { const w = v.team.weekly[i[0].dataIndex]; return w.handled == null ? '' : `Handled ${w.handled.toFixed(1)}%`; } } } },
+      plugins: { legend: { display: false }, tooltip: { ...TIPS(), callbacks: { title: i => (daily ? '' : 'Week of ') + fmtDate(keys[i[0].dataIndex]), label: c => ` ${c.dataset.label}: ${fmtN(c.parsed.y)}`, afterBody: i => { const w = tv[i[0].dataIndex]; return w.handled == null ? '' : `Handled ${w.handled.toFixed(1)}%`; } } } },
       scales: {
         x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
-        y: { stacked: true, grid: { color: K().grid }, beginAtZero: true }
-            }
+        y: { stacked: true, grid: { color: K().grid }, beginAtZero: true, border: { display: false }, ticks: { precision: 0 } }
+      }
     }
   }));
 

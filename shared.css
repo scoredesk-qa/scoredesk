@@ -46,7 +46,7 @@ html{background:var(--bg);}
 body{font-family:var(--font);font-feature-settings:'tnum' 1,'cv11' 1;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased;}
 button,input,select,textarea{font-family:inherit;}
 svg.ic{display:inline-block;vertical-align:middle;flex-shrink:0;}
-.main{max-width:1320px;margin:0 auto;padding:32px 32px 48px;}
+.main{max-width:1880px;margin:0 auto;padding:28px 40px 48px;}
 .mono{font-variant-numeric:tabular-nums;}
 .hidden{display:none!important;}
 .cb{color:var(--text);}.cr{color:var(--fail);}.cg{color:var(--pass);}.cw{color:var(--warn);}.cm{color:var(--muted2);}
@@ -111,7 +111,11 @@ svg.ic{display:inline-block;vertical-align:middle;flex-shrink:0;}
 .sec .t{font-size:20px;font-weight:500;letter-spacing:-.4px;}
 .pill{font-size:12px;background:var(--surface);border:1px solid var(--border);color:var(--muted2);padding:5px 12px;border-radius:999px;white-space:nowrap;}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
-.grid3{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:12px;margin-bottom:12px;}
+.grid3{display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:12px;margin-bottom:12px;}
+/* cards of equal fixed height: charts fill them, long lists scroll inside */
+.card.fill{display:flex;flex-direction:column;height:400px;}
+.card.fill .chart{flex:1;min-height:0;height:auto;}
+.attn.scroll{flex:1;min-height:0;overflow-y:auto;margin-right:-10px;padding-right:10px;}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;min-width:0;box-shadow:var(--shadow);}
 .card.flush{padding:0;overflow:hidden;}
 .card .cl{font-size:15px;font-weight:500;letter-spacing:-.2px;color:var(--text);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;}
@@ -280,6 +284,7 @@ textarea.notes{width:100%;min-height:90px;background:var(--surface2);border:1px 
 
 @media (max-width:1180px){.kpis{grid-template-columns:repeat(3,1fr);}.kpis.a{grid-template-columns:repeat(3,1fr);}.grid3{grid-template-columns:1fr 1fr;}}
 @media (max-width:760px){
+  .card.fill{height:340px;}
   .main{padding:20px 16px 40px;}
   .title{font-size:28px;}
   .grid2,.grid3{grid-template-columns:1fr;}
