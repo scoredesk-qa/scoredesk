@@ -25,14 +25,14 @@ const CSExport = (() => {
       const count = a => inRange.filter(r => r.agent === a && r.calls > 0).length;
       const n = st.agents.size;
       root.innerHTML = `<div class="ov" id="exOv"><div class="modal">
-        <div class="mh"><div><div class="eyebrow">Download</div><div class="t">Call stats report</div>
-          <div class="sub">An Excel file with a summary plus daily, weekly and monthly figures.</div></div>
+        <div class="mh"><div><div class="eyebrow">Report</div><div class="t">Agent call report</div>
+          <div class="sub">Print a one-page A4 report per agent with charts compared with the team, or download the figures as Excel.</div></div>
           <button class="xbtn" data-x>${ic('x')}</button></div>
         <div class="mb2">
           <div class="facts" style="grid-template-columns:1fr 1fr 2fr">
             <div class="field" style="margin:0"><label>From</label><input class="inp" type="date" id="exFrom" min="${dates[0]}" max="${dates[dates.length - 1]}" value="${st.from}"></div>
             <div class="field" style="margin:0"><label>To</label><input class="inp" type="date" id="exTo" min="${dates[0]}" max="${dates[dates.length - 1]}" value="${st.to}"></div>
-            <div class="field" style="margin:0"><label>Include</label><div class="qchips" style="margin:0">
+            <div class="field" style="margin:0"><label>Excel download includes</label><div class="qchips" style="margin:0">
               ${[['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly']].map(([k, l]) =>
                 `<label class="qchip ${st.sheets.has(k) ? 'on' : ''}"><input type="checkbox" data-sheet="${k}" ${st.sheets.has(k) ? 'checked' : ''}>${l}</label>`).join('')}
             </div></div>
@@ -46,7 +46,8 @@ const CSExport = (() => {
         </div>
         <div class="mf"><span class="grow">${fmtDate(st.from)} – ${fmtDate(st.to)} · ${n} agent${n === 1 ? '' : 's'}</span>
           <button class="btn" data-x>Cancel</button>
-          <button class="btn primary" id="exGo" ${n && st.from <= st.to ? '' : 'disabled'}>${ic('download', 15)}Download Excel</button></div>
+          <button class="btn" id="exGo" ${n && st.from <= st.to ? '' : 'disabled'}>${ic('download', 15)}Download Excel</button>
+          <button class="btn primary" id="exPrint" ${n && st.from <= st.to ? '' : 'disabled'}>${ic('print', 15)}Print ${n === 1 ? 'report' : n + ' reports'}</button></div>
       </div></div>`;
       root.querySelectorAll('[data-x]').forEach(b => b.onclick = close);
       el('exOv').onclick = e => { if (e.target.id === 'exOv') close(); };
@@ -56,6 +57,7 @@ const CSExport = (() => {
       root.querySelector('[data-all]').onclick = () => { all.forEach(a => st.agents.add(a)); draw(); };
       root.querySelector('[data-none]').onclick = () => { st.agents.clear(); draw(); };
       root.querySelectorAll('[data-a]').forEach(cb => cb.onchange = () => { cb.checked ? st.agents.add(cb.dataset.a) : st.agents.delete(cb.dataset.a); draw(); });
+      el('exPrint').onclick = () => { const list = [...st.agents]; close(); CSReport.print(list, st.from, st.to); };
       el('exGo').onclick = () => {
         try { const name = build(st); close(); showToast('Downloaded ' + name, true); }
         catch (e) { console.error(e); showToast('Could not build the file: ' + e.message, false); }
