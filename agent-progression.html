@@ -7,6 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
+<script src="callstats-export.js"></script>
 <script src="theme.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -22,6 +23,7 @@
     </div>
     <div class="actions" id="actions">
       <button class="btn" id="refreshBtn"><i data-ic="refresh"></i>Refresh</button>
+      <button class="btn" id="downloadBtn"><i data-ic="download"></i>Download</button>
       <button class="btn danger adm" id="deleteAllBtn"><i data-ic="trash"></i>Delete all</button>
       <button class="btn primary adm" id="uploadBtn"><i data-ic="upload"></i>Upload 3CX file</button>
     </div>
@@ -499,7 +501,8 @@ function renderAgent(v) {
     <div class="ahead">
       <div><div class="aname">${esc(a.name)}</div>
       <div class="ameta">${fmtDate(first || v.from)} – ${fmtDate(a.lastActive || v.to)} · ${a.days} days worked · rank #${[...v.agents].sort((x, y) => y.calls - x.calls).findIndex(x => x.name === a.name) + 1} of ${v.agents.length} by volume</div></div>
-      <div>${deltaHtml(a.trend)} <span class="ameta">calls/day, last 28 days vs previous 28</span></div>
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap"><span>${deltaHtml(a.trend)} <span class="ameta">calls/day, last 28 days vs previous 28</span></span>
+        <button class="btn" id="dlAgent">${SDTheme.icon('download', 15)}Download ${esc(a.name.split(' ')[0])}'s stats</button></div>
     </div>
     ${banner}
     <div class="kpis a">
@@ -537,6 +540,7 @@ function renderAgent(v) {
       <tbody>${monthRows.map(m => `<tr><td class="n">${monthLbl(m.ym)}</td><td class="n">${fmtN(m.s.calls)}</td><td class="n cm">${fmtN(m.s.ignored)}</td><td>${ignBadge(m.s.ignRate)}</td><td class="n">${fmtTalk(m.s.avgTalk)}</td><td class="n cm">${m.s.days}</td><td class="n">${m.s.perDay.toFixed(1)}</td><td>${deltaHtml(m.d)}</td></tr>`).join('')}</tbody></table></div>
     </div>`;
 
+  $('dlAgent').onclick = () => CSExport.open({ agents: [a.name] });
   const labels = v.weeks.map(shortDate);
   const teamPerAgent = t.weekly.map(w => w.activeAgents ? +(w.calls / w.activeAgents).toFixed(1) : null);
   const titleCb = i => 'Week of ' + fmtDate(v.weeks[i[0].dataIndex]);
@@ -948,6 +952,7 @@ $('picker').addEventListener('click', e => { const a = e.target.closest('[data-a
 
 const pick = () => $('fileInput').click();
 $('uploadBtn').onclick = pick;
+$('downloadBtn').onclick = () => CSExport.open();
 $('emptyUploadBtn').onclick = e => { e.stopPropagation(); pick(); };
 $('dropZone').onclick = () => { if (isAdmin) pick(); };
 $('fileInput').onchange = e => { handleFile(e.target.files[0]); e.target.value = ''; };
